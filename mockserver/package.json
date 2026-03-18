@@ -1,0 +1,13 @@
+{
+  "name": "pets-mockserver",
+  "version": "1.0.0",
+  "description": "Mocked Pets REST API with OpenAPI spec",
+  "main": "api/index.js",
+  "scripts": {
+    "dev": "node api/index.js",
+    "deploy": "bash deploy.sh"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
