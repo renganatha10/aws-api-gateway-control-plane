@@ -1,6 +1,7 @@
 import { Globe, Package, Zap } from "lucide-react"
 import { Link, useLocation } from "react-router"
 
+import type { UserProfile } from "~/lib/keycloak.server"
 import { Avatar, AvatarFallback } from "~/components/ui/avatar"
 import {
   Sidebar,
@@ -21,7 +22,11 @@ const navItems = [
   { title: "Environments", url: "/environments",  icon: Globe   },
 ]
 
-export function AppSidebar() {
+function getInitials(given: string, family: string): string {
+  return [given[0], family[0]].filter(Boolean).join("").toUpperCase() || "?"
+}
+
+export function AppSidebar({ user }: { user: UserProfile }) {
   const location = useLocation()
 
   return (
@@ -70,11 +75,17 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg">
               <Avatar className="size-8 rounded-lg">
-                <AvatarFallback className="rounded-lg">JD</AvatarFallback>
+                <AvatarFallback className="rounded-lg">
+                  {getInitials(user.given_name, user.family_name)}
+                </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">John Doe</span>
-                <span className="truncate text-xs text-muted-foreground">john@company.com</span>
+                <span className="truncate font-medium">
+                  {user.given_name || user.family_name
+                    ? `${user.given_name} ${user.family_name}`.trim()
+                    : user.email}
+                </span>
+                <span className="truncate text-xs text-muted-foreground">{user.email}</span>
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
