@@ -6,9 +6,10 @@ export default [
   route("forgot-password", "routes/forgot-password.tsx"),
   layout("routes/layout.tsx", [
     index("routes/home.tsx"),
+    route("api", "routes/api.tsx"),
     route("onboard", "routes/onboard.tsx"),
     route("apis", "routes/apis.tsx"),
-    route("apis/:id", "routes/apis.$id.tsx"),
+    route("apis/*", "routes/apis._catch.tsx"),
     route("products", "routes/products.tsx"),
     route("products/:id", "routes/products.$id.tsx"),
     route("environments", "routes/environments.tsx"),

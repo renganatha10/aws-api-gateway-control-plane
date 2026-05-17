@@ -67,7 +67,7 @@ export function ApiSwitcher({ apis, activeApiId, onSelect }: ApiSwitcherProps) {
 
             <DropdownMenuItem
               className="gap-2 text-primary font-medium"
-              onSelect={() => navigate("/onboard")}
+              onSelect={() => navigate("/api")}
             >
               <Plus className="size-4 shrink-0" />
               Create API
