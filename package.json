@@ -6,7 +6,10 @@
     "build": "react-router build",
     "dev": "react-router dev",
     "start": "react-router-serve ./build/server/index.js",
-    "typecheck": "react-router typegen && tsc"
+    "typecheck": "react-router typegen && tsc",
+    "db:migrate": "node-pg-migrate up -m db/migrations",
+    "db:migrate:down": "node-pg-migrate down -m db/migrations",
+    "db:migrate:create": "node-pg-migrate create -m db/migrations"
   },
   "dependencies": {
     "@react-router/node": "7.12.0",
@@ -15,6 +18,8 @@
     "clsx": "^2.1.1",
     "isbot": "^5.1.31",
     "lucide-react": "^0.576.0",
+    "node-pg-migrate": "^8.0.4",
+    "pg": "^8.20.0",
     "radix-ui": "^1.4.3",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
@@ -25,6 +30,7 @@
     "@react-router/dev": "7.12.0",
     "@tailwindcss/vite": "^4.1.13",
     "@types/node": "^22",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "shadcn": "^3.8.5",
