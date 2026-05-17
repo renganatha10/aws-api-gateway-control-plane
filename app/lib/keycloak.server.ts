@@ -37,6 +37,12 @@ export async function loginWithCredentials(
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({})) as Record<string, string>
+    console.error("[keycloak] login failed", {
+      username,
+      status: res.status,
+      error: err.error,
+      description: err.error_description,
+    })
     throw new Error(err.error_description ?? "Invalid username or password")
   }
 
@@ -71,9 +77,17 @@ export async function registerUser(params: {
     }),
   })
 
-  if (res.status === 409) throw new Error("An account with this email already exists")
+  if (res.status === 409) {
+    console.warn("[keycloak] register conflict: email already exists", { email: params.email })
+    throw new Error("An account with this email already exists")
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({})) as Record<string, string>
+    console.error("[keycloak] register failed", {
+      email: params.email,
+      status: res.status,
+      errorMessage: err.errorMessage,
+    })
     throw new Error(err.errorMessage ?? "Failed to create account")
   }
 }
@@ -128,10 +142,16 @@ export async function sendPasswordResetEmail(email: string): Promise<void> {
       `${KEYCLOAK_URL}/admin/realms/${REALM}/users?email=${encodeURIComponent(email)}&exact=true`,
       { headers: { Authorization: `Bearer ${adminToken}` } },
     )
-    if (!usersRes.ok) return
+    if (!usersRes.ok) {
+      console.error("[keycloak] password reset: user lookup failed", { email, status: usersRes.status })
+      return
+    }
 
     const users = await usersRes.json() as Array<{ id: string }>
-    if (!users.length) return
+    if (!users.length) {
+      console.warn("[keycloak] password reset: no user found for email", { email })
+      return
+    }
 
     // 2. Send UPDATE_PASSWORD action email
     await fetch(
@@ -145,7 +165,8 @@ export async function sendPasswordResetEmail(email: string): Promise<void> {
         body: JSON.stringify(["UPDATE_PASSWORD"]),
       },
     )
-  } catch {
+  } catch (err) {
+    console.error("[keycloak] password reset: unexpected error", { email, error: String(err) })
     // swallow — never leak account existence
   }
 }
@@ -166,7 +187,15 @@ async function getAdminToken(): Promise<string> {
     },
   )
 
-  if (!res.ok) throw new Error("Could not obtain admin token")
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as Record<string, string>
+    console.error("[keycloak] admin token failed", {
+      status: res.status,
+      error: err.error,
+      description: err.error_description,
+    })
+    throw new Error("Could not obtain admin token")
+  }
   const data = await res.json() as { access_token: string }
   return data.access_token
 }

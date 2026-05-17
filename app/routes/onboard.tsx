@@ -3,6 +3,8 @@ import { Plus, Trash2 } from "lucide-react"
 import { Form, redirect } from "react-router"
 
 import { requireAuth } from "~/lib/session.server"
+import { getUserProfile } from "~/lib/keycloak.server"
+import { createGatewayWithEnvironments } from "~/repositories/gateway.repository.server"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import { Label } from "~/components/ui/label"
@@ -21,21 +23,26 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export async function action({ request }: Route.ActionArgs) {
-  await requireAuth(request)
+  const { accessToken } = await requireAuth(request)
+  const createdBy = getUserProfile(accessToken).email
+
   const formData = await request.formData()
-  const apiName = (formData.get("apiName") as string)?.trim()
+  const gatewayName = (formData.get("apiName") as string)?.trim()
   const environments = formData.getAll("environment").map((e) => (e as string).trim()).filter(Boolean)
 
-  if (!apiName) {
-    return { error: "API name is required" }
-  }
-  if (environments.length === 0) {
-    return { error: "Add at least one environment" }
+  if (!gatewayName) return { error: "Gateway name is required" }
+  if (environments.length === 0) return { error: "Add at least one environment" }
+
+  try {
+    await createGatewayWithEnvironments({ name: gatewayName, createdBy }, environments)
+    console.log("[onboard] gateway created", { gatewayName, environments, createdBy })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error"
+    console.error("[onboard] failed to create gateway", { gatewayName, error: msg })
+    return { error: `Failed to create gateway: ${msg}` }
   }
 
-  // TODO: persist to backend
-  console.log("Create API", { apiName, environments })
-  throw redirect("/apis")
+  throw redirect("/")
 }
 
 export default function Onboard({ actionData }: Route.ComponentProps) {

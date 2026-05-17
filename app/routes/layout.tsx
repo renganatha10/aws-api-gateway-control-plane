@@ -1,7 +1,8 @@
-import { Form, Outlet, useLoaderData } from "react-router"
+import { Form, Outlet, redirect, useLoaderData } from "react-router"
 
 import { getUserProfile } from "~/lib/keycloak.server"
 import { requireAuth } from "~/lib/session.server"
+import { countGateways } from "~/repositories/gateway.repository.server"
 import { AppSidebar } from "~/components/app-sidebar"
 import { Separator } from "~/components/ui/separator"
 import {
@@ -13,6 +14,12 @@ import type { Route } from "./+types/layout"
 
 export async function loader({ request }: Route.LoaderArgs) {
   const { accessToken } = await requireAuth(request)
+
+  const url = new URL(request.url)
+  if (url.pathname !== "/gateway") {
+    if ((await countGateways()) === 0) throw redirect("/gateway")
+  }
+
   return { user: getUserProfile(accessToken) }
 }
 

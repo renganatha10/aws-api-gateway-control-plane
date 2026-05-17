@@ -1,4 +1,7 @@
 import pg from "pg"
+import { drizzle } from "drizzle-orm/node-postgres"
+
+import * as schema from "./schema"
 
 declare global {
   // Persist pool across HMR reloads in development
@@ -12,7 +15,9 @@ function createPool() {
   return new pg.Pool({ connectionString: process.env.DATABASE_URL })
 }
 
-export const db: pg.Pool =
+const pool: pg.Pool =
   process.env.NODE_ENV === "production"
     ? createPool()
     : (global.__db_pool__ ??= createPool())
+
+export const db = drizzle(pool, { schema })
