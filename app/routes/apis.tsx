@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Link, useLocation } from "react-router"
+import { Link, useLocation, useNavigate } from "react-router"
 
 import { Button } from "~/components/ui/button"
 import {
@@ -51,6 +51,7 @@ const DEV_TABS = [
 
 export default function ApisPage() {
   const location = useLocation()
+  const navigate = useNavigate()
   const [search, setSearch] = useState("")
 
   const filtered = apis.filter(
@@ -64,7 +65,7 @@ export default function ApisPage() {
       {/* Page header */}
       <div className="flex items-center justify-between px-6 pt-6 pb-4">
         <h1 className="text-3xl font-normal text-gray-900">Develop</h1>
-        <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-sm px-6">
+        <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-sm px-6" onClick={() => navigate("/apis/new")}>
           Add
         </Button>
       </div>

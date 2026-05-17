@@ -9,6 +9,7 @@ export default [
     route("gateway", "routes/gateway.tsx"),
     route("onboard", "routes/onboard.tsx"),
     route("apis", "routes/apis.tsx"),
+    route("apis/new", "routes/api-create.tsx"),
     route("apis/*", "routes/apis._catch.tsx"),
     route("products", "routes/products.tsx"),
     route("products/:id", "routes/products.$id.tsx"),
