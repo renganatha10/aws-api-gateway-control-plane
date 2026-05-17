@@ -2,7 +2,7 @@ import { Form, Outlet, redirect, useLoaderData } from "react-router"
 
 import { getUserProfile } from "~/lib/keycloak.server"
 import { requireAuth } from "~/lib/session.server"
-import { countGateways } from "~/repositories/gateway.repository.server"
+import { countGateways, listGateways } from "~/repositories/gateway.repository.server"
 import { AppSidebar } from "~/components/app-sidebar"
 import { Separator } from "~/components/ui/separator"
 import {
@@ -14,21 +14,23 @@ import type { Route } from "./+types/layout"
 
 export async function loader({ request }: Route.LoaderArgs) {
   const { accessToken } = await requireAuth(request)
+  const user = getUserProfile(accessToken)
 
   const url = new URL(request.url)
   if (url.pathname !== "/gateway") {
-    if ((await countGateways()) === 0) throw redirect("/gateway")
+    if ((await countGateways(user.email)) === 0) throw redirect("/gateway")
   }
 
-  return { user: getUserProfile(accessToken) }
+  const gateways = await listGateways(user.email)
+  return { user, gateways }
 }
 
 export default function Layout() {
-  const { user } = useLoaderData<typeof loader>()
+  const { user, gateways } = useLoaderData<typeof loader>()
 
   return (
     <SidebarProvider>
-      <AppSidebar user={user} />
+      <AppSidebar user={user} gateways={gateways} />
       <main className="flex-1 flex flex-col min-h-svh">
         <header className="flex h-14 items-center gap-2 border-b px-4 bg-background sticky top-0 z-10">
           <SidebarTrigger className="-ml-1" />

@@ -2,6 +2,7 @@ import * as React from "react"
 import { Check, ChevronsUpDown, Plus } from "lucide-react"
 import { useNavigate } from "react-router"
 
+import type { Gateway } from "~/lib/schema"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,21 +17,16 @@ import {
   useSidebar,
 } from "~/components/ui/sidebar"
 
-export interface ApiEntry {
-  id: string
-  name: string
-}
-
 interface ApiSwitcherProps {
-  apis: ApiEntry[]
-  activeApiId: string
-  onSelect?: (api: ApiEntry) => void
+  gateways: Gateway[]
+  activeId: number | undefined
+  onSelect?: (gateway: Gateway) => void
 }
 
-export function ApiSwitcher({ apis, activeApiId, onSelect }: ApiSwitcherProps) {
+export function ApiSwitcher({ gateways, activeId, onSelect }: ApiSwitcherProps) {
   const { isMobile } = useSidebar()
   const navigate = useNavigate()
-  const active = apis.find((a) => a.id === activeApiId) ?? apis[0]
+  const active = gateways.find((g) => g.id === activeId) ?? gateways[0]
 
   return (
     <SidebarMenu>
@@ -41,7 +37,7 @@ export function ApiSwitcher({ apis, activeApiId, onSelect }: ApiSwitcherProps) {
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <span className="truncate font-medium">{active?.name ?? "Select API"}</span>
+              <span className="truncate font-medium">{active?.name ?? "Select Gateway"}</span>
               <ChevronsUpDown className="ml-auto size-4 shrink-0 opacity-50" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
@@ -52,14 +48,14 @@ export function ApiSwitcher({ apis, activeApiId, onSelect }: ApiSwitcherProps) {
             side={isMobile ? "bottom" : "right"}
             sideOffset={4}
           >
-            {apis.map((api) => (
+            {gateways.map((gw) => (
               <DropdownMenuItem
-                key={api.id}
-                onSelect={() => onSelect?.(api)}
+                key={gw.id}
+                onSelect={() => onSelect?.(gw)}
                 className="gap-2"
               >
-                <span className="flex-1 truncate">{api.name}</span>
-                {api.id === activeApiId && <Check className="size-4 shrink-0" />}
+                <span className="flex-1 truncate">{gw.name}</span>
+                {gw.id === activeId && <Check className="size-4 shrink-0" />}
               </DropdownMenuItem>
             ))}
 
@@ -67,10 +63,10 @@ export function ApiSwitcher({ apis, activeApiId, onSelect }: ApiSwitcherProps) {
 
             <DropdownMenuItem
               className="gap-2 text-primary font-medium"
-              onSelect={() => navigate("/api")}
+              onSelect={() => navigate("/gateway")}
             >
               <Plus className="size-4 shrink-0" />
-              Create API
+              Create Gateway
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

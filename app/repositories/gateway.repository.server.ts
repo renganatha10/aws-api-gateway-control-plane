@@ -18,8 +18,8 @@ export async function createGatewayWithEnvironments(
   })
 }
 
-export async function listGateways(): Promise<Gateway[]> {
-  return db.select().from(gateways).orderBy(gateways.createdAt)
+export async function listGateways(createdBy: string): Promise<Gateway[]> {
+  return db.select().from(gateways).where(eq(gateways.createdBy, createdBy)).orderBy(gateways.createdAt)
 }
 
 export async function findGatewayById(id: number): Promise<Gateway | undefined> {
@@ -31,7 +31,7 @@ export async function deleteGateway(id: number): Promise<void> {
   await db.delete(gateways).where(eq(gateways.id, id))
 }
 
-export async function countGateways(): Promise<number> {
-  const [{ value }] = await db.select({ value: count() }).from(gateways)
+export async function countGateways(createdBy: string): Promise<number> {
+  const [{ value }] = await db.select({ value: count() }).from(gateways).where(eq(gateways.createdBy, createdBy))
   return Number(value)
 }

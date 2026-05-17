@@ -131,7 +131,7 @@ export default function Onboard({ actionData }: Route.ComponentProps) {
             </div>
 
             <Button type="submit" className="w-full" size="lg">
-              Create API
+              Create Gateway
             </Button>
           </Form>
         </CardContent>

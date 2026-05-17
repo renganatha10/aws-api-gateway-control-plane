@@ -4,7 +4,17 @@
       "Bash(node:*)",
       "Bash(npx shadcn:*)",
       "Bash(npm run:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(chmod:*)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(npm install *)",
+      "Bash(npm uninstall *)",
+      "Bash(git -C \"C:\\\\Users\\\\RENGA\\\\sidehussle\\\\cdn\\\\my-app\" add \"app/lib/db.server.ts\" \"db/\" \"docker-compose.yml\" \"package.json\" \"package-lock.json\" \".env.example\")",
+      "Bash(git -C 'C:\\\\Users\\\\RENGA\\\\sidehussle\\\\cdn\\\\my-app' commit -m ' *)",
+      "Bash(mv \"db/migrations/20260518000001_create_gateways.sql\" \"db/migrations/1_create_gateways.sql\")",
+      "Bash(mv \"db/migrations/20260518000002_create_environments.sql\" \"db/migrations/2_create_environments.sql\")",
+      "Bash(git commit *)"
     ]
   }
 }

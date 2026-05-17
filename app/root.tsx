@@ -8,6 +8,8 @@ import {
 } from "react-router";
 
 import type { Route } from "./+types/root";
+import { Toaster } from "~/components/ui/sonner";
+import { ServerError } from "~/components/server-error";
 import "./app.css";
 
 export const links: Route.LinksFunction = () => [
@@ -34,6 +36,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         {children}
+        <Toaster />
         <ScrollRestoration />
         <Scripts />
       </body>
@@ -46,30 +49,31 @@ export default function App() {
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
-  let message = "Oops!";
-  let details = "An unexpected error occurred.";
-  let stack: string | undefined;
-
   if (isRouteErrorResponse(error)) {
-    message = error.status === 404 ? "404" : "Error";
-    details =
-      error.status === 404
-        ? "The requested page could not be found."
-        : error.statusText || details;
-  } else if (import.meta.env.DEV && error && error instanceof Error) {
-    details = error.message;
-    stack = error.stack;
+    if (error.status === 404) {
+      return (
+        <main className="flex min-h-svh flex-col items-center justify-center gap-4 bg-white px-4">
+          <h1 className="text-6xl font-bold text-gray-200">404</h1>
+          <p className="text-gray-500">The page you're looking for doesn't exist.</p>
+        </main>
+      )
+    }
+    return (
+      <ServerError
+        title={`Error ${error.status}`}
+        message={error.statusText || "An unexpected server error occurred."}
+      />
+    )
   }
 
   return (
-    <main className="pt-16 p-4 container mx-auto">
-      <h1>{message}</h1>
-      <p>{details}</p>
-      {stack && (
-        <pre className="w-full p-4 overflow-x-auto">
-          <code>{stack}</code>
-        </pre>
-      )}
-    </main>
-  );
+    <ServerError
+      title="Something went wrong"
+      message={
+        import.meta.env.DEV && error instanceof Error
+          ? error.message
+          : "We're having trouble reaching our servers. Please try again."
+      }
+    />
+  )
 }
