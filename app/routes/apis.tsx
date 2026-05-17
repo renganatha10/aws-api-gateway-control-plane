@@ -78,8 +78,8 @@ export default function ApisPage() {
             className={[
               "border-b-2 px-4 pb-2 text-sm font-medium transition-colors",
               location.pathname === to
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-600 hover:text-gray-900",
+                ? "border-gray-900 text-gray-900"
+                : "border-transparent text-gray-500 hover:text-gray-900",
             ].join(" ")}
           >
             {label}
@@ -136,7 +136,7 @@ export default function ApisPage() {
           {filtered.map((api, i) => (
             <TableRow key={i} className="group border-b border-gray-200">
               <TableCell>
-                <Link to={`/apis/${api.name}`} className="text-blue-600 hover:underline">
+                <Link to={`/apis/${api.name}`} className="text-gray-900 hover:underline">
                   {api.title}
                 </Link>
               </TableCell>

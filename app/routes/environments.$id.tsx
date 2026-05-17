@@ -116,7 +116,7 @@ export default function EnvironmentDetailPage() {
                 <TabsTrigger
                   key={tab}
                   value={value}
-                  className="rounded-none border-b-2 border-transparent px-4 pb-2 pt-1 text-sm font-medium whitespace-nowrap data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 data-[state=active]:shadow-none bg-transparent"
+                  className="rounded-none border-b-2 border-transparent px-4 pb-2 pt-1 text-sm font-medium whitespace-nowrap data-[state=active]:border-gray-900 data-[state=active]:text-gray-900 data-[state=active]:shadow-none bg-transparent text-gray-500 hover:text-gray-900"
                 >
                   {tab}
                 </TabsTrigger>
@@ -176,7 +176,7 @@ export default function EnvironmentDetailPage() {
                 {filtered.map((consumer) => (
                   <TableRow key={consumer.id} className="group border-b border-gray-200">
                     <TableCell>
-                      <a href="#" className="text-blue-600 hover:underline">
+                      <a href="#" className="text-gray-900 hover:underline">
                         {consumer.title}
                       </a>
                     </TableCell>

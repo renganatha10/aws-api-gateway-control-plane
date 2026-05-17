@@ -1,3 +1,4 @@
+import * as React from "react"
 import { Globe, Package, Zap } from "lucide-react"
 import { Link, useLocation } from "react-router"
 
@@ -15,6 +16,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "~/components/ui/sidebar"
+import { ApiSwitcher, type ApiEntry } from "~/components/api-switcher"
 
 const navItems = [
   { title: "Products",     url: "/products",     icon: Package },
@@ -26,8 +28,13 @@ function getInitials(given: string, family: string): string {
   return [given[0], family[0]].filter(Boolean).join("").toUpperCase() || "?"
 }
 
+const PLACEHOLDER_APIS: ApiEntry[] = [
+  { id: "api-gateway", name: "api-gateway" },
+]
+
 export function AppSidebar({ user }: { user: UserProfile }) {
   const location = useLocation()
+  const [activeApiId, setActiveApiId] = React.useState(PLACEHOLDER_APIS[0].id)
 
   return (
     <Sidebar collapsible="icon">
@@ -44,6 +51,12 @@ export function AppSidebar({ user }: { user: UserProfile }) {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+
+        <ApiSwitcher
+          apis={PLACEHOLDER_APIS}
+          activeApiId={activeApiId}
+          onSelect={(api) => setActiveApiId(api.id)}
+        />
       </SidebarHeader>
 
       <SidebarContent>

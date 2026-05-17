@@ -379,8 +379,8 @@ export default function ApiDetailPage() {
             className={[
               "border-b-2 px-4 pb-2 text-sm font-medium capitalize transition-colors",
               activeTab === tab
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-600 hover:text-gray-900",
+                ? "border-gray-900 text-gray-900"
+                : "border-transparent text-gray-500 hover:text-gray-900",
             ].join(" ")}
           >
             {tab === "spec" ? "Spec" : "API Details"}

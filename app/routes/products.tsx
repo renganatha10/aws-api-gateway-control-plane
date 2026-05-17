@@ -68,8 +68,8 @@ export default function ProductsPage() {
             className={[
               "border-b-2 px-4 pb-2 text-sm font-medium transition-colors",
               location.pathname === to
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-600 hover:text-gray-900",
+                ? "border-gray-900 text-gray-900"
+                : "border-transparent text-gray-500 hover:text-gray-900",
             ].join(" ")}
           >
             {label}
@@ -128,7 +128,7 @@ export default function ProductsPage() {
               <TableCell>
                 <Link
                   to={`/products/${product.name}`}
-                  className="text-blue-600 hover:underline"
+                  className="text-gray-900 hover:underline"
                 >
                   {product.title}
                 </Link>
