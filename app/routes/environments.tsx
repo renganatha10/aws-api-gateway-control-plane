@@ -1,16 +1,15 @@
 import { useState } from "react"
-import { Link } from "react-router"
+import { Link, useFetcher } from "react-router"
+import { Trash2, Zap } from "lucide-react"
 
-import { Badge } from "~/components/ui/badge"
-import { Button } from "~/components/ui/button"
+import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
+import { getUserProfile } from "~/lib/keycloak.server"
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "~/components/ui/card"
+  createEnvironment,
+  deleteEnvironment,
+  listEnvironmentsByGateway,
+} from "~/repositories/environment.repository.server"
+import { Button } from "~/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -22,219 +21,153 @@ import {
 } from "~/components/ui/dialog"
 import { Input } from "~/components/ui/input"
 import { Label } from "~/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select"
 import { Separator } from "~/components/ui/separator"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "~/components/ui/table"
 import type { Route } from "./+types/environments"
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: "Environments" }]
 }
 
-type EnvType = "production" | "staging" | "development" | "sandbox"
-
-interface Environment {
-  id: number
-  name: string
-  type: EnvType
-  baseUrl: string
-  region: string
-  lastDeployed: string
-  apiCount: number
+export async function loader({ request }: Route.LoaderArgs) {
+  const { accessToken } = await requireAuth(request)
+  const { email }       = getUserProfile(accessToken)
+  const gatewayId       = await getActiveGatewayId(request)
+  const environments    = gatewayId ? await listEnvironmentsByGateway(gatewayId) : []
+  return { environments, gatewayId, email }
 }
 
-const TYPE_META: Record<EnvType, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  production: { label: "Production",  variant: "default"     },
-  staging:    { label: "Staging",     variant: "secondary"   },
-  development:{ label: "Development", variant: "outline"     },
-  sandbox:    { label: "Sandbox",     variant: "outline"     },
+export async function action({ request }: Route.ActionArgs) {
+  const { accessToken } = await requireAuth(request)
+  const { email }       = getUserProfile(accessToken)
+  const formData        = await request.formData()
+  const intent          = formData.get("_intent") as string
+
+  if (intent === "create") {
+    const name      = String(formData.get("name") ?? "").trim()
+    const gatewayId = Number(formData.get("gatewayId"))
+    if (!name || !gatewayId) return { error: "Invalid data" }
+    await createEnvironment({ name, gatewayId, createdBy: email })
+    return { ok: true }
+  }
+
+  if (intent === "delete") {
+    const id = Number(formData.get("id"))
+    if (!id) return { error: "Missing id" }
+    await deleteEnvironment(id)
+    return { ok: true }
+  }
+
+  return { error: "Unknown intent" }
 }
 
-const initialEnvs: Environment[] = [
-  {
-    id: 1,
-    name: "Production",
-    type: "production",
-    baseUrl: "https://api.company.com",
-    region: "us-east-1",
-    lastDeployed: "2 hours ago",
-    apiCount: 42,
-  },
-  {
-    id: 2,
-    name: "Staging",
-    type: "staging",
-    baseUrl: "https://api-staging.company.com",
-    region: "us-east-1",
-    lastDeployed: "1 day ago",
-    apiCount: 42,
-  },
-  {
-    id: 3,
-    name: "Development",
-    type: "development",
-    baseUrl: "https://api-dev.company.com",
-    region: "us-west-2",
-    lastDeployed: "3 hours ago",
-    apiCount: 38,
-  },
-  {
-    id: 4,
-    name: "Sandbox",
-    type: "sandbox",
-    baseUrl: "https://api-sandbox.company.com",
-    region: "eu-west-1",
-    lastDeployed: "5 days ago",
-    apiCount: 15,
-  },
-]
+function DeleteButton({ id }: { id: number }) {
+  const fetcher  = useFetcher()
+  const [confirm, setConfirm] = useState(false)
+  const deleting = fetcher.state !== "idle"
 
-const emptyForm = { name: "", type: "" as EnvType | "", baseUrl: "", region: "" as string }
-
-type FormErrors = { name?: string; type?: string; baseUrl?: string; region?: string }
-
-export default function EnvironmentsPage() {
-  const [envs, setEnvs] = useState<Environment[]>(initialEnvs)
-  const [open, setOpen] = useState(false)
-  const [form, setForm] = useState(emptyForm)
-  const [errors, setErrors] = useState<FormErrors>({})
-
-  function validate() {
-    const e: FormErrors = {}
-    if (!form.name.trim())    e.name    = "Name is required"
-    if (!form.type)           e.type    = "Type is required"
-    if (!form.baseUrl.trim()) e.baseUrl = "Base URL is required"
-    if (!form.region.trim())  e.region  = "Region is required"
-    setErrors(e)
-    return Object.keys(e).length === 0
-  }
-
-  function handleCreate() {
-    if (!validate()) return
-    setEnvs((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        name: form.name.trim(),
-        type: form.type as EnvType,
-        baseUrl: form.baseUrl.trim(),
-        region: form.region.trim(),
-        lastDeployed: "Just now",
-        apiCount: 0,
-      },
-    ])
-    setForm(emptyForm)
-    setErrors({})
-    setOpen(false)
-  }
-
-  function handleDelete(id: number) {
-    setEnvs((prev) => prev.filter((e) => e.id !== id))
+  if (confirm) {
+    return (
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => {
+            fetcher.submit({ _intent: "delete", id: String(id) }, { method: "post" })
+            setConfirm(false)
+          }}
+          className="text-xs text-red-600 font-medium hover:underline"
+        >
+          Delete
+        </button>
+        <span className="text-gray-300">|</span>
+        <button onClick={() => setConfirm(false)} className="text-xs text-gray-500 hover:underline">
+          Cancel
+        </button>
+      </div>
+    )
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Environments</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage your API deployment environments.
-          </p>
-        </div>
+    <button
+      onClick={() => setConfirm(true)}
+      disabled={deleting}
+      className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+      aria-label="Delete environment"
+    >
+      <Trash2 className="size-4" />
+    </button>
+  )
+}
 
-        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setForm(emptyForm); setErrors({}) } }}>
+export default function EnvironmentsPage({ loaderData }: Route.ComponentProps) {
+  const { environments, gatewayId } = loaderData
+  const fetcher  = useFetcher()
+  const [open, setOpen]         = useState(false)
+  const [name, setName]         = useState("")
+  const [nameError, setNameError] = useState("")
+
+  const creating = fetcher.state !== "idle"
+
+  function handleCreate() {
+    if (!name.trim()) { setNameError("Name is required"); return }
+    if (!gatewayId)   { setNameError("No gateway selected"); return }
+    fetcher.submit(
+      { _intent: "create", name: name.trim(), gatewayId: String(gatewayId) },
+      { method: "post" },
+    )
+    setName("")
+    setNameError("")
+    setOpen(false)
+  }
+
+  function handleOpenChange(v: boolean) {
+    setOpen(v)
+    if (!v) { setName(""); setNameError("") }
+  }
+
+  return (
+    <div className="flex flex-col min-h-full bg-white">
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 pt-6 pb-4">
+        <h1 className="text-3xl font-normal text-gray-900">Environments</h1>
+
+        <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>
-            <Button>
-              <svg className="size-4 mr-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-              New Environment
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-sm px-6"
+              disabled={!gatewayId}
+            >
+              Add
             </Button>
           </DialogTrigger>
 
-          <DialogContent className="sm:max-w-[480px]">
+          <DialogContent className="sm:max-w-[400px]">
             <DialogHeader>
               <DialogTitle>Create Environment</DialogTitle>
-              <DialogDescription>
-                Add a new deployment environment for your APIs.
-              </DialogDescription>
+              <DialogDescription>Give your new environment a name.</DialogDescription>
             </DialogHeader>
 
-            <div className="grid gap-4 py-4">
-              {/* Name */}
-              <div className="grid gap-1.5">
-                <Label htmlFor="env-name">Name</Label>
-                <Input
-                  id="env-name"
-                  placeholder="e.g. Production"
-                  value={form.name}
-                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                />
-                {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
-              </div>
-
-              {/* Type */}
-              <div className="grid gap-1.5">
-                <Label htmlFor="env-type">Type</Label>
-                <Select
-                  value={form.type}
-                  onValueChange={(v) => setForm((f) => ({ ...f, type: v as EnvType }))}
-                >
-                  <SelectTrigger id="env-type">
-                    <SelectValue placeholder="Select a type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="production">Production</SelectItem>
-                    <SelectItem value="staging">Staging</SelectItem>
-                    <SelectItem value="development">Development</SelectItem>
-                    <SelectItem value="sandbox">Sandbox</SelectItem>
-                  </SelectContent>
-                </Select>
-                {errors.type && <p className="text-xs text-destructive">{errors.type}</p>}
-              </div>
-
-              {/* Base URL */}
-              <div className="grid gap-1.5">
-                <Label htmlFor="env-url">Base URL</Label>
-                <Input
-                  id="env-url"
-                  placeholder="https://api.example.com"
-                  value={form.baseUrl}
-                  onChange={(e) => setForm((f) => ({ ...f, baseUrl: e.target.value }))}
-                />
-                {errors.baseUrl && <p className="text-xs text-destructive">{errors.baseUrl}</p>}
-              </div>
-
-              {/* Region */}
-              <div className="grid gap-1.5">
-                <Label htmlFor="env-region">Region</Label>
-                <Select
-                  value={form.region}
-                  onValueChange={(v) => setForm((f) => ({ ...f, region: v }))}
-                >
-                  <SelectTrigger id="env-region">
-                    <SelectValue placeholder="Select a region" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="us-east-1">US East (N. Virginia)</SelectItem>
-                    <SelectItem value="us-west-2">US West (Oregon)</SelectItem>
-                    <SelectItem value="eu-west-1">Europe (Ireland)</SelectItem>
-                    <SelectItem value="ap-southeast-1">Asia Pacific (Singapore)</SelectItem>
-                  </SelectContent>
-                </Select>
-                {errors.region && <p className="text-xs text-destructive">{errors.region}</p>}
-              </div>
+            <div className="grid gap-1.5 py-4">
+              <Label htmlFor="env-name">Name</Label>
+              <Input
+                id="env-name"
+                placeholder="e.g. Production"
+                value={name}
+                onChange={(e) => { setName(e.target.value); setNameError("") }}
+                onKeyDown={(e) => { if (e.key === "Enter") handleCreate() }}
+              />
+              {nameError && <p className="text-xs text-destructive">{nameError}</p>}
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button onClick={handleCreate}>Create</Button>
+              <Button variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button>
+              <Button onClick={handleCreate} disabled={creating}>Create</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -242,78 +175,71 @@ export default function EnvironmentsPage() {
 
       <Separator />
 
-      {/* Environment cards grid */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {envs.map((env) => {
-          const meta = TYPE_META[env.type]
-          return (
-            <Card key={env.id} className="flex flex-col">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="text-base">{env.name}</CardTitle>
-                  <Badge variant={meta.variant} className="shrink-0 text-xs">
-                    {meta.label}
-                  </Badge>
-                </div>
-                <CardDescription className="truncate text-xs">{env.baseUrl}</CardDescription>
-              </CardHeader>
+      {/* No gateway selected */}
+      {!gatewayId && (
+        <div className="flex flex-col items-center justify-center flex-1 py-24 text-center gap-3">
+          <Zap className="size-10 text-gray-300" />
+          <p className="text-gray-500 text-sm">Select a gateway from the sidebar to view its environments.</p>
+        </div>
+      )}
 
-              <CardContent className="flex-1 pb-3">
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Region</dt>
-                    <dd className="font-medium">{env.region}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">APIs</dt>
-                    <dd className="font-medium">{env.apiCount}</dd>
-                  </div>
-                  <div className="col-span-2">
-                    <dt className="text-xs text-muted-foreground">Last deployed</dt>
-                    <dd className="font-medium">{env.lastDeployed}</dd>
-                  </div>
-                </dl>
-              </CardContent>
+      {/* Empty state */}
+      {gatewayId && environments.length === 0 && (
+        <div className="flex flex-col items-center justify-center flex-1 py-24 text-center gap-3">
+          <Zap className="size-10 text-gray-300" />
+          <p className="text-gray-700 font-medium">No environments yet</p>
+          <p className="text-gray-500 text-sm">Create your first environment to get started.</p>
+          <Button
+            size="sm"
+            className="mt-2 bg-blue-600 hover:bg-blue-700 text-white"
+            onClick={() => setOpen(true)}
+          >
+            Create Environment
+          </Button>
+        </div>
+      )}
 
-              <Separator />
-
-              <CardFooter className="flex justify-between gap-2 pt-3">
-                <Button variant="outline" size="sm" className="flex-1" asChild>
-                  <Link to={`/environments/${env.name.toLowerCase().replace(/\s+/g, "-")}`}>
-                    View
-                  </Link>
-                </Button>
-                <Button variant="outline" size="sm" className="flex-1">
-                  Edit
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                  onClick={() => handleDelete(env.id)}
-                >
-                  <svg className="size-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />
+      {/* Table */}
+      {gatewayId && environments.length > 0 && (
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-gray-100 hover:bg-gray-100">
+              <TableHead className="w-[35%] font-semibold text-gray-700">Name</TableHead>
+              <TableHead className="w-[30%] font-semibold text-gray-700">Created By</TableHead>
+              <TableHead className="w-[25%] font-semibold text-gray-700">
+                <span className="flex items-center gap-1">
+                  Created
+                  <svg className="size-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M12 5v14M5 12l7 7 7-7" />
                   </svg>
-                </Button>
-              </CardFooter>
-            </Card>
-          )
-        })}
-
-        {/* Add new card */}
-        <button
-          onClick={() => setOpen(true)}
-          className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-muted-foreground/25 p-8 text-muted-foreground transition-colors hover:border-muted-foreground/50 hover:text-foreground min-h-[200px]"
-        >
-          <div className="flex size-10 items-center justify-center rounded-full border-2 border-current">
-            <svg className="size-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-          </div>
-          <span className="text-sm font-medium">New Environment</span>
-        </button>
-      </div>
+                </span>
+              </TableHead>
+              <TableHead className="w-[10%]" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {environments.map((env) => (
+              <TableRow key={env.id} className="border-b border-gray-200">
+                <TableCell>
+                  <Link
+                    to={`/environments/${env.id}`}
+                    className="text-gray-900 hover:underline"
+                  >
+                    {env.name}
+                  </Link>
+                </TableCell>
+                <TableCell className="text-gray-700">{env.createdBy}</TableCell>
+                <TableCell className="text-gray-500 text-sm">
+                  {new Date(env.createdAt).toLocaleDateString()}
+                </TableCell>
+                <TableCell className="text-right pr-4">
+                  <DeleteButton id={env.id} />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
     </div>
   )
 }
