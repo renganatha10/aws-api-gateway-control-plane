@@ -1,7 +1,12 @@
-import { count, eq } from "drizzle-orm"
+import { count, eq, sql } from "drizzle-orm"
 
 import { db } from "~/lib/db.server"
 import { environments, gateways, type Gateway, type NewGateway } from "~/lib/schema"
+
+export async function createGateway(gateway: NewGateway): Promise<Gateway> {
+  const [created] = await db.insert(gateways).values(gateway).returning()
+  return created
+}
 
 export async function createGatewayWithEnvironments(
   gateway: NewGateway,
@@ -29,6 +34,13 @@ export async function findGatewayById(id: number): Promise<Gateway | undefined> 
 
 export async function deleteGateway(id: number): Promise<void> {
   await db.delete(gateways).where(eq(gateways.id, id))
+}
+
+export async function updateGatewayAwsId(id: number, awsRestApiId: string): Promise<void> {
+  await db
+    .update(gateways)
+    .set({ awsRestApiId, updatedAt: sql`now()` })
+    .where(eq(gateways.id, id))
 }
 
 export async function countGateways(createdBy: string): Promise<number> {

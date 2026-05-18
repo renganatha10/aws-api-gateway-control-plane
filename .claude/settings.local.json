@@ -14,7 +14,11 @@
       "Bash(git -C 'C:\\\\Users\\\\RENGA\\\\sidehussle\\\\cdn\\\\my-app' commit -m ' *)",
       "Bash(mv \"db/migrations/20260518000001_create_gateways.sql\" \"db/migrations/1_create_gateways.sql\")",
       "Bash(mv \"db/migrations/20260518000002_create_environments.sql\" \"db/migrations/2_create_environments.sql\")",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(git rm *)",
+      "Bash(del \"app\\\\routes\\\\onboard.tsx\")",
+      "PowerShell(echo \"ACCESS: $env:AWS_ACCESS_KEY_ID\"; echo \"SECRET: $env:AWS_SECRET_ACCESS_KEY\"; echo \"REGION: $env:AWS_REGION\")",
+      "WebFetch(domain:petstore.swagger.io)"
     ]
   }
 }

@@ -7,7 +7,6 @@ export default [
   layout("routes/layout.tsx", [
     index("routes/home.tsx"),
     route("gateway", "routes/gateway.tsx"),
-    route("onboard", "routes/onboard.tsx"),
     route("apis", "routes/apis.tsx"),
     route("apis/new", "routes/api-create.tsx"),
     route("apis/:id", "routes/apis.$id.tsx"),

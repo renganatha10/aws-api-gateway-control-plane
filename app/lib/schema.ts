@@ -1,11 +1,12 @@
 import { integer, pgTable, serial, timestamp, varchar } from "drizzle-orm/pg-core"
 
 export const gateways = pgTable("gateways", {
-  id:        serial("id").primaryKey(),
-  name:      varchar("name", { length: 255 }).notNull().unique(),
-  createdBy: varchar("created_by", { length: 255 }).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  id:           serial("id").primaryKey(),
+  name:         varchar("name", { length: 255 }).notNull().unique(),
+  createdBy:    varchar("created_by", { length: 255 }).notNull(),
+  awsRestApiId: varchar("aws_rest_api_id", { length: 100 }),
+  createdAt:    timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:    timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 })
 
 export const environments = pgTable("environments", {
