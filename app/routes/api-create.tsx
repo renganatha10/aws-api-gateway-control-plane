@@ -4,8 +4,8 @@ import { Form, redirect, useActionData, useNavigate } from "react-router"
 
 import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/keycloak.server"
-import { createApi } from "~/repositories/api.repository.server"
-import { buildAwsSpec } from "~/aws/build-aws-spec.server"
+import { createApi, findApiByGatewayAndBasePath } from "~/repositories/api.repository.server"
+import { buildAwsSpec, extractBasePath } from "~/aws/build-aws-spec.server"
 import { importApiSpec } from "~/aws/import-api.server"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
@@ -27,13 +27,14 @@ export async function action({ request }: Route.ActionArgs) {
 
   const gatewayId = await getActiveGatewayId(request)
 
-  const formData = await request.formData()
-  const name     = (formData.get("name") as string)?.trim()
-  const specType = formData.get("type") as string
-  const yamlStr  = (formData.get("yaml") as string)?.trim()
-  const scope    = (formData.get("scope") as string)?.trim() || null
+  const formData    = await request.formData()
+  const displayName = (formData.get("name") as string)?.trim()
+  const specType    = formData.get("type") as string
+  const yamlStr     = (formData.get("yaml") as string)?.trim()
+  const scope       = (formData.get("scope") as string)?.trim() || null
 
-  if (!name)    return { error: "API name is required." }
+  if (!displayName) return { error: "API name is required." }
+  const name = gatewayId ? `${displayName}-${gatewayId}` : displayName
   if (!specType) return { error: "Please select an API type." }
   if (!yamlStr) return { error: "YAML definition is required." }
 
@@ -46,15 +47,24 @@ export async function action({ request }: Route.ActionArgs) {
 
   if (!spec || typeof spec !== "object") return { error: "YAML must define an object." }
 
-  let awsApiId: string | null = null
-  try {
-    const awsSpec = buildAwsSpec(spec as Record<string, unknown>)
-    awsApiId = await importApiSpec(awsSpec)
-  } catch (err) {
-    console.error("[api-create] AWS import failed", err instanceof Error ? err.message : err)
+  const basePath = extractBasePath(spec as Record<string, unknown>)
+
+  if (gatewayId) {
+    const conflict = await findApiByGatewayAndBasePath(gatewayId, basePath)
+    if (conflict) return { error: `Base path "${basePath}" is already in use by another API in this gateway.` }
   }
 
-  await createApi({ name, scope, specType, spec, gatewayId, createdBy, awsApiId })
+  let awsApiId: string
+  try {
+    const specObj  = spec as Record<string, unknown>
+    const specForAws = { ...specObj, info: { ...(specObj.info as object ?? {}), title: name } }
+    awsApiId = await importApiSpec(buildAwsSpec(specForAws))
+  } catch (err) {
+    return { error: `AWS import failed: ${err instanceof Error ? err.message : "Unknown error"}` }
+  }
+
+  const now = new Date()
+  await createApi({ name, displayName, scope, specType, spec, basePath, gatewayId, createdBy, updatedBy: createdBy, awsApiId, updatedAt: now })
 
   throw redirect("/apis")
 }
@@ -148,21 +158,20 @@ export default function ApiCreate() {
 const PET_SWAGGER_YAML = `swagger: "2.0"
 info:
   title: Petstore - Pet API
-  description: Pet operations for the Petstore API.
-  version: 1.0.7
+  description: Pet operations proxied through API Gateway.
+  version: "1.0.0"
   contact:
-    email: apiteam@swagger.io
+    email: "apiteam@swagger.io"
   license:
-    name: Apache 2.0
-    url: http://www.apache.org/licenses/LICENSE-2.0.html
-host: petstore.swagger.io
+    name: "Apache 2.0"
+    url: "http://www.apache.org/licenses/LICENSE-2.0.html"
+host: "petstore.swagger.io"
 hosts:
-  dev: https://dev.petstore.swagger.io/v2
-  prod: https://petstore.swagger.io/v2
-basePath: /v2
+  dev: dev.petstore.swagger.io/v2
+  prod: petstore.swagger.io/v2
+basePath: "/v2"
 schemes:
   - https
-  - http
 tags:
   - name: pet
     description: Everything about your Pets
@@ -177,14 +186,13 @@ paths:
       parameters:
         - in: body
           name: body
+          description: Pet object that needs to be added to the store
           required: true
           schema:
             $ref: "#/definitions/Pet"
       responses:
         "405":
           description: Invalid input
-      security:
-        - petstore_auth: [write:pets, read:pets]
     put:
       tags: [pet]
       summary: Update an existing pet
@@ -194,6 +202,7 @@ paths:
       parameters:
         - in: body
           name: body
+          description: Pet object that needs to be updated
           required: true
           schema:
             $ref: "#/definitions/Pet"
@@ -204,8 +213,6 @@ paths:
           description: Pet not found
         "405":
           description: Validation exception
-      security:
-        - petstore_auth: [write:pets, read:pets]
   /pet/findByStatus:
     get:
       tags: [pet]
@@ -220,18 +227,41 @@ paths:
           items:
             type: string
             enum: [available, pending, sold]
+            default: available
           collectionFormat: multi
       responses:
         "200":
-          description: successful operation
+          description: Successful operation
           schema:
             type: array
             items:
               $ref: "#/definitions/Pet"
         "400":
           description: Invalid status value
-      security:
-        - petstore_auth: [write:pets, read:pets]
+  /pet/findByTags:
+    get:
+      tags: [pet]
+      summary: Finds Pets by tags
+      operationId: findPetsByTags
+      produces: [application/json]
+      parameters:
+        - name: tags
+          in: query
+          required: true
+          type: array
+          items:
+            type: string
+          collectionFormat: multi
+      responses:
+        "200":
+          description: Successful operation
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Pet"
+        "400":
+          description: Invalid tag value
+      deprecated: true
   /pet/{petId}:
     get:
       tags: [pet]
@@ -241,30 +271,44 @@ paths:
       parameters:
         - name: petId
           in: path
+          description: ID of pet to return
           required: true
           type: integer
           format: int64
       responses:
         "200":
-          description: successful operation
+          description: Successful operation
           schema:
             $ref: "#/definitions/Pet"
+        "400":
+          description: Invalid ID supplied
         "404":
           description: Pet not found
-      security:
-        - api_key: []
+    post:
+      tags: [pet]
+      summary: Updates a pet in the store with form data
+      operationId: updatePetWithForm
+      consumes: [application/json]
+      produces: [application/json]
+      parameters:
+        - name: petId
+          in: path
+          description: ID of pet that needs to be updated
+          required: true
+          type: integer
+          format: int64
+      responses:
+        "405":
+          description: Invalid input
     delete:
       tags: [pet]
       summary: Deletes a pet
       operationId: deletePet
       produces: [application/json]
       parameters:
-        - name: api_key
-          in: header
-          required: false
-          type: string
         - name: petId
           in: path
+          description: Pet id to delete
           required: true
           type: integer
           format: int64
@@ -273,44 +317,25 @@ paths:
           description: Invalid ID supplied
         "404":
           description: Pet not found
-      security:
-        - petstore_auth: [write:pets, read:pets]
   /pet/{petId}/uploadImage:
     post:
       tags: [pet]
-      summary: uploads an image
+      summary: Uploads an image
       operationId: uploadFile
-      consumes: [multipart/form-data]
+      consumes: [application/octet-stream]
       produces: [application/json]
       parameters:
         - name: petId
           in: path
+          description: ID of pet to update
           required: true
           type: integer
           format: int64
-        - name: file
-          in: formData
-          required: false
-          type: file
       responses:
         "200":
-          description: successful operation
+          description: Successful operation
           schema:
             $ref: "#/definitions/ApiResponse"
-      security:
-        - petstore_auth: [write:pets, read:pets]
-securityDefinitions:
-  api_key:
-    type: apiKey
-    name: api_key
-    in: header
-  petstore_auth:
-    type: oauth2
-    authorizationUrl: https://petstore.swagger.io/oauth/authorize
-    flow: implicit
-    scopes:
-      read:pets: read your pets
-      write:pets: modify pets in your account
 definitions:
   ApiResponse:
     type: object
@@ -349,7 +374,6 @@ definitions:
         $ref: "#/definitions/Category"
       name:
         type: string
-        example: doggie
       photoUrls:
         type: array
         items:
@@ -360,6 +384,7 @@ definitions:
           $ref: "#/definitions/Tag"
       status:
         type: string
+        description: pet status in the store
         enum: [available, pending, sold]`
 
 const OPENAPI3_PLACEHOLDER = `openapi: "3.0.0"

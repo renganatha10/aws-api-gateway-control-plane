@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm"
+import { and, eq, ne } from "drizzle-orm"
 
 import { db } from "~/lib/db.server"
 import { apis, type Api, type NewApi } from "~/lib/schema"
@@ -17,9 +17,20 @@ export async function findApiById(id: number): Promise<Api | undefined> {
   return row
 }
 
+export async function findApiByGatewayAndBasePath(
+  gatewayId: number,
+  basePath: string,
+  excludeId?: number,
+): Promise<Api | undefined> {
+  const conditions = [eq(apis.gatewayId, gatewayId), eq(apis.basePath, basePath)]
+  if (excludeId !== undefined) conditions.push(ne(apis.id, excludeId))
+  const [row] = await db.select().from(apis).where(and(...conditions))
+  return row
+}
+
 export async function updateApi(
   id: number,
-  patch: Pick<NewApi, "scope" | "spec" | "awsApiId">,
+  patch: Pick<NewApi, "scope" | "spec" | "basePath" | "awsApiId" | "updatedBy" | "updatedAt">,
 ): Promise<void> {
   await db.update(apis).set(patch).where(eq(apis.id, id))
 }

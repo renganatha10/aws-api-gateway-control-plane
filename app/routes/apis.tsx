@@ -99,7 +99,7 @@ export default function ApisPage({ loaderData }: Route.ComponentProps) {
 
   const filtered = apis.filter(
     (api) =>
-      api.name.toLowerCase().includes(search.toLowerCase()) ||
+      api.displayName.toLowerCase().includes(search.toLowerCase()) ||
       (api.scope ?? "").toLowerCase().includes(search.toLowerCase()),
   )
 
@@ -190,10 +190,11 @@ export default function ApisPage({ loaderData }: Route.ComponentProps) {
         <Table>
           <TableHeader>
             <TableRow className="bg-gray-100 hover:bg-gray-100">
-              <TableHead className="w-[30%] font-semibold text-gray-700">Name</TableHead>
-              <TableHead className="w-[20%] font-semibold text-gray-700">Scope</TableHead>
-              <TableHead className="w-[22%] font-semibold text-gray-700">Type</TableHead>
-              <TableHead className="w-[20%] font-semibold text-gray-700">
+              <TableHead className="w-[25%] font-semibold text-gray-700">Name</TableHead>
+              <TableHead className="w-[18%] font-semibold text-gray-700">Base Path</TableHead>
+              <TableHead className="w-[15%] font-semibold text-gray-700">Scope</TableHead>
+              <TableHead className="w-[18%] font-semibold text-gray-700">Type</TableHead>
+              <TableHead className="w-[16%] font-semibold text-gray-700">
                 <span className="flex items-center gap-1">
                   Created
                   <svg className="size-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -209,9 +210,10 @@ export default function ApisPage({ loaderData }: Route.ComponentProps) {
               <TableRow key={api.id} className="border-b border-gray-200">
                 <TableCell>
                   <Link to={`/apis/${api.id}`} className="text-gray-900 hover:underline">
-                    {api.name}
+                    {api.displayName}
                   </Link>
                 </TableCell>
+                <TableCell className="font-mono text-xs text-gray-600">{api.basePath ?? "—"}</TableCell>
                 <TableCell className="text-gray-500 text-sm">{api.scope ?? "—"}</TableCell>
                 <TableCell className="text-gray-700">{SPEC_TYPE_LABEL[api.specType] ?? api.specType}</TableCell>
                 <TableCell className="text-gray-500 text-sm">

@@ -1,5 +1,15 @@
 const HTTP_METHODS = ["get", "post", "put", "delete", "patch", "head", "options"]
 
+/** Extract base path from a Swagger 2.0 or OAS3 spec. */
+export function extractBasePath(spec: Record<string, unknown>): string {
+  if (typeof spec.basePath === "string" && spec.basePath) return spec.basePath
+  const servers = spec.servers as Array<{ url?: string }> | undefined
+  if (servers?.[0]?.url) {
+    try { return new URL(servers[0].url).pathname } catch { return servers[0].url }
+  }
+  return "/"
+}
+
 /**
  * Takes a clean Swagger 2.0 spec (with custom `hosts` field) and returns an
  * AWS API Gateway-compatible spec by injecting x-amazon-apigateway-integration
@@ -29,7 +39,9 @@ export function buildAwsSpec(spec: Record<string, unknown>): Record<string, unkn
       operation["x-amazon-apigateway-integration"] = {
         type: "http_proxy",
         httpMethod: method.toUpperCase(),
-        uri: `\${stageVariables.backendHost}${path}`,
+        // `https://` must be a static prefix — AWS rejects URIs without a visible protocol at import time.
+        // The backendHost stage variable should hold host+path without protocol (e.g. "api.example.com/v2").
+        uri: `https://\${stageVariables.backendHost}${path}`,
         passthroughBehavior: "when_no_match",
         connectionType: "INTERNET",
       }

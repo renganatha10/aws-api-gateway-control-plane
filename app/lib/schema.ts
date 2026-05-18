@@ -17,15 +17,19 @@ export const environments = pgTable("environments", {
 })
 
 export const apis = pgTable("apis", {
-  id:        serial("id").primaryKey(),
-  name:      varchar("name", { length: 255 }).notNull(),
-  scope:     varchar("scope", { length: 255 }),
+  id:          serial("id").primaryKey(),
+  name:        varchar("name", { length: 255 }).notNull(),
+  displayName: varchar("display_name", { length: 255 }).notNull(),
+  scope:       varchar("scope", { length: 255 }),
   specType:  varchar("spec_type", { length: 50 }).notNull(),
   spec:      jsonb("spec").notNull(),
+  basePath:  varchar("base_path", { length: 255 }),
   gatewayId: integer("gateway_id").references(() => gateways.id, { onDelete: "set null" }),
   createdBy: varchar("created_by", { length: 255 }).notNull(),
+  updatedBy: varchar("updated_by", { length: 255 }),
   awsApiId:  varchar("aws_api_id", { length: 100 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 })
 
 export type Gateway    = typeof gateways.$inferSelect

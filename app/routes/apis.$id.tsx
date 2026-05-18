@@ -4,8 +4,9 @@ import { Form, Link, useActionData, useNavigation } from "react-router"
 import { toast } from "sonner"
 
 import { requireAuth } from "~/lib/session.server"
-import { findApiById, updateApi } from "~/repositories/api.repository.server"
-import { buildAwsSpec } from "~/aws/build-aws-spec.server"
+import { getUserProfile } from "~/lib/keycloak.server"
+import { findApiById, findApiByGatewayAndBasePath, updateApi } from "~/repositories/api.repository.server"
+import { buildAwsSpec, extractBasePath } from "~/aws/build-aws-spec.server"
 import { importApiSpec, putApiSpec } from "~/aws/import-api.server"
 import type { Route } from "./+types/apis.$id"
 
@@ -285,37 +286,46 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
-  await requireAuth(request)
-  const id       = Number(params.id)
-  const formData = await request.formData()
-  const yamlStr  = (formData.get("yaml") as string)?.trim()
-  const scope    = (formData.get("scope") as string)?.trim() || null
+  const { accessToken } = await requireAuth(request)
+  const updatedBy = getUserProfile(accessToken).email
+  const id        = Number(params.id)
+  const formData  = await request.formData()
+  const yamlStr   = (formData.get("yaml") as string)?.trim()
+  const scope     = (formData.get("scope") as string)?.trim() || null
 
   if (!yamlStr) return { error: "YAML cannot be empty." }
   let spec: unknown
   try { spec = yaml.load(yamlStr) } catch { return { error: "Invalid YAML." } }
   if (!spec || typeof spec !== "object") return { error: "YAML must define an object." }
 
-  const existing = await findApiById(id)
-  let awsApiId = existing?.awsApiId ?? null
+  const basePath = extractBasePath(spec as Record<string, unknown>)
 
+  const existing = await findApiById(id)
+  if (existing?.gatewayId) {
+    const conflict = await findApiByGatewayAndBasePath(existing.gatewayId, basePath, id)
+    if (conflict) return { error: `Base path "${basePath}" is already in use by another API in this gateway.` }
+  }
+
+  let awsApiId = existing?.awsApiId ?? null
   try {
-    const awsSpec = buildAwsSpec(spec as Record<string, unknown>)
+    const specObj    = spec as Record<string, unknown>
+    const specForAws = { ...specObj, info: { ...(specObj.info as object ?? {}), title: existing?.name ?? "" } }
+    const awsSpec    = buildAwsSpec(specForAws)
     if (awsApiId) {
       await putApiSpec(awsApiId, awsSpec)
     } else {
       awsApiId = await importApiSpec(awsSpec)
     }
   } catch (err) {
-    console.error("[api-update] AWS import failed", err instanceof Error ? err.message : err)
+    return { error: `AWS sync failed: ${err instanceof Error ? err.message : "Unknown error"}` }
   }
 
-  await updateApi(id, { scope, spec, awsApiId })
+  await updateApi(id, { scope, spec, basePath, awsApiId, updatedBy, updatedAt: new Date() })
   return { ok: true }
 }
 
 export function meta({ data }: Route.MetaArgs) {
-  return [{ title: (data as { api?: { name?: string } })?.api?.name ?? "API" }]
+  return [{ title: (data as { api?: { displayName?: string } })?.api?.displayName ?? "API" }]
 }
 
 // ─── shared sub-components ────────────────────────────────────────────────────
@@ -645,7 +655,7 @@ export default function ApiDetailPage({ loaderData }: Route.ComponentProps) {
         <div className="flex items-center gap-3 px-5 py-3 border-b border-white/10 bg-zinc-950 sticky top-0 z-10 min-w-0">
           <Link to="/apis" className="text-zinc-400 hover:text-white text-sm shrink-0">← APIs</Link>
           <span className="text-white/20 shrink-0">/</span>
-          <h1 className="text-sm font-semibold text-white truncate">{api.name}</h1>
+          <h1 className="text-sm font-semibold text-white truncate">{api.displayName}</h1>
           <span className="text-xs text-zinc-600 font-mono shrink-0">{api.specType}</span>
 
           <div className="flex-1" />
