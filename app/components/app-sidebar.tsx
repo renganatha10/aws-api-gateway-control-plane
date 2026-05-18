@@ -1,4 +1,3 @@
-import * as React from "react"
 import { Globe, Package, Zap } from "lucide-react"
 import { Link, useLocation } from "react-router"
 
@@ -29,9 +28,17 @@ function getInitials(given: string, family: string): string {
   return [given[0], family[0]].filter(Boolean).join("").toUpperCase() || "?"
 }
 
-export function AppSidebar({ user, gateways }: { user: UserProfile; gateways: Gateway[] }) {
+export function AppSidebar({
+  user,
+  gateways,
+  activeGatewayId,
+}: {
+  user: UserProfile
+  gateways: Gateway[]
+  activeGatewayId: number | null
+}) {
   const location = useLocation()
-  const [activeId, setActiveId] = React.useState<number | undefined>(gateways[0]?.id)
+  const activeId = activeGatewayId ?? gateways[0]?.id
 
   return (
     <Sidebar collapsible="icon">
@@ -52,7 +59,6 @@ export function AppSidebar({ user, gateways }: { user: UserProfile; gateways: Ga
         <ApiSwitcher
           gateways={gateways}
           activeId={activeId}
-          onSelect={(gw) => setActiveId(gw.id)}
         />
       </SidebarHeader>
 

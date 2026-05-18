@@ -1,6 +1,5 @@
-import * as React from "react"
 import { Check, ChevronsUpDown, Plus } from "lucide-react"
-import { useNavigate } from "react-router"
+import { useFetcher, useNavigate } from "react-router"
 
 import type { Gateway } from "~/lib/schema"
 import {
@@ -20,13 +19,20 @@ import {
 interface ApiSwitcherProps {
   gateways: Gateway[]
   activeId: number | undefined
-  onSelect?: (gateway: Gateway) => void
 }
 
-export function ApiSwitcher({ gateways, activeId, onSelect }: ApiSwitcherProps) {
+export function ApiSwitcher({ gateways, activeId }: ApiSwitcherProps) {
   const { isMobile } = useSidebar()
-  const navigate = useNavigate()
-  const active = gateways.find((g) => g.id === activeId) ?? gateways[0]
+  const navigate  = useNavigate()
+  const fetcher   = useFetcher()
+  const active    = gateways.find((g) => g.id === activeId) ?? gateways[0]
+
+  function handleSelect(gw: Gateway) {
+    fetcher.submit(
+      { gatewayId: String(gw.id) },
+      { method: "post", action: "/api/gateway-switch" },
+    )
+  }
 
   return (
     <SidebarMenu>
@@ -51,7 +57,7 @@ export function ApiSwitcher({ gateways, activeId, onSelect }: ApiSwitcherProps) 
             {gateways.map((gw) => (
               <DropdownMenuItem
                 key={gw.id}
-                onSelect={() => onSelect?.(gw)}
+                onSelect={() => handleSelect(gw)}
                 className="gap-2"
               >
                 <span className="flex-1 truncate">{gw.name}</span>

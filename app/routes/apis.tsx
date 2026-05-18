@@ -1,14 +1,11 @@
 import { useState } from "react"
-import { Link, useLocation, useNavigate } from "react-router"
+import { Link, useLocation, useNavigation, useNavigate } from "react-router"
+import { Zap } from "lucide-react"
 
+import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
+import { getUserProfile } from "~/lib/keycloak.server"
+import { listApisByGateway } from "~/repositories/api.repository.server"
 import { Button } from "~/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu"
 import { Input } from "~/components/ui/input"
 import {
   Table,
@@ -24,40 +21,37 @@ export function meta({}: Route.MetaArgs) {
   return [{ title: "Develop — APIs" }]
 }
 
-const apis = [
-  { title: "Portals - User Auth",        name: "portals-users-api",                 version: "1.0", type: "OpenAPI 2.0 (REST)", modified: "3 days ago" },
-  { title: "Out of home API",            name: "out-of-home-api",                   version: "1.0", type: "OpenAPI 2.0 (REST)", modified: "3 days ago" },
-  { title: "HHT Tour API",               name: "hht-tour-api",                      version: "1.0", type: "OpenAPI 2.0 (REST)", modified: "3 days ago" },
-  { title: "Returns Api",                name: "portals-returns-api",               version: "1.0", type: "OpenAPI 2.0 (REST)", modified: "4 days ago" },
-  { title: "Client Query Api",           name: "portals-client-query-api",          version: "1.0", type: "OpenAPI 2.0 (REST)", modified: "4 days ago" },
-  { title: "External Client Query Api",  name: "external-portals-client-query-api", version: "1.0", type: "OpenAPI 2.0 (REST)", modified: "4 days ago" },
-  { title: "OTR Parcel API",             name: "otr-parcel-api",                    version: "1.0", type: "OpenAPI 2.0 (REST)", modified: "4 days ago" },
-  { title: "HHT Parcel API",             name: "hht-parcel-api",                    version: "1.0", type: "OpenAPI 2.0 (REST)", modified: "4 days ago" },
-  { title: "UTR Parcel API",             name: "utr-parcel-api",                    version: "1.0", type: "OpenAPI 2.0 (REST)", modified: "4 days ago" },
-  { title: "Tour Event Query Api",       name: "tour-event-query-api",              version: "1.0", type: "OpenAPI 2.0 (REST)", modified: "4 days ago" },
-  { title: "Actus print service",        name: "actus-print-service",               version: "1.0", type: "OpenAPI 2.0 (REST)", modified: "4 days ago" },
-  { title: "Collections API",            name: "collections-api",                   version: "1.0", type: "OpenAPI 2.0 (REST)", modified: "4 days ago" },
-  { title: "HHT Work Resourcing API",    name: "hht-work-resourcing-api",           version: "1.0", type: "OpenAPI 2.0 (REST)", modified: "6 days ago" },
-  { title: "HHT Config API",             name: "hht-config-api",                    version: "1.0", type: "OpenAPI 2.0 (REST)", modified: "6 days ago" },
-  { title: "Actus Users Api",            name: "actus-users-api",                   version: "1.0", type: "OpenAPI 2.0 (REST)", modified: "6 days ago" },
-  { title: "OTR Logger API",             name: "otr-logger-api",                    version: "1.0", type: "OpenAPI 2.0 (REST)", modified: "6 days ago" },
-  { title: "HHT Upload API",             name: "hht-upload-api",                    version: "1.0", type: "OpenAPI 2.0 (REST)", modified: "6 days ago" },
-]
+export async function loader({ request }: Route.LoaderArgs) {
+  const { accessToken } = await requireAuth(request)
+  const { email }       = getUserProfile(accessToken)
+  const gatewayId       = await getActiveGatewayId(request)
+  const apis            = gatewayId ? await listApisByGateway(gatewayId) : []
+  return { apis, gatewayId, email }
+}
 
 const DEV_TABS = [
-  { label: "APIs",      to: "/apis"      },
-  { label: "Products",  to: "/products"  },
+  { label: "APIs",     to: "/apis"     },
+  { label: "Products", to: "/products" },
 ]
 
-export default function ApisPage() {
-  const location = useLocation()
-  const navigate = useNavigate()
+const SPEC_TYPE_LABEL: Record<string, string> = {
+  swagger2: "OpenAPI 2.0 (REST)",
+  openapi3: "OpenAPI 3.0 (REST)",
+}
+
+export default function ApisPage({ loaderData }: Route.ComponentProps) {
+  const { apis, gatewayId } = loaderData
+  const location  = useLocation()
+  const navigate  = useNavigate()
+  const navigation = useNavigation()
   const [search, setSearch] = useState("")
+
+  const isLoading = navigation.state === "loading"
 
   const filtered = apis.filter(
     (api) =>
-      api.title.toLowerCase().includes(search.toLowerCase()) ||
-      api.name.toLowerCase().includes(search.toLowerCase()),
+      api.name.toLowerCase().includes(search.toLowerCase()) ||
+      (api.scope ?? "").toLowerCase().includes(search.toLowerCase()),
   )
 
   return (
@@ -65,7 +59,10 @@ export default function ApisPage() {
       {/* Page header */}
       <div className="flex items-center justify-between px-6 pt-6 pb-4">
         <h1 className="text-3xl font-normal text-gray-900">Develop</h1>
-        <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-sm px-6" onClick={() => navigate("/apis/new")}>
+        <Button
+          className="bg-blue-600 hover:bg-blue-700 text-white rounded-sm px-6"
+          onClick={() => navigate("/apis/new")}
+        >
           Add
         </Button>
       </div>
@@ -99,80 +96,84 @@ export default function ApisPage() {
           placeholder="What are you looking for today?"
           className="flex-1 border-none bg-transparent shadow-none focus-visible:ring-0 text-sm placeholder:text-gray-400 h-8 px-1"
         />
-        <button className="p-1.5 hover:bg-gray-200 rounded text-gray-500" aria-label="Refresh">
-          <svg className="size-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-            <path d="M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-            <path d="M8 16H3v5" />
-          </svg>
-        </button>
-        <button className="p-1.5 hover:bg-gray-200 rounded text-gray-500" aria-label="Settings">
-          <svg className="size-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-            <circle cx="12" cy="12" r="3" />
-          </svg>
-        </button>
       </div>
 
+      {/* Spinner */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-16">
+          <svg className="size-6 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+          </svg>
+        </div>
+      )}
+
+      {/* No gateway selected */}
+      {!isLoading && !gatewayId && (
+        <div className="flex flex-col items-center justify-center flex-1 py-24 text-center gap-3">
+          <Zap className="size-10 text-gray-300" />
+          <p className="text-gray-500 text-sm">Select a gateway from the sidebar to view its APIs.</p>
+        </div>
+      )}
+
+      {/* Empty state — gateway selected but no APIs */}
+      {!isLoading && gatewayId && filtered.length === 0 && (
+        <div className="flex flex-col items-center justify-center flex-1 py-24 text-center gap-3">
+          <Zap className="size-10 text-gray-300" />
+          <p className="text-gray-700 font-medium">No APIs yet</p>
+          <p className="text-gray-500 text-sm">
+            {search ? "No APIs match your search." : "Create your first API to get started."}
+          </p>
+          {!search && (
+            <Button
+              size="sm"
+              className="mt-2 bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => navigate("/apis/new")}
+            >
+              Create API
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Table */}
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-gray-100 hover:bg-gray-100">
-            <TableHead className="w-[28%] font-semibold text-gray-700">Title</TableHead>
-            <TableHead className="w-[28%] font-semibold text-gray-700">Name</TableHead>
-            <TableHead className="w-[8%]  font-semibold text-gray-700">Version</TableHead>
-            <TableHead className="w-[18%] font-semibold text-gray-700">Type</TableHead>
-            <TableHead className="w-[12%] font-semibold text-gray-700">
-              <span className="flex items-center gap-1">
-                Modified
-                <svg className="size-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path d="M12 5v14M5 12l7 7 7-7" />
-                </svg>
-              </span>
-            </TableHead>
-            <TableHead className="w-[6%]" />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filtered.map((api, i) => (
-            <TableRow key={i} className="group border-b border-gray-200">
-              <TableCell>
-                <Link to={`/apis/${api.name}`} className="text-gray-900 hover:underline">
-                  {api.title}
-                </Link>
-              </TableCell>
-              <TableCell className="text-gray-700">{api.name}</TableCell>
-              <TableCell className="text-gray-700">{api.version}</TableCell>
-              <TableCell className="text-gray-700">{api.type}</TableCell>
-              <TableCell className="text-gray-500">{api.modified}</TableCell>
-              <TableCell className="text-right">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button className="p-1 hover:bg-gray-100 rounded text-gray-400 opacity-0 group-hover:opacity-100 focus:opacity-100 data-[state=open]:opacity-100" aria-label="More options">
-                      <svg className="size-4" fill="currentColor" viewBox="0 0 24 24">
-                        <circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" />
-                      </svg>
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-44">
-                    <DropdownMenuItem className="text-amber-600 focus:text-amber-600 focus:bg-amber-50 font-medium">
-                      Publish
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>Stage</DropdownMenuItem>
-                    <DropdownMenuItem>Update APIs</DropdownMenuItem>
-                    <DropdownMenuItem>Save as New Version</DropdownMenuItem>
-                    <DropdownMenuItem>Download</DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TableCell>
+      {!isLoading && gatewayId && filtered.length > 0 && (
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-gray-100 hover:bg-gray-100">
+              <TableHead className="w-[30%] font-semibold text-gray-700">Name</TableHead>
+              <TableHead className="w-[20%] font-semibold text-gray-700">Scope</TableHead>
+              <TableHead className="w-[22%] font-semibold text-gray-700">Type</TableHead>
+              <TableHead className="w-[20%] font-semibold text-gray-700">
+                <span className="flex items-center gap-1">
+                  Created
+                  <svg className="size-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M12 5v14M5 12l7 7 7-7" />
+                  </svg>
+                </span>
+              </TableHead>
+              <TableHead className="w-[8%]" />
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {filtered.map((api) => (
+              <TableRow key={api.id} className="border-b border-gray-200">
+                <TableCell>
+                  <Link to={`/apis/${api.id}`} className="text-gray-900 hover:underline">
+                    {api.name}
+                  </Link>
+                </TableCell>
+                <TableCell className="text-gray-500 text-sm">{api.scope ?? "—"}</TableCell>
+                <TableCell className="text-gray-700">{SPEC_TYPE_LABEL[api.specType] ?? api.specType}</TableCell>
+                <TableCell className="text-gray-500 text-sm">
+                  {new Date(api.createdAt).toLocaleDateString()}
+                </TableCell>
+                <TableCell />
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
     </div>
   )
 }

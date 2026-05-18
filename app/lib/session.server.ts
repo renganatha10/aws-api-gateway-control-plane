@@ -53,3 +53,15 @@ export async function destroyUserSession(request: Request) {
     headers: { "Set-Cookie": await sessionStorage.destroySession(session) },
   })
 }
+
+export async function getActiveGatewayId(request: Request): Promise<number | null> {
+  const session = await getSession(request)
+  const value = session.get("activeGatewayId")
+  return typeof value === "number" ? value : null
+}
+
+export async function setActiveGatewayId(request: Request, gatewayId: number): Promise<string> {
+  const session = await getSession(request)
+  session.set("activeGatewayId", gatewayId)
+  return sessionStorage.commitSession(session)
+}

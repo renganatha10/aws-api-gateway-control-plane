@@ -1,621 +1,720 @@
-import { useState } from "react"
-import { Link, useParams } from "react-router"
+import * as React from "react"
+import * as yaml from "js-yaml"
+import { Form, Link, useActionData, useNavigation } from "react-router"
+import { toast } from "sonner"
 
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "~/components/ui/accordion"
-import { Badge } from "~/components/ui/badge"
-import { Button } from "~/components/ui/button"
-import { Input } from "~/components/ui/input"
-import { Label } from "~/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select"
-import { Separator } from "~/components/ui/separator"
-import { Textarea } from "~/components/ui/textarea"
+import { requireAuth } from "~/lib/session.server"
+import { findApiById, updateApi } from "~/repositories/api.repository.server"
 import type { Route } from "./+types/apis.$id"
 
-export function meta({ params }: Route.MetaArgs) {
-  return [{ title: `${params.id} — API` }]
+// ─── raw spec types (Swagger 2.0 / OAS 3) ────────────────────────────────────
+
+interface RawSpec {
+  info?:       { title?: string; version?: string }
+  hosts?:      Record<string, string>
+  host?:       string
+  basePath?:   string
+  tags?:       Array<{ name: string; description?: string }>
+  paths?:      Record<string, Record<string, RawOperation>>
+  definitions?: Record<string, RawSchema>
+  components?: { schemas?: Record<string, RawSchema> }
 }
 
-// ─── types ────────────────────────────────────────────────────────────────────
-
-type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH"
-
-interface Parameter {
-  name: string
-  in: "path" | "query" | "header" | "body"
-  type: string
-  required: boolean
-  description: string
-  example?: string
-}
-
-interface ResponseDef {
-  code: string
-  description: string
-  example?: string
-}
-
-interface Endpoint {
-  method: HttpMethod
-  path: string
-  summary: string
+interface RawOperation {
+  summary?:     string
   description?: string
-  parameters: Parameter[]
-  requestBody?: { contentType: string; schema: string }
-  responses: ResponseDef[]
+  operationId?: string
+  tags?:        string[]
+  parameters?:  RawParam[]
+  responses?:   Record<string, RawResponse>
+  requestBody?: { content?: Record<string, { schema?: RawSchema }> }
+  consumes?:    string[]
+}
+
+interface RawParam {
+  name:         string
+  in:           string
+  required?:    boolean
+  description?: string
+  type?:        string
+  format?:      string
+  schema?:      RawSchema
+  $ref?:        string
+}
+
+interface RawResponse {
+  description?: string
+  schema?:      RawSchema
+  $ref?:        string
+}
+
+interface RawSchema {
+  type?:        string
+  format?:      string
+  $ref?:        string
+  properties?:  Record<string, RawSchema>
+  items?:       RawSchema
+  enum?:        unknown[]
+  example?:     unknown
+}
+
+// ─── normalized types ─────────────────────────────────────────────────────────
+
+interface ParsedParam {
+  name:        string
+  in:          string
+  required:    boolean
+  description: string
+  type:        string
+}
+
+interface ParsedResponse {
+  code:        string
+  description: string
+}
+
+interface ParsedEndpoint {
+  method:       string
+  path:         string
+  summary:      string
+  description:  string
+  tags:         string[]
+  parameters:   ParsedParam[]
+  bodyType:     string | null
+  bodySample:   string | null
+  responses:    ParsedResponse[]
 }
 
 interface EndpointGroup {
-  tag: string
-  description?: string
-  endpoints: Endpoint[]
+  tag:         string
+  description: string
+  endpoints:   ParsedEndpoint[]
 }
 
-// ─── colours per method ───────────────────────────────────────────────────────
+// ─── method colours ───────────────────────────────────────────────────────────
 
-const METHOD_STYLE: Record<HttpMethod, { bg: string; text: string; border: string; light: string }> = {
-  GET:    { bg: "bg-blue-600",   text: "text-white", border: "border-blue-600",   light: "bg-blue-50 border-blue-200"   },
-  POST:   { bg: "bg-green-600",  text: "text-white", border: "border-green-600",  light: "bg-green-50 border-green-200"  },
-  PUT:    { bg: "bg-amber-500",  text: "text-white", border: "border-amber-500",  light: "bg-amber-50 border-amber-200"  },
-  DELETE: { bg: "bg-red-600",    text: "text-white", border: "border-red-600",    light: "bg-red-50 border-red-200"    },
-  PATCH:  { bg: "bg-purple-600", text: "text-white", border: "border-purple-600", light: "bg-purple-50 border-purple-200" },
+const METHOD_BG: Record<string, string> = {
+  get:     "bg-blue-600",
+  post:    "bg-green-600",
+  put:     "bg-amber-500",
+  delete:  "bg-red-600",
+  patch:   "bg-purple-600",
+  head:    "bg-zinc-500",
+  options: "bg-zinc-500",
 }
 
-// ─── sample OpenAPI spec ───────────────────────────────────────────────────────
+const METHOD_BORDER: Record<string, string> = {
+  get:    "border-blue-600/40",
+  post:   "border-green-600/40",
+  put:    "border-amber-500/40",
+  delete: "border-red-600/40",
+  patch:  "border-purple-600/40",
+}
 
-const SPEC_GROUPS: EndpointGroup[] = [
-  {
-    tag: "Authentication",
-    description: "Endpoints for obtaining and managing access tokens",
-    endpoints: [
-      {
-        method: "POST", path: "/auth/token", summary: "Obtain access token",
-        description: "Authenticates user credentials using OAuth 2 client credentials flow and returns a bearer token.",
-        parameters: [],
-        requestBody: {
-          contentType: "application/json",
-          schema: `{\n  "grant_type": "client_credentials",\n  "client_id": "string",\n  "client_secret": "string"\n}`,
-        },
-        responses: [
-          { code: "200", description: "Access token issued successfully", example: `{\n  "access_token": "eyJhbGciOiJSUzI1NiJ9...",\n  "token_type": "Bearer",\n  "expires_in": 3600\n}` },
-          { code: "401", description: "Invalid client credentials" },
-          { code: "400", description: "Bad request — missing required fields" },
-        ],
-      },
-      {
-        method: "POST", path: "/auth/refresh", summary: "Refresh access token",
-        description: "Issues a new access token using a valid refresh token.",
-        parameters: [],
-        requestBody: {
-          contentType: "application/json",
-          schema: `{\n  "grant_type": "refresh_token",\n  "refresh_token": "string"\n}`,
-        },
-        responses: [
-          { code: "200", description: "New access token issued", example: `{\n  "access_token": "eyJhbGci...",\n  "expires_in": 3600\n}` },
-          { code: "401", description: "Refresh token expired or invalid" },
-        ],
-      },
-      {
-        method: "DELETE", path: "/auth/token", summary: "Revoke token",
-        description: "Revokes the current bearer token, effectively logging the client out.",
-        parameters: [
-          { name: "Authorization", in: "header", type: "string", required: true, description: "Bearer token to revoke", example: "Bearer eyJhbGci..." },
-        ],
-        responses: [
-          { code: "204", description: "Token revoked — no content" },
-          { code: "401", description: "Unauthorized" },
-        ],
-      },
-    ],
-  },
-  {
-    tag: "Users",
-    description: "CRUD operations for portal user accounts",
-    endpoints: [
-      {
-        method: "GET", path: "/users", summary: "List users",
-        description: "Returns a paginated list of all portal users.",
-        parameters: [
-          { name: "page",   in: "query", type: "integer", required: false, description: "Page number (default: 1)",   example: "1"  },
-          { name: "limit",  in: "query", type: "integer", required: false, description: "Items per page (default: 20)", example: "20" },
-          { name: "search", in: "query", type: "string",  required: false, description: "Filter by name or email"                    },
-        ],
-        responses: [
-          { code: "200", description: "Paginated user list", example: `{\n  "total": 42,\n  "page": 1,\n  "data": [\n    { "id": "usr_01", "email": "john@example.com", "name": "John Doe" }\n  ]\n}` },
-          { code: "401", description: "Unauthorized" },
-        ],
-      },
-      {
-        method: "POST", path: "/users", summary: "Create user",
-        description: "Creates a new portal user account.",
-        parameters: [],
-        requestBody: {
-          contentType: "application/json",
-          schema: `{\n  "email": "string",\n  "name": "string",\n  "role": "admin | viewer"\n}`,
-        },
-        responses: [
-          { code: "201", description: "User created", example: `{\n  "id": "usr_01",\n  "email": "jane@example.com",\n  "name": "Jane Smith",\n  "role": "viewer"\n}` },
-          { code: "409", description: "Email already registered" },
-          { code: "400", description: "Validation error" },
-        ],
-      },
-      {
-        method: "GET", path: "/users/{id}", summary: "Get user by ID",
-        description: "Returns a single user record.",
-        parameters: [
-          { name: "id", in: "path", type: "string", required: true, description: "Unique user identifier", example: "usr_01" },
-        ],
-        responses: [
-          { code: "200", description: "User found", example: `{\n  "id": "usr_01",\n  "email": "john@example.com",\n  "name": "John Doe",\n  "role": "admin"\n}` },
-          { code: "404", description: "User not found" },
-        ],
-      },
-      {
-        method: "PUT", path: "/users/{id}", summary: "Update user",
-        description: "Updates an existing user's details.",
-        parameters: [
-          { name: "id", in: "path", type: "string", required: true, description: "User ID", example: "usr_01" },
-        ],
-        requestBody: {
-          contentType: "application/json",
-          schema: `{\n  "name": "string",\n  "role": "admin | viewer"\n}`,
-        },
-        responses: [
-          { code: "200", description: "User updated successfully" },
-          { code: "404", description: "User not found" },
-        ],
-      },
-      {
-        method: "DELETE", path: "/users/{id}", summary: "Delete user",
-        description: "Permanently removes a user account.",
-        parameters: [
-          { name: "id", in: "path", type: "string", required: true, description: "User ID to delete", example: "usr_01" },
-        ],
-        responses: [
-          { code: "204", description: "User deleted — no content" },
-          { code: "404", description: "User not found" },
-        ],
-      },
-    ],
-  },
-  {
-    tag: "Sessions",
-    description: "Active session management",
-    endpoints: [
-      {
-        method: "GET", path: "/sessions", summary: "List active sessions",
-        parameters: [
-          { name: "user_id", in: "query", type: "string", required: false, description: "Filter sessions by user" },
-        ],
-        responses: [
-          { code: "200", description: "Session list returned" },
-          { code: "401", description: "Unauthorized" },
-        ],
-      },
-      {
-        method: "DELETE", path: "/sessions/{sessionId}", summary: "Terminate session",
-        parameters: [
-          { name: "sessionId", in: "path", type: "string", required: true, description: "Session identifier" },
-        ],
-        responses: [
-          { code: "204", description: "Session terminated" },
-          { code: "404", description: "Session not found" },
-        ],
-      },
-    ],
-  },
-]
+// ─── spec parser ──────────────────────────────────────────────────────────────
 
-const SERVERS = [
-  { label: "Production",   url: "https://api.company.com/v1"         },
-  { label: "Staging",      url: "https://api-staging.company.com/v1" },
-  { label: "Development",  url: "https://api-dev.company.com/v1"     },
-]
+const HTTP_METHODS = ["get", "post", "put", "delete", "patch", "head", "options"]
 
-const ENV_ROWS = [
-  { env: "Production",  proxyUrl: "https://api.company.com/v1",         key: "prod"    },
-  { env: "Staging",     proxyUrl: "https://api-staging.company.com/v1", key: "staging" },
-  { env: "Development", proxyUrl: "https://api-dev.company.com/v1",     key: "dev"     },
-]
+function resolveRef(spec: RawSpec, ref?: string): RawSchema | null {
+  if (!ref) return null
+  const parts = ref.replace("#/", "").split("/")
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return parts.reduce((o: any, k) => o?.[k], spec) ?? null
+}
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
+function schemaType(spec: RawSpec, schema?: RawSchema): string {
+  if (!schema) return "any"
+  if (schema.$ref) {
+    const name = schema.$ref.split("/").pop() ?? schema.$ref
+    const resolved = resolveRef(spec, schema.$ref)
+    return resolved?.type ? `${name} (${resolved.type})` : name
+  }
+  if (schema.type === "array" && schema.items) return `array[${schemaType(spec, schema.items)}]`
+  if (schema.enum) return schema.enum.join(" | ")
+  return schema.type ?? "any"
+}
 
-function MethodBadge({ method }: { method: HttpMethod }) {
-  const s = METHOD_STYLE[method]
+function generateSample(spec: RawSpec, schema: RawSchema, depth = 0): unknown {
+  if (depth > 5) return "…"
+
+  if (schema.$ref) {
+    const resolved = resolveRef(spec, schema.$ref) as RawSchema | null
+    return resolved ? generateSample(spec, resolved, depth + 1) : null
+  }
+
+  if (schema.example !== undefined) return schema.example
+  if (schema.enum?.length) return schema.enum[0]
+
+  if (schema.type === "array" && schema.items) {
+    return [generateSample(spec, schema.items, depth + 1)]
+  }
+
+  if (schema.type === "object" || schema.properties) {
+    const obj: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(schema.properties ?? {})) {
+      obj[k] = generateSample(spec, v, depth + 1)
+    }
+    return obj
+  }
+
+  switch (schema.type) {
+    case "integer": return 0
+    case "number":  return 0.0
+    case "boolean": return false
+    case "string":
+      if (schema.format === "date-time") return "2024-01-01T00:00:00Z"
+      if (schema.format === "date")      return "2024-01-01"
+      if (schema.format === "int64")     return 0
+      return "string"
+    default: return null
+  }
+}
+
+function parseSpec(yamlStr: string): { spec: RawSpec; groups: EndpointGroup[]; hosts: Record<string, string> } {
+  let spec: RawSpec = {}
+  try {
+    spec = (yaml.load(yamlStr) as RawSpec) ?? {}
+  } catch {
+    return { spec, groups: [], hosts: {} }
+  }
+
+  const hosts = spec.hosts ?? {}
+  const tagDescriptions: Record<string, string> = {}
+  for (const t of spec.tags ?? []) tagDescriptions[t.name] = t.description ?? ""
+
+  const groupMap: Record<string, EndpointGroup> = {}
+
+  for (const [path, methods] of Object.entries(spec.paths ?? {})) {
+    for (const [method, op] of Object.entries(methods)) {
+      if (!HTTP_METHODS.includes(method)) continue
+
+      const tags = op.tags?.length ? op.tags : ["default"]
+      const tag  = tags[0]
+
+      if (!groupMap[tag]) {
+        groupMap[tag] = { tag, description: tagDescriptions[tag] ?? "", endpoints: [] }
+      }
+
+      // parameters
+      const params: ParsedParam[] = (op.parameters ?? []).map((p) => {
+        const resolved = p.$ref ? resolveRef(spec, p.$ref) as RawParam | null : p
+        const r = resolved ?? p
+        return {
+          name:        r.name ?? "",
+          in:          r.in   ?? "",
+          required:    r.required ?? false,
+          description: r.description ?? "",
+          type:        r.type ?? schemaType(spec, (r as RawParam).schema),
+        }
+      })
+
+      // body type + sample (Swagger 2.0 body param or OAS3 requestBody)
+      const rawBodyParam = (op.parameters ?? []).find((p) => p.in === "body" || p.in === "formData")
+      const bodyParam    = params.find((p) => p.in === "body" || p.in === "formData")
+      let bodyType:   string | null = null
+      let bodySample: string | null = null
+
+      if (bodyParam && rawBodyParam) {
+        bodyType = bodyParam.in === "formData" ? "multipart/form-data" : "application/json"
+        const rawSchema = rawBodyParam.schema ?? null
+        if (rawSchema) {
+          try {
+            bodySample = JSON.stringify(generateSample(spec, rawSchema), null, 2)
+          } catch { bodySample = null }
+        }
+      } else if (op.requestBody?.content) {
+        const [ct, ctObj] = Object.entries(op.requestBody.content)[0] ?? []
+        bodyType = ct ?? "application/json"
+        if (ctObj?.schema) {
+          try {
+            bodySample = JSON.stringify(generateSample(spec, ctObj.schema), null, 2)
+          } catch { bodySample = null }
+        }
+      }
+
+      // responses
+      const responses: ParsedResponse[] = Object.entries(op.responses ?? {}).map(([code, r]) => ({
+        code,
+        description: r.description ?? "",
+      }))
+
+      groupMap[tag].endpoints.push({
+        method,
+        path,
+        summary:     op.summary     ?? op.operationId ?? "",
+        description: op.description ?? "",
+        tags,
+        parameters:  params.filter((p) => p.in !== "body" && p.in !== "formData"),
+        bodyType,
+        bodySample,
+        responses,
+      })
+    }
+  }
+
+  return { spec, groups: Object.values(groupMap), hosts }
+}
+
+function parseHosts(yamlStr: string): Record<string, string> {
+  try {
+    return ((yaml.load(yamlStr) as RawSpec)?.hosts) ?? {}
+  } catch { return {} }
+}
+
+function parseEndpointList(yamlStr: string) {
+  try {
+    const spec = yaml.load(yamlStr) as RawSpec
+    return Object.entries(spec?.paths ?? {}).flatMap(([path, methods]) =>
+      Object.entries(methods)
+        .filter(([m]) => HTTP_METHODS.includes(m))
+        .map(([method, op]) => ({ method, path, summary: op.summary ?? op.operationId ?? "" }))
+    )
+  } catch { return [] }
+}
+
+// ─── loader / action ──────────────────────────────────────────────────────────
+
+export async function loader({ request, params }: Route.LoaderArgs) {
+  await requireAuth(request)
+  const api = await findApiById(Number(params.id))
+  if (!api) throw new Response("Not found", { status: 404 })
+  const yamlStr = yaml.dump(api.spec, { indent: 2, lineWidth: -1 })
+  return { api, yamlStr }
+}
+
+export async function action({ request, params }: Route.ActionArgs) {
+  await requireAuth(request)
+  const id       = Number(params.id)
+  const formData = await request.formData()
+  const yamlStr  = (formData.get("yaml") as string)?.trim()
+  const scope    = (formData.get("scope") as string)?.trim() || null
+
+  if (!yamlStr) return { error: "YAML cannot be empty." }
+  let spec: unknown
+  try { spec = yaml.load(yamlStr) } catch { return { error: "Invalid YAML." } }
+  if (!spec || typeof spec !== "object") return { error: "YAML must define an object." }
+
+  await updateApi(id, { scope, spec })
+  return { ok: true }
+}
+
+export function meta({ data }: Route.MetaArgs) {
+  return [{ title: (data as { api?: { name?: string } })?.api?.name ?? "API" }]
+}
+
+// ─── shared sub-components ────────────────────────────────────────────────────
+
+function MethodBadge({ method }: { method: string }) {
   return (
-    <span className={`inline-flex items-center justify-center rounded px-2 py-0.5 text-xs font-bold tracking-wider ${s.bg} ${s.text} min-w-[56px]`}>
-      {method}
+    <span className={`shrink-0 inline-flex items-center justify-center rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-white min-w-[52px] ${METHOD_BG[method] ?? "bg-zinc-600"}`}>
+      {method.toUpperCase()}
     </span>
   )
 }
 
-function ResponseCodeBadge({ code }: { code: string }) {
-  const c = parseInt(code)
-  const cls =
-    c < 300 ? "bg-green-100 text-green-800 border-green-200" :
-    c < 400 ? "bg-blue-100 text-blue-800 border-blue-200"   :
-    c < 500 ? "bg-amber-100 text-amber-800 border-amber-200" :
-              "bg-red-100 text-red-800 border-red-200"
+function StatusBadge({ code }: { code: string }) {
+  const n = parseInt(code)
+  const cls = n < 300 ? "text-green-400 border-green-700"
+            : n < 400 ? "text-blue-400 border-blue-700"
+            : n < 500 ? "text-amber-400 border-amber-700"
+            :           "text-red-400 border-red-700"
   return (
-    <span className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-mono font-semibold ${cls}`}>
+    <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-mono font-semibold ${cls}`}>
       {code}
     </span>
   )
 }
 
-// ─── try-it-out mini panel ────────────────────────────────────────────────────
+// ─── endpoint accordion card (UI tab) ─────────────────────────────────────────
 
-function TryItOut({ endpoint, serverUrl }: { endpoint: Endpoint; serverUrl: string }) {
-  const [params, setParams] = useState<Record<string, string>>({})
-  const [body, setBody] = useState(endpoint.requestBody?.schema ?? "")
-  const [response, setResponse] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  const resolvedPath = endpoint.path.replace(/\{(\w+)\}/g, (_, k) => params[k] ?? `{${k}}`)
-  const queryString = endpoint.parameters
-    .filter((p) => p.in === "query" && params[p.name])
-    .map((p) => `${p.name}=${encodeURIComponent(params[p.name])}`)
-    .join("&")
-  const fullUrl = `${serverUrl}${resolvedPath}${queryString ? "?" + queryString : ""}`
-
-  function handleExecute() {
-    setLoading(true)
-    setTimeout(() => {
-      const first200 = endpoint.responses.find((r) => r.code.startsWith("2"))
-      setResponse(first200?.example ?? `HTTP ${first200?.code ?? "200"} ${first200?.description ?? "OK"}`)
-      setLoading(false)
-    }, 800)
-  }
+function EndpointCard({ ep }: { ep: ParsedEndpoint }) {
+  const [open, setOpen] = React.useState(false)
+  const borderCls = METHOD_BORDER[ep.method] ?? "border-zinc-700"
 
   return (
-    <div className="mt-4 rounded-md border border-gray-200 bg-gray-50 p-4 space-y-4">
-      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Try it out</p>
+    <div className={`rounded-md border ${borderCls} bg-zinc-900 overflow-hidden`}>
+      {/* trigger row */}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/5 transition-colors"
+      >
+        <MethodBadge method={ep.method} />
+        <code className="text-sm font-mono text-white/90 flex-1 truncate">{ep.path}</code>
+        <span className="text-sm text-zinc-400 hidden sm:block truncate max-w-xs">{ep.summary}</span>
+        <svg className={`size-4 text-zinc-500 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
 
-      {/* URL preview */}
-      <div className="flex items-center gap-2 rounded border border-gray-300 bg-white px-3 py-2 text-xs font-mono text-gray-700 overflow-x-auto">
-        <MethodBadge method={endpoint.method} />
-        <span className="truncate">{fullUrl}</span>
-      </div>
+      {open && (
+        <div className="border-t border-white/10 px-4 pb-4 pt-3 space-y-4">
+          {ep.description && (
+            <p className="text-sm text-zinc-400">{ep.description}</p>
+          )}
 
-      {/* Path / query params */}
-      {endpoint.parameters.filter((p) => p.in !== "header").length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-gray-600">Parameters</p>
-          {endpoint.parameters.filter((p) => p.in !== "header").map((p) => (
-            <div key={p.name} className="flex items-center gap-2">
-              <Label className="w-28 text-xs text-gray-600 shrink-0">
-                {p.name}
-                {p.required && <span className="text-red-500 ml-0.5">*</span>}
-                <span className="ml-1 text-gray-400">({p.in})</span>
-              </Label>
-              <Input
-                className="h-7 text-xs"
-                placeholder={p.example ?? p.type}
-                value={params[p.name] ?? ""}
-                onChange={(e) => setParams((prev) => ({ ...prev, [p.name]: e.target.value }))}
-              />
+          {/* parameters */}
+          {ep.parameters.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">Parameters</p>
+              <div className="rounded border border-white/10 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-zinc-800 border-b border-white/10">
+                      <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400 w-1/4">Name</th>
+                      <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400 w-16">In</th>
+                      <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400 w-20">Type</th>
+                      <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {ep.parameters.map((p) => (
+                      <tr key={`${p.in}-${p.name}`}>
+                        <td className="px-3 py-2">
+                          <code className="text-xs font-mono text-white/90">{p.name}</code>
+                          {p.required && <span className="text-red-400 ml-1 text-xs">*</span>}
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-400">{p.in}</span>
+                        </td>
+                        <td className="px-3 py-2 text-xs font-mono text-zinc-400">{p.type}</td>
+                        <td className="px-3 py-2 text-xs text-zinc-500">{p.description}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          ))}
-        </div>
-      )}
+          )}
 
-      {/* Request body */}
-      {endpoint.requestBody && (
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-gray-600">Request body <span className="text-gray-400">({endpoint.requestBody.contentType})</span></p>
-          <Textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            className="font-mono text-xs min-h-[80px] bg-white resize-y"
-          />
-        </div>
-      )}
+          {/* request body with generated sample */}
+          {ep.bodyType && (
+            <div>
+              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1">
+                Request body{" "}
+                <span className="font-normal normal-case text-zinc-600">({ep.bodyType})</span>
+              </p>
+              <pre className="rounded border border-white/10 bg-zinc-950 px-3 py-3 text-xs font-mono text-green-300 overflow-x-auto whitespace-pre-wrap">
+                {ep.bodySample ?? "{}"}
+              </pre>
+            </div>
+          )}
 
-      <Button size="sm" onClick={handleExecute} disabled={loading}>
-        {loading ? "Sending…" : "Execute"}
-      </Button>
-
-      {/* Response */}
-      {response !== null && (
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-gray-600">Response</p>
-          <pre className="rounded bg-gray-900 text-green-400 text-xs p-3 overflow-x-auto whitespace-pre-wrap">{response}</pre>
+          {/* responses */}
+          <div>
+            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">Responses</p>
+            <div className="space-y-1.5">
+              {ep.responses.map((r) => (
+                <div key={r.code} className="flex items-center gap-3 rounded border border-white/10 bg-zinc-950 px-3 py-2">
+                  <StatusBadge code={r.code} />
+                  <span className="text-xs text-zinc-400">{r.description}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </div>
   )
 }
 
-// ─── main page ────────────────────────────────────────────────────────────────
+// ─── source tab ───────────────────────────────────────────────────────────────
 
-export default function ApiDetailPage() {
-  const { id } = useParams()
-
-  const [activeTab,   setActiveTab]   = useState<"spec" | "details">("spec")
-  const [serverUrl,   setServerUrl]   = useState(SERVERS[0].url)
-  const [tryItOpen,   setTryItOpen]   = useState<string | null>(null)
-  const [proxyUrls,   setProxyUrls]   = useState<Record<string, string>>(
-    Object.fromEntries(ENV_ROWS.map((r) => [r.key, r.proxyUrl])),
-  )
-
-  const apiTitle = id
-    ? id.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
-    : "API"
+function SourceTab({ yamlValue, setYamlValue, hosts, host }: {
+  yamlValue:    string
+  setYamlValue: (v: string) => void
+  hosts:        Record<string, string>
+  host:         string
+}) {
+  const endpoints = React.useMemo(() => parseEndpointList(yamlValue), [yamlValue])
 
   return (
-    <div className="flex flex-col min-h-full bg-white">
-      {/* Breadcrumb */}
-      <div className="px-6 pt-4 text-sm text-muted-foreground">
-        <Link to="/apis" className="hover:underline">Develop</Link>
-        {" /"}
+    <div className="flex flex-1 min-h-0 overflow-hidden">
+      {/* YAML editor */}
+      <div className="flex flex-col flex-1 min-w-0 border-r border-white/10">
+        <div className="px-4 py-2 text-xs text-zinc-500 border-b border-white/10 bg-zinc-950">YAML</div>
+        <textarea
+          value={yamlValue}
+          onChange={(e) => setYamlValue(e.target.value)}
+          spellCheck={false}
+          className="flex-1 w-full bg-black text-white font-mono text-xs leading-relaxed px-4 py-4 resize-none focus:outline-none caret-white"
+        />
       </div>
 
-      {/* Header */}
-      <div className="px-6 pt-1 pb-3">
-        <div className="flex flex-wrap items-center gap-2 mb-1">
-          <h1 className="text-2xl font-normal text-gray-900">{id}</h1>
-          <Badge variant="outline" className="text-xs">1.0</Badge>
-          <Badge className="text-xs bg-green-100 text-green-800 border-green-200 hover:bg-green-100">OpenAPI 2.0 (REST)</Badge>
+      {/* endpoint list */}
+      <div className="flex flex-col w-80 shrink-0 overflow-y-auto bg-zinc-950">
+        <div className="px-4 py-2 text-xs text-zinc-500 border-b border-white/10 sticky top-0 bg-zinc-950">
+          {endpoints.length} endpoint{endpoints.length !== 1 ? "s" : ""}
+          {host && hosts[host] && (
+            <span className="ml-2 text-zinc-700 font-mono text-[11px] truncate">{hosts[host]}</span>
+          )}
         </div>
-        <p className="text-sm text-muted-foreground">{apiTitle} — authentication and user management endpoints.</p>
+        {endpoints.length === 0 ? (
+          <div className="flex items-center justify-center flex-1 text-zinc-600 text-xs p-6 text-center">
+            No paths found in spec
+          </div>
+        ) : (
+          <div className="divide-y divide-white/5">
+            {endpoints.map(({ method, path, summary }, i) => (
+              <div key={i} className="flex items-start gap-2 px-4 py-2.5 hover:bg-white/5">
+                <MethodBadge method={method} />
+                <div className="min-w-0 mt-0.5">
+                  <p className="font-mono text-xs text-white/90 truncate">{path}</p>
+                  {summary && <p className="text-[11px] text-zinc-500 truncate">{summary}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+    </div>
+  )
+}
 
-      {/* Spec / API Details tabs */}
-      <div className="flex border-b border-gray-200 px-6">
-        {(["spec", "details"] as const).map((tab) => (
+// ─── ui tab ───────────────────────────────────────────────────────────────────
+
+function UiTab({ yamlValue }: { yamlValue: string }) {
+  const { groups, spec } = React.useMemo(() => parseSpec(yamlValue), [yamlValue])
+
+  const definitions = Object.entries(
+    spec.definitions ?? spec.components?.schemas ?? {}
+  )
+
+  if (groups.length === 0 && definitions.length === 0) {
+    return (
+      <div className="flex items-center justify-center flex-1 text-zinc-600 text-sm">
+        No endpoints found in spec
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto px-6 py-5 space-y-8">
+      {/* endpoint groups */}
+      {groups.map((group) => (
+        <div key={group.tag}>
+          <div className="flex items-center gap-3 mb-3">
+            <h2 className="text-sm font-semibold text-white">{group.tag}</h2>
+            <div className="flex-1 h-px bg-white/10" />
+            <span className="text-xs text-zinc-600 shrink-0">
+              {group.endpoints.length} endpoint{group.endpoints.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          {group.description && (
+            <p className="text-xs text-zinc-500 mb-3">{group.description}</p>
+          )}
+          <div className="space-y-2">
+            {group.endpoints.map((ep, i) => (
+              <EndpointCard key={i} ep={ep} />
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {/* definitions / schemas */}
+      {definitions.length > 0 && (
+        <div>
+          <div className="flex items-center gap-3 mb-4">
+            <h2 className="text-sm font-semibold text-white">Definitions</h2>
+            <div className="flex-1 h-px bg-white/10" />
+            <span className="text-xs text-zinc-600 shrink-0">{definitions.length} model{definitions.length !== 1 ? "s" : ""}</span>
+          </div>
+
+          <div className="space-y-4">
+            {definitions.map(([name, schema]) => {
+              const props    = Object.entries(schema.properties ?? {})
+              const required: string[] = (schema as RawSchema & { required?: string[] }).required ?? []
+              let sample = ""
+              try { sample = JSON.stringify(generateSample(spec, schema), null, 2) } catch { sample = "{}" }
+
+              return (
+                <div key={name} className="rounded-md border border-white/10 bg-zinc-900 overflow-hidden">
+                  {/* model header */}
+                  <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10 bg-zinc-800">
+                    <span className="text-sm font-mono font-semibold text-white">{name}</span>
+                    {schema.type && (
+                      <span className="text-xs text-zinc-500 bg-zinc-700 rounded px-1.5 py-0.5">{schema.type}</span>
+                    )}
+                  </div>
+
+                  <div className="p-4 space-y-4">
+                    {/* properties table */}
+                    {props.length > 0 && (
+                      <div className="rounded border border-white/10 overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-zinc-800 border-b border-white/10">
+                              <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400 w-1/4">Property</th>
+                              <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400 w-32">Type</th>
+                              <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400 w-20">Required</th>
+                              <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400">Enum / Format</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/5">
+                            {props.map(([propName, propSchema]) => (
+                              <tr key={propName}>
+                                <td className="px-3 py-2">
+                                  <code className="text-xs font-mono text-white/90">{propName}</code>
+                                </td>
+                                <td className="px-3 py-2 text-xs font-mono text-zinc-400">
+                                  {schemaType(spec, propSchema)}
+                                </td>
+                                <td className="px-3 py-2 text-xs">
+                                  {required.includes(propName)
+                                    ? <span className="text-red-400">yes</span>
+                                    : <span className="text-zinc-600">no</span>}
+                                </td>
+                                <td className="px-3 py-2 text-xs text-zinc-500">
+                                  {propSchema.enum ? propSchema.enum.join(" | ") : propSchema.format ?? "—"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* sample */}
+                    <div>
+                      <p className="text-xs text-zinc-600 mb-1">Sample</p>
+                      <pre className="rounded border border-white/10 bg-zinc-950 px-3 py-3 text-xs font-mono text-green-300 overflow-x-auto whitespace-pre-wrap">
+                        {sample}
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── page ─────────────────────────────────────────────────────────────────────
+
+export default function ApiDetailPage({ loaderData }: Route.ComponentProps) {
+  const { api, yamlStr: initialYaml } = loaderData
+  const actionData = useActionData<typeof action>()
+  const navigation = useNavigation()
+  const saving     = navigation.state === "submitting"
+
+  const [activeTab, setActiveTab] = React.useState<"source" | "ui">("source")
+  const [yamlValue, setYamlValue] = React.useState(initialYaml)
+  const [scope,     setScope]     = React.useState(api.scope ?? "")
+  const [editScope, setEditScope] = React.useState(false)
+  const [host,      setHost]      = React.useState("")
+
+  const hosts    = React.useMemo(() => parseHosts(yamlValue), [yamlValue])
+  const hostKeys = Object.keys(hosts)
+
+  React.useEffect(() => {
+    if (!host && hostKeys.length > 0) setHost(hostKeys[0])
+  }, [hostKeys.join(",")])
+
+  React.useEffect(() => {
+    if (actionData && "ok"    in actionData) toast.success("Saved")
+    if (actionData && "error" in actionData) toast.error((actionData as { error: string }).error)
+  }, [actionData])
+
+  return (
+    <div className="flex flex-col bg-black text-white min-h-svh h-full">
+
+      {/* ── header ─────────────────────────────────────────────────────────── */}
+      <Form method="post">
+        <input type="hidden" name="yaml"  value={yamlValue} />
+        <input type="hidden" name="scope" value={scope}     />
+
+        <div className="flex items-center gap-3 px-5 py-3 border-b border-white/10 bg-zinc-950 sticky top-0 z-10 min-w-0">
+          <Link to="/apis" className="text-zinc-400 hover:text-white text-sm shrink-0">← APIs</Link>
+          <span className="text-white/20 shrink-0">/</span>
+          <h1 className="text-sm font-semibold text-white truncate">{api.name}</h1>
+          <span className="text-xs text-zinc-600 font-mono shrink-0">{api.specType}</span>
+
+          <div className="flex-1" />
+
+          {/* scope */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-xs text-zinc-500">scope</span>
+            {editScope ? (
+              <input
+                autoFocus
+                value={scope}
+                onChange={(e) => setScope(e.target.value)}
+                onBlur={() => setEditScope(false)}
+                onKeyDown={(e) => e.key === "Enter" && setEditScope(false)}
+                className="bg-zinc-800 border border-white/20 rounded px-2 py-0.5 text-xs text-white w-28 focus:outline-none focus:border-white/50"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setEditScope(true)}
+                className="text-xs text-white bg-zinc-800 border border-white/20 rounded px-2 py-0.5 hover:border-white/40"
+              >
+                {scope || <span className="text-zinc-500">—</span>}
+                <span className="ml-1.5 text-zinc-600">✎</span>
+              </button>
+            )}
+          </div>
+
+          {/* host */}
+          {hostKeys.length > 0 && (
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-xs text-zinc-500">host</span>
+              <select
+                value={host}
+                onChange={(e) => setHost(e.target.value)}
+                className="bg-zinc-800 border border-white/20 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-white/50"
+              >
+                {hostKeys.map((k) => (
+                  <option key={k} value={k}>{k} — {hosts[k]}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* save */}
+          <button
+            type="submit"
+            disabled={saving}
+            className="shrink-0 rounded bg-white text-black text-xs font-semibold px-4 py-1.5 hover:bg-zinc-200 disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+        </div>
+      </Form>
+
+      {/* ── tabs ───────────────────────────────────────────────────────────── */}
+      <div className="flex border-b border-white/10 px-5 bg-zinc-950 shrink-0">
+        {(["source", "ui"] as const).map((tab) => (
           <button
             key={tab}
+            type="button"
             onClick={() => setActiveTab(tab)}
             className={[
-              "border-b-2 px-4 pb-2 text-sm font-medium capitalize transition-colors",
+              "border-b-2 px-4 pb-2 pt-2 text-xs font-medium capitalize transition-colors",
               activeTab === tab
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-600 hover:text-gray-900",
+                ? "border-white text-white"
+                : "border-transparent text-zinc-500 hover:text-zinc-300",
             ].join(" ")}
           >
-            {tab === "spec" ? "Spec" : "API Details"}
+            {tab === "ui" ? "Preview" : "Source"}
           </button>
         ))}
       </div>
 
-      {/* ── SPEC TAB ──────────────────────────────────────────────────────── */}
-      {activeTab === "spec" && (
-        <div className="flex-1 px-6 py-5 max-w-4xl space-y-6">
-          {/* Server selector */}
-          <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide shrink-0">Server</span>
-            <Select value={serverUrl} onValueChange={setServerUrl}>
-              <SelectTrigger className="flex-1 h-8 text-sm bg-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SERVERS.map((s) => (
-                  <SelectItem key={s.url} value={s.url}>
-                    <span className="font-medium mr-2">{s.label}</span>
-                    <span className="text-muted-foreground text-xs">{s.url}</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Endpoint groups */}
-          {SPEC_GROUPS.map((group) => (
-            <div key={group.tag}>
-              <div className="flex items-center gap-3 mb-2">
-                <h2 className="text-base font-semibold text-gray-800">{group.tag}</h2>
-                <Separator className="flex-1" />
-                <span className="text-xs text-muted-foreground shrink-0">{group.endpoints.length} endpoint{group.endpoints.length > 1 ? "s" : ""}</span>
-              </div>
-              {group.description && (
-                <p className="text-xs text-muted-foreground mb-3">{group.description}</p>
-              )}
-
-              <Accordion type="multiple" className="space-y-1.5">
-                {group.endpoints.map((ep, idx) => {
-                  const key = `${group.tag}-${idx}`
-                  const s   = METHOD_STYLE[ep.method]
-                  const isTrying = tryItOpen === key
-                  return (
-                    <AccordionItem
-                      key={key}
-                      value={key}
-                      className={`rounded-md border ${s.light} overflow-hidden`}
-                    >
-                      <AccordionTrigger className="px-3 py-2.5 hover:no-underline hover:bg-black/5 [&>svg]:text-gray-500">
-                        <div className="flex items-center gap-3 flex-1 text-left">
-                          <MethodBadge method={ep.method} />
-                          <code className="text-sm font-mono text-gray-800">{ep.path}</code>
-                          <span className="text-sm text-gray-600 hidden sm:block">{ep.summary}</span>
-                        </div>
-                      </AccordionTrigger>
-
-                      <AccordionContent className="px-4 pb-4 pt-1 bg-white border-t border-gray-100">
-                        {ep.description && (
-                          <p className="text-sm text-gray-600 mb-4">{ep.description}</p>
-                        )}
-
-                        {/* Parameters */}
-                        {ep.parameters.length > 0 && (
-                          <div className="mb-4">
-                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Parameters</p>
-                            <div className="rounded-md border border-gray-200 overflow-hidden">
-                              <table className="w-full text-sm">
-                                <thead>
-                                  <tr className="bg-gray-50 border-b border-gray-200">
-                                    <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600 w-1/4">Name</th>
-                                    <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600 w-16">In</th>
-                                    <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600 w-16">Type</th>
-                                    <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">Description</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {ep.parameters.map((p) => (
-                                    <tr key={p.name} className="border-b border-gray-100 last:border-0">
-                                      <td className="px-3 py-2">
-                                        <code className="text-xs font-mono text-gray-800">{p.name}</code>
-                                        {p.required && <span className="text-red-500 ml-1 text-xs">*</span>}
-                                      </td>
-                                      <td className="px-3 py-2">
-                                        <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">{p.in}</span>
-                                      </td>
-                                      <td className="px-3 py-2 text-xs text-gray-500 font-mono">{p.type}</td>
-                                      <td className="px-3 py-2 text-xs text-gray-600">
-                                        {p.description}
-                                        {p.example && <span className="ml-1 text-gray-400">e.g. {p.example}</span>}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Request body */}
-                        {ep.requestBody && (
-                          <div className="mb-4">
-                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                              Request body <span className="font-normal normal-case text-gray-400">({ep.requestBody.contentType})</span>
-                            </p>
-                            <pre className="rounded-md border border-gray-200 bg-gray-50 text-xs font-mono p-3 overflow-x-auto text-gray-700">{ep.requestBody.schema}</pre>
-                          </div>
-                        )}
-
-                        {/* Responses */}
-                        <div className="mb-4">
-                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Responses</p>
-                          <div className="space-y-2">
-                            {ep.responses.map((r) => (
-                              <div key={r.code} className="rounded-md border border-gray-200 overflow-hidden">
-                                <div className="flex items-center gap-3 px-3 py-2 bg-gray-50">
-                                  <ResponseCodeBadge code={r.code} />
-                                  <span className="text-xs text-gray-600">{r.description}</span>
-                                </div>
-                                {r.example && (
-                                  <pre className="px-3 py-2 text-xs font-mono text-gray-700 overflow-x-auto bg-white border-t border-gray-100">{r.example}</pre>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Try it out toggle */}
-                        <Button
-                          size="sm"
-                          variant={isTrying ? "default" : "outline"}
-                          onClick={() => setTryItOpen(isTrying ? null : key)}
-                        >
-                          {isTrying ? "Close" : "Try it out"}
-                        </Button>
-
-                        {isTrying && <TryItOut endpoint={ep} serverUrl={serverUrl} />}
-                      </AccordionContent>
-                    </AccordionItem>
-                  )
-                })}
-              </Accordion>
-            </div>
-          ))}
-        </div>
+      {/* ── tab content ────────────────────────────────────────────────────── */}
+      {activeTab === "source" && (
+        <SourceTab
+          yamlValue={yamlValue}
+          setYamlValue={setYamlValue}
+          hosts={hosts}
+          host={host}
+        />
       )}
-
-      {/* ── API DETAILS TAB ────────────────────────────────────────────────── */}
-      {activeTab === "details" && (
-        <div className="flex-1 px-6 py-5 max-w-3xl space-y-8">
-          {/* General info */}
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-base font-medium text-amber-600">General</h2>
-              <Separator className="mt-2" />
-            </div>
-            <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
-              <div>
-                <p className="text-xs text-muted-foreground mb-0.5">Name</p>
-                <p className="font-mono font-medium text-gray-800">{id}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-0.5">Version</p>
-                <p className="font-medium text-gray-800">1.0</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-0.5">Type</p>
-                <p className="text-gray-800">OpenAPI 2.0 (REST)</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-0.5">Last modified</p>
-                <p className="text-gray-800">3 days ago</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Environment proxy URLs */}
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-base font-medium text-amber-600">Environment Configuration</h2>
-              <Separator className="mt-2" />
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Configure the proxy URL and gateway endpoint for each deployment environment.
-            </p>
-
-            <div className="space-y-4">
-              {ENV_ROWS.map((row) => (
-                <div key={row.key} className="rounded-lg border border-gray-200 p-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-gray-800">{row.env}</span>
-                    <Badge
-                      variant="outline"
-                      className={
-                        row.key === "prod"
-                          ? "text-xs border-green-300 text-green-700 bg-green-50"
-                          : row.key === "staging"
-                          ? "text-xs border-amber-300 text-amber-700 bg-amber-50"
-                          : "text-xs border-blue-300 text-blue-700 bg-blue-50"
-                      }
-                    >
-                      {row.key === "prod" ? "production" : row.key === "staging" ? "staging" : "development"}
-                    </Badge>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs text-gray-500">Proxy URL</Label>
-                      <Input
-                        value={proxyUrls[row.key]}
-                        onChange={(e) => setProxyUrls((p) => ({ ...p, [row.key]: e.target.value }))}
-                        className="h-8 text-sm font-mono"
-                        placeholder="https://..."
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-gray-500">Gateway endpoint</Label>
-                      <Input
-                        defaultValue={`${proxyUrls[row.key]}/${id}`}
-                        readOnly
-                        className="h-8 text-sm font-mono bg-gray-50 text-muted-foreground"
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex justify-end">
-              <Button size="sm">Save configuration</Button>
-            </div>
-          </div>
-        </div>
+      {activeTab === "ui" && (
+        <UiTab yamlValue={yamlValue} />
       )}
     </div>
   )
