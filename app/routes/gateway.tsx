@@ -4,7 +4,7 @@ import { toast } from "sonner"
 
 import { requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/keycloak.server"
-import { provisionGatewayOnly } from "~/aws/provision-gateway.server"
+import { createGateway } from "~/repositories/gateway.repository.server"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import { Label } from "~/components/ui/label"
@@ -37,10 +37,9 @@ export async function action({ request }: Route.ActionArgs) {
   if (!name) return { error: "Gateway name is required." }
 
   try {
-    await provisionGatewayOnly({ name, createdBy })
+    await createGateway({ name, createdBy })
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error"
-    console.error("[gateway] failed to create", { name, error: msg })
     return { error: `Failed to create gateway: ${msg}` }
   }
 
