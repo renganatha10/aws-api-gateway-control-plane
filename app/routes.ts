@@ -12,6 +12,7 @@ export default [
     route("apis/new", "routes/api-create.tsx"),
     route("apis/:id", "routes/apis.$id.tsx"),
     route("products", "routes/products.tsx"),
+    route("products/new", "routes/product-create.tsx"),
     route("products/:id", "routes/products.$id.tsx"),
     route("environments", "routes/environments.tsx"),
     route("environments/:id", "routes/environments.$id.tsx"),
