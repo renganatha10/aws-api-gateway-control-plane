@@ -103,3 +103,18 @@ export const planAssociations = pgTable("plan_associations", {
 
 export type PlanAssociation    = typeof planAssociations.$inferSelect
 export type NewPlanAssociation = typeof planAssociations.$inferInsert
+
+export const productDeployments = pgTable("product_deployments", {
+  id:            serial("id").primaryKey(),
+  productId:     integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  environmentId: integer("environment_id").notNull().references(() => environments.id, { onDelete: "cascade" }),
+  gatewayId:     integer("gateway_id").notNull().references(() => gateways.id, { onDelete: "cascade" }),
+  status:        varchar("status", { length: 50 }).notNull().default("deployed"),
+  createdBy:     varchar("created_by", { length: 255 }).notNull(),
+  updatedBy:     varchar("updated_by", { length: 255 }),
+  createdAt:     timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:     timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [unique().on(t.productId, t.environmentId)])
+
+export type ProductDeployment    = typeof productDeployments.$inferSelect
+export type NewProductDeployment = typeof productDeployments.$inferInsert

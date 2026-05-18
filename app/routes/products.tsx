@@ -1,12 +1,34 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Link, useFetcher, useLoaderData, useLocation } from "react-router"
+import { MoreHorizontal, Rocket, Trash2 } from "lucide-react"
 
 import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/keycloak.server"
 import { deleteProduct, listProductsByGateway } from "~/repositories/product.repository.server"
-import { Button } from "~/components/ui/button"
+import { listEnvironmentsByGateway } from "~/repositories/environment.repository.server"
+import { findEnvironmentById } from "~/repositories/environment.repository.server"
+import { listApisByProduct } from "~/repositories/api-association.repository.server"
+import { findApiById } from "~/repositories/api.repository.server"
+import { listDeploymentsByGateway, upsertProductDeployment } from "~/repositories/product-deployment.repository.server"
+import { publishProductToEnvironment } from "~/aws/publish-product.server"
 import { Badge } from "~/components/ui/badge"
+import { Button } from "~/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu"
 import { Input } from "~/components/ui/input"
+import { RadioGroup, RadioGroupItem } from "~/components/ui/radio-group"
+import { Label } from "~/components/ui/label"
 import {
   Table,
   TableBody,
@@ -25,18 +47,82 @@ export async function loader({ request }: Route.LoaderArgs) {
   const { accessToken } = await requireAuth(request)
   const { email }       = getUserProfile(accessToken)
   const gatewayId       = await getActiveGatewayId(request)
-  const products        = gatewayId ? await listProductsByGateway(gatewayId) : []
-  return { products, gatewayId, email }
+
+  const [products, environments, deployments] = await Promise.all([
+    gatewayId ? listProductsByGateway(gatewayId) : [],
+    gatewayId ? listEnvironmentsByGateway(gatewayId) : [],
+    gatewayId ? listDeploymentsByGateway(gatewayId) : [],
+  ])
+
+  return { products, environments, deployments, gatewayId, email }
 }
 
 export async function action({ request }: Route.ActionArgs) {
-  await requireAuth(request)
-  const formData = await request.formData()
-  const id = Number(formData.get("id"))
-  if (!id) return { error: "Missing id" }
-  await deleteProduct(id)
-  return { ok: true }
+  const { accessToken } = await requireAuth(request)
+  const { email }       = getUserProfile(accessToken)
+  const gatewayId       = await getActiveGatewayId(request)
+  const formData        = await request.formData()
+  const intent          = formData.get("_intent") as string
+
+  if (intent === "delete") {
+    const id = Number(formData.get("id"))
+    if (!id) return { error: "Missing id" }
+    await deleteProduct(id)
+    return { ok: true }
+  }
+
+  if (intent === "publish") {
+    const productId   = Number(formData.get("productId"))
+    const envId       = Number(formData.get("environmentId"))
+    if (!productId || !envId || !gatewayId) return { error: "Invalid request." }
+
+    const [assocApis, environment] = await Promise.all([
+      listApisByProduct(productId),
+      findEnvironmentById(envId),
+    ])
+
+    if (!environment) return { error: "Environment not found." }
+
+    // Load full API records so we have the spec (for hosts stage variable resolution)
+    const fullApis = await Promise.all(
+      assocApis.filter((a) => !!a.awsApiId).map((a) => findApiById(a.id)),
+    )
+
+    const apisToPublish = fullApis
+      .filter((a): a is NonNullable<typeof a> => !!a?.awsApiId)
+      .map((a) => ({
+        awsApiId: a.awsApiId!,
+        spec:     a.spec as Record<string, unknown>,
+      }))
+
+    if (apisToPublish.length === 0) {
+      return { error: "No AWS-synced APIs found in this product. Sync your APIs to AWS first." }
+    }
+
+    const { warnings } = await publishProductToEnvironment(apisToPublish, environment.name)
+
+    await upsertProductDeployment({
+      productId,
+      environmentId: envId,
+      gatewayId,
+      status:    "deployed",
+      createdBy: email,
+      updatedBy: email,
+    })
+
+    return { ok: true, publishedTo: environment.name, warnings }
+  }
+
+  return { error: "Unknown intent." }
 }
+
+// ── Types ──────────────────────────────────────────────────────────────────
+
+type LoaderData     = Awaited<ReturnType<typeof loader>>
+type Environment    = LoaderData["environments"][number]
+type ProductRow     = LoaderData["products"][number]
+
+// ── Constants ──────────────────────────────────────────────────────────────
 
 const DEV_TABS = [
   { label: "APIs",     to: "/apis"     },
@@ -49,25 +135,157 @@ const VISIBILITY_BADGE: Record<string, { label: string; className: string }> = {
   invisible:     { label: "Invisible",     className: "bg-gray-100 text-gray-600 border-gray-200"   },
 }
 
-function DeleteButton({ id }: { id: number }) {
-  const fetcher  = useFetcher()
-  const [confirm, setConfirm] = useState(false)
-  const deleting = fetcher.state !== "idle"
+// ── Publish Modal ──────────────────────────────────────────────────────────
 
-  if (confirm) {
+function PublishModal({
+  product,
+  environments,
+  onClose,
+}: {
+  product: ProductRow | null
+  environments: Environment[]
+  onClose: () => void
+}) {
+  const fetcher     = useFetcher<typeof action>()
+  const [envId, setEnvId] = useState<string>("")
+  const busy        = fetcher.state !== "idle"
+  const error       = fetcher.data && "error" in fetcher.data ? fetcher.data.error : null
+  const succeeded   = fetcher.data && "ok" in fetcher.data && fetcher.data.ok
+
+  // Close on success
+  useEffect(() => {
+    if (succeeded) {
+      const t = setTimeout(onClose, 800)
+      return () => clearTimeout(t)
+    }
+  }, [succeeded, onClose])
+
+  // Reset env selection when product changes
+  useEffect(() => { setEnvId("") }, [product?.id])
+
+  if (!product) return null
+
+  return (
+    <Dialog open={!!product} onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Publish Product</DialogTitle>
+        </DialogHeader>
+
+        {/* Loading overlay */}
+        {busy && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-lg bg-white/80">
+            <svg
+              className="size-8 animate-spin text-blue-600"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+            <p className="text-sm text-gray-600 font-medium">Deploying to AWS…</p>
+          </div>
+        )}
+
+        {succeeded ? (
+          <div className="flex flex-col items-center gap-3 py-6 text-center">
+            <div className="flex size-12 items-center justify-center rounded-full bg-green-100">
+              <svg className="size-6 text-green-600" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <p className="text-sm font-medium text-gray-900">
+              Published to{" "}
+              <span className="font-semibold">
+                {"publishedTo" in (fetcher.data ?? {}) ? (fetcher.data as { publishedTo: string }).publishedTo : ""}
+              </span>
+            </p>
+          </div>
+        ) : environments.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 py-6 text-center">
+            <svg className="size-10 text-gray-300" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+            <p className="text-sm font-medium text-gray-700">No environments found.</p>
+            <p className="text-xs text-muted-foreground">
+              <Link to="/environments" className="underline underline-offset-2 hover:text-gray-900" onClick={onClose}>
+                Create an environment first →
+              </Link>
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Select an environment to deploy <span className="font-medium text-gray-900">{product.displayName}</span> to:
+            </p>
+
+            <RadioGroup value={envId} onValueChange={setEnvId} className="space-y-2">
+              {environments.map((env) => (
+                <Label
+                  key={env.id}
+                  htmlFor={`env-${env.id}`}
+                  className={[
+                    "flex cursor-pointer items-center gap-3 rounded-lg border-2 px-4 py-3 transition-colors",
+                    envId === String(env.id)
+                      ? "border-blue-600 bg-blue-50"
+                      : "border-gray-200 hover:border-gray-300 hover:bg-gray-50",
+                  ].join(" ")}
+                >
+                  <RadioGroupItem value={String(env.id)} id={`env-${env.id}`} />
+                  <span className="text-sm font-medium text-gray-900">{env.name}</span>
+                </Label>
+              ))}
+            </RadioGroup>
+
+            {error && <p className="text-xs text-destructive">{error}</p>}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
+          {!succeeded && environments.length > 0 && (
+            <fetcher.Form method="post">
+              <input type="hidden" name="_intent"       value="publish" />
+              <input type="hidden" name="productId"     value={product.id} />
+              <input type="hidden" name="environmentId" value={envId} />
+              <Button type="submit" disabled={!envId || busy}>
+                <Rocket className="size-4 mr-1.5" />
+                Deploy
+              </Button>
+            </fetcher.Form>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── Per-row actions ────────────────────────────────────────────────────────
+
+function ProductActions({
+  product,
+  onPublish,
+}: {
+  product: ProductRow
+  onPublish: (p: ProductRow) => void
+}) {
+  const fetcher = useFetcher()
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  if (confirmDelete) {
     return (
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 justify-end">
         <button
           onClick={() => {
-            fetcher.submit({ id: String(id) }, { method: "post" })
-            setConfirm(false)
+            fetcher.submit({ _intent: "delete", id: String(product.id) }, { method: "post" })
+            setConfirmDelete(false)
           }}
           className="text-xs text-red-600 font-medium hover:underline"
         >
           Delete
         </button>
         <span className="text-gray-300">|</span>
-        <button onClick={() => setConfirm(false)} className="text-xs text-gray-500 hover:underline">
+        <button onClick={() => setConfirmDelete(false)} className="text-xs text-gray-500 hover:underline">
           Cancel
         </button>
       </div>
@@ -75,30 +293,46 @@ function DeleteButton({ id }: { id: number }) {
   }
 
   return (
-    <button
-      onClick={() => setConfirm(true)}
-      disabled={deleting}
-      className="text-gray-400 hover:text-red-500 transition-colors p-1 rounded"
-      aria-label="Delete product"
-    >
-      <svg className="size-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />
-      </svg>
-    </button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
+          <MoreHorizontal className="size-4" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => onPublish(product)}>
+          <Rocket className="size-4 mr-2 text-blue-600" />
+          Publish
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => setConfirmDelete(true)}
+          className="text-red-600 focus:text-red-600"
+        >
+          <Trash2 className="size-4 mr-2" />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
+// ── Page ───────────────────────────────────────────────────────────────────
+
 export default function ProductsPage() {
-  const { products } = useLoaderData<typeof loader>()
+  const { products, environments, deployments } = useLoaderData<typeof loader>()
   const location = useLocation()
 
-  const [search, setSearch] = useState("")
+  const [search,           setSearch]           = useState("")
+  const [publishingProduct, setPublishingProduct] = useState<ProductRow | null>(null)
 
   const filtered = products.filter(
     (p) =>
       p.displayName.toLowerCase().includes(search.toLowerCase()) ||
       p.name.toLowerCase().includes(search.toLowerCase()),
   )
+
+  // Build a set of deployed product IDs for badge display
+  const deployedProductIds = new Set(deployments.map((d) => d.productId))
 
   return (
     <div className="flex flex-col min-h-full bg-white">
@@ -162,13 +396,15 @@ export default function ProductsPage() {
                 <TableHead className="font-semibold text-gray-700">Display Name</TableHead>
                 <TableHead className="font-semibold text-gray-700">Name</TableHead>
                 <TableHead className="font-semibold text-gray-700">Visibility</TableHead>
+                <TableHead className="font-semibold text-gray-700">Status</TableHead>
                 <TableHead className="font-semibold text-gray-700">Created</TableHead>
                 <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map((product) => {
-                const vis = VISIBILITY_BADGE[product.visibility] ?? VISIBILITY_BADGE.authenticated
+                const vis      = VISIBILITY_BADGE[product.visibility] ?? VISIBILITY_BADGE.authenticated
+                const deployed = deployedProductIds.has(product.id)
                 return (
                   <TableRow key={product.id}>
                     <TableCell className="font-medium">
@@ -180,11 +416,23 @@ export default function ProductsPage() {
                     <TableCell>
                       <Badge variant="outline" className={`text-xs ${vis.className}`}>{vis.label}</Badge>
                     </TableCell>
+                    <TableCell>
+                      {deployed ? (
+                        <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                          <Rocket className="size-3 mr-1" /> Deployed
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Not deployed</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {new Date(product.createdAt).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-right">
-                      <DeleteButton id={product.id} />
+                      <ProductActions
+                        product={product}
+                        onPublish={setPublishingProduct}
+                      />
                     </TableCell>
                   </TableRow>
                 )
@@ -193,6 +441,13 @@ export default function ProductsPage() {
           </Table>
         </div>
       )}
+
+      {/* Publish modal (rendered outside the table to avoid z-index issues) */}
+      <PublishModal
+        product={publishingProduct}
+        environments={environments}
+        onClose={() => setPublishingProduct(null)}
+      />
     </div>
   )
 }

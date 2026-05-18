@@ -47,6 +47,7 @@ export async function listApisByProduct(productId: number) {
       displayName: apis.displayName,
       basePath:    apis.basePath,
       specType:    apis.specType,
+      awsApiId:    apis.awsApiId,
       gatewayId:   apis.gatewayId,
       createdAt:   apis.createdAt,
     })

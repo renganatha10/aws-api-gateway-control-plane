@@ -2,6 +2,7 @@ import {
   CreateStageCommand,
   DeleteStageCommand,
   GetStagesCommand,
+  UpdateStageCommand,
   type Stage,
 } from "@aws-sdk/client-api-gateway"
 
@@ -12,14 +13,16 @@ export async function createStage(
   restApiId: string,
   stageName: string,
   deploymentId: string,
+  variables?: Record<string, string>,
 ): Promise<Stage> {
   const command = new CreateStageCommand({
     restApiId,
     stageName: sanitizeStageName(stageName),
     deploymentId,
+    variables,
   })
   const result = await apigwClient.send(command)
-  console.log("[aws:stage] created", { restApiId, stageName: result.stageName })
+  console.log("[aws:stage] created", { restApiId, stageName: result.stageName, variables })
   return result
 }
 
@@ -48,7 +51,31 @@ export async function deleteStage(restApiId: string, stageName: string): Promise
   console.log("[aws:stage] deleted", { restApiId, stageName })
 }
 
+/** Update an existing stage to point to a new deployment, optionally refreshing stage variables. */
+export async function updateStageDeployment(
+  restApiId: string,
+  stageName: string,
+  deploymentId: string,
+  variables?: Record<string, string>,
+): Promise<void> {
+  const varPatches = Object.entries(variables ?? {}).map(([key, value]) => ({
+    op:    "replace" as const,
+    path:  `/variables/${key}`,
+    value,
+  }))
+
+  await apigwClient.send(new UpdateStageCommand({
+    restApiId,
+    stageName,
+    patchOperations: [
+      { op: "replace", path: "/deploymentId", value: deploymentId },
+      ...varPatches,
+    ],
+  }))
+  console.log("[aws:stage] updated deployment", { restApiId, stageName, deploymentId, variables })
+}
+
 /** AWS stage names must be alphanumeric + hyphens/underscores only. */
-function sanitizeStageName(name: string): string {
+export function sanitizeStageName(name: string): string {
   return name.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 128)
 }
