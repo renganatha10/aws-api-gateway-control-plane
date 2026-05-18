@@ -15,5 +15,6 @@ export default [
     route("products/:id", "routes/products.$id.tsx"),
     route("environments", "routes/environments.tsx"),
     route("environments/:id", "routes/environments.$id.tsx"),
+    route("plans", "routes/plans.tsx"),
   ]),
 ] satisfies RouteConfig;

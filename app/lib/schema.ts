@@ -38,5 +38,24 @@ export type NewGateway = typeof gateways.$inferInsert
 export type Environment    = typeof environments.$inferSelect
 export type NewEnvironment = typeof environments.$inferInsert
 
+export const plans = pgTable("plans", {
+  id:          serial("id").primaryKey(),
+  displayName: varchar("display_name", { length: 255 }).notNull(),
+  name:        varchar("name", { length: 255 }).notNull(),
+  gatewayId:   integer("gateway_id").notNull().references(() => gateways.id, { onDelete: "cascade" }),
+  throttle:    integer("throttle"),
+  burst:       integer("burst"),
+  quotaLimit:  integer("quota_limit"),
+  quotaPeriod: varchar("quota_period", { length: 10 }),
+  createdBy:      varchar("created_by", { length: 255 }).notNull(),
+  updatedBy:      varchar("updated_by", { length: 255 }),
+  awsUsagePlanId: varchar("aws_usage_plan_id", { length: 100 }),
+  createdAt:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:      timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+})
+
+export type Plan    = typeof plans.$inferSelect
+export type NewPlan = typeof plans.$inferInsert
+
 export type Api    = typeof apis.$inferSelect
 export type NewApi = typeof apis.$inferInsert
