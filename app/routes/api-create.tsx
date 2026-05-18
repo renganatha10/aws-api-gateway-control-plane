@@ -5,6 +5,8 @@ import { Form, redirect, useActionData, useNavigate } from "react-router"
 import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/keycloak.server"
 import { createApi } from "~/repositories/api.repository.server"
+import { buildAwsSpec } from "~/aws/build-aws-spec.server"
+import { importApiSpec } from "~/aws/import-api.server"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import { Label } from "~/components/ui/label"
@@ -44,7 +46,15 @@ export async function action({ request }: Route.ActionArgs) {
 
   if (!spec || typeof spec !== "object") return { error: "YAML must define an object." }
 
-  await createApi({ name, scope, specType, spec, gatewayId, createdBy })
+  let awsApiId: string | null = null
+  try {
+    const awsSpec = buildAwsSpec(spec as Record<string, unknown>)
+    awsApiId = await importApiSpec(awsSpec)
+  } catch (err) {
+    console.error("[api-create] AWS import failed", err instanceof Error ? err.message : err)
+  }
+
+  await createApi({ name, scope, specType, spec, gatewayId, createdBy, awsApiId })
 
   throw redirect("/apis")
 }

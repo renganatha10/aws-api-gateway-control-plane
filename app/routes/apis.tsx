@@ -1,10 +1,10 @@
 import { useState } from "react"
-import { Link, useLocation, useNavigation, useNavigate } from "react-router"
-import { Zap } from "lucide-react"
+import { Link, useFetcher, useLocation, useNavigation, useNavigate } from "react-router"
+import { Trash2, Zap } from "lucide-react"
 
 import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/keycloak.server"
-import { listApisByGateway } from "~/repositories/api.repository.server"
+import { deleteApi, listApisByGateway } from "~/repositories/api.repository.server"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import {
@@ -19,6 +19,15 @@ import type { Route } from "./+types/apis"
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: "Develop — APIs" }]
+}
+
+export async function action({ request }: Route.ActionArgs) {
+  await requireAuth(request)
+  const formData = await request.formData()
+  const id = Number(formData.get("id"))
+  if (!id) return { error: "Missing id" }
+  await deleteApi(id)
+  return { ok: true }
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -37,6 +46,46 @@ const DEV_TABS = [
 const SPEC_TYPE_LABEL: Record<string, string> = {
   swagger2: "OpenAPI 2.0 (REST)",
   openapi3: "OpenAPI 3.0 (REST)",
+}
+
+function DeleteButton({ id }: { id: number }) {
+  const fetcher  = useFetcher()
+  const [confirm, setConfirm] = useState(false)
+  const deleting = fetcher.state !== "idle"
+
+  if (confirm) {
+    return (
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => {
+            fetcher.submit({ id: String(id) }, { method: "post" })
+            setConfirm(false)
+          }}
+          className="text-xs text-red-600 font-medium hover:underline"
+        >
+          Delete
+        </button>
+        <span className="text-gray-300">|</span>
+        <button
+          onClick={() => setConfirm(false)}
+          className="text-xs text-gray-500 hover:underline"
+        >
+          Cancel
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <button
+      onClick={() => setConfirm(true)}
+      disabled={deleting}
+      className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+      aria-label="Delete API"
+    >
+      <Trash2 className="size-4" />
+    </button>
+  )
 }
 
 export default function ApisPage({ loaderData }: Route.ComponentProps) {
@@ -168,7 +217,9 @@ export default function ApisPage({ loaderData }: Route.ComponentProps) {
                 <TableCell className="text-gray-500 text-sm">
                   {new Date(api.createdAt).toLocaleDateString()}
                 </TableCell>
-                <TableCell />
+                <TableCell className="text-right pr-4">
+                  <DeleteButton id={api.id} />
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

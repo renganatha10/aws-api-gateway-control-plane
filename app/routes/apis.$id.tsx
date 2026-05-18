@@ -5,6 +5,8 @@ import { toast } from "sonner"
 
 import { requireAuth } from "~/lib/session.server"
 import { findApiById, updateApi } from "~/repositories/api.repository.server"
+import { buildAwsSpec } from "~/aws/build-aws-spec.server"
+import { importApiSpec, putApiSpec } from "~/aws/import-api.server"
 import type { Route } from "./+types/apis.$id"
 
 // ─── raw spec types (Swagger 2.0 / OAS 3) ────────────────────────────────────
@@ -294,7 +296,21 @@ export async function action({ request, params }: Route.ActionArgs) {
   try { spec = yaml.load(yamlStr) } catch { return { error: "Invalid YAML." } }
   if (!spec || typeof spec !== "object") return { error: "YAML must define an object." }
 
-  await updateApi(id, { scope, spec })
+  const existing = await findApiById(id)
+  let awsApiId = existing?.awsApiId ?? null
+
+  try {
+    const awsSpec = buildAwsSpec(spec as Record<string, unknown>)
+    if (awsApiId) {
+      await putApiSpec(awsApiId, awsSpec)
+    } else {
+      awsApiId = await importApiSpec(awsSpec)
+    }
+  } catch (err) {
+    console.error("[api-update] AWS import failed", err instanceof Error ? err.message : err)
+  }
+
+  await updateApi(id, { scope, spec, awsApiId })
   return { ok: true }
 }
 

@@ -19,7 +19,11 @@ export async function findApiById(id: number): Promise<Api | undefined> {
 
 export async function updateApi(
   id: number,
-  patch: Pick<NewApi, "scope" | "spec">,
+  patch: Pick<NewApi, "scope" | "spec" | "awsApiId">,
 ): Promise<void> {
   await db.update(apis).set(patch).where(eq(apis.id, id))
+}
+
+export async function deleteApi(id: number): Promise<void> {
+  await db.delete(apis).where(eq(apis.id, id))
 }

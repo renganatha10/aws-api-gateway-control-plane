@@ -25,6 +25,7 @@ export const apis = pgTable("apis", {
   spec:      jsonb("spec").notNull(),
   gatewayId: integer("gateway_id").references(() => gateways.id, { onDelete: "set null" }),
   createdBy: varchar("created_by", { length: 255 }).notNull(),
+  awsApiId:  varchar("aws_api_id", { length: 100 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 })
 
