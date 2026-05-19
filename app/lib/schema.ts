@@ -118,3 +118,19 @@ export const productDeployments = pgTable("product_deployments", {
 
 export type ProductDeployment    = typeof productDeployments.$inferSelect
 export type NewProductDeployment = typeof productDeployments.$inferInsert
+
+export const consumers = pgTable("consumers", {
+  id:            serial("id").primaryKey(),
+  name:          varchar("name", { length: 255 }).notNull(),
+  productId:     integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  environmentId: integer("environment_id").notNull().references(() => environments.id, { onDelete: "cascade" }),
+  planId:        integer("plan_id").notNull().references(() => plans.id, { onDelete: "cascade" }),
+  gatewayId:     integer("gateway_id").notNull().references(() => gateways.id, { onDelete: "cascade" }),
+  createdBy:     varchar("created_by", { length: 255 }).notNull(),
+  updatedBy:     varchar("updated_by", { length: 255 }),
+  createdAt:     timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:     timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+})
+
+export type Consumer    = typeof consumers.$inferSelect
+export type NewConsumer = typeof consumers.$inferInsert

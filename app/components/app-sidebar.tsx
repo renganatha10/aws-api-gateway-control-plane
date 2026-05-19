@@ -1,4 +1,4 @@
-import { Globe, LayoutList, Package, Zap } from "lucide-react"
+import { Globe, LayoutList, Package, Users, Zap } from "lucide-react"
 import { Link, useLocation } from "react-router"
 
 import type { UserProfile } from "~/lib/cognito.server"
@@ -19,10 +19,11 @@ import {
 import { ApiSwitcher } from "~/components/api-switcher"
 
 const navItems = [
-  { title: "Products",     url: "/products",     icon: Package },
-  { title: "APIs",         url: "/apis",          icon: Zap     },
-  { title: "Environments", url: "/environments",  icon: Globe       },
-  { title: "Plans",        url: "/plans",          icon: LayoutList  },
+  { title: "Products",     url: "/products",     icon: Package    },
+  { title: "APIs",         url: "/apis",         icon: Zap        },
+  { title: "Environments", url: "/environments", icon: Globe      },
+  { title: "Plans",        url: "/plans",        icon: LayoutList },
+  { title: "Consumers",    url: "/consumers",    icon: Users      },
 ]
 
 function getInitials(given: string, family: string): string {
