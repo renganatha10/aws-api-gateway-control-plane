@@ -10,3 +10,7 @@
 mockserver/node_modules/
 
 /specs/
+
+# Playwright
+/playwright-report/
+/test-results/
