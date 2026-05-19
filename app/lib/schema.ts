@@ -126,6 +126,8 @@ export const consumers = pgTable("consumers", {
   environmentId: integer("environment_id").notNull().references(() => environments.id, { onDelete: "cascade" }),
   planId:        integer("plan_id").notNull().references(() => plans.id, { onDelete: "cascade" }),
   gatewayId:     integer("gateway_id").notNull().references(() => gateways.id, { onDelete: "cascade" }),
+  clientId:      varchar("client_id", { length: 255 }),
+  awsApiKeyId:   varchar("aws_api_key_id", { length: 255 }),
   createdBy:     varchar("created_by", { length: 255 }).notNull(),
   updatedBy:     varchar("updated_by", { length: 255 }),
   createdAt:     timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

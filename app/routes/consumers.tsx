@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Link, useFetcher, useLoaderData } from "react-router"
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { Eye, EyeOff, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 
 import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
 import { deleteConsumer, listConsumersByGateway } from "~/repositories/consumer.repository.server"
@@ -50,6 +50,48 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 type ConsumerRow = Awaited<ReturnType<typeof listConsumersByGateway>>[number]
+
+// ── Reveal Secret ─────────────────────────────────────────────────────────────
+
+function RevealSecret({ consumerId }: { consumerId: number }) {
+  const fetcher  = useFetcher<{ secret?: string; error?: string }>()
+  const [visible, setVisible] = useState(false)
+  const secret   = fetcher.data?.secret
+  const fetchErr = fetcher.data?.error
+
+  if (fetchErr) {
+    return <span className="text-xs text-destructive">{fetchErr}</span>
+  }
+
+  if (!secret) {
+    return (
+      <button
+        onClick={() => fetcher.load(`/api/consumer-secret/${consumerId}`)}
+        disabled={fetcher.state === "loading"}
+        className="text-xs text-blue-600 hover:underline disabled:opacity-50"
+      >
+        {fetcher.state === "loading" ? "Loading…" : "Show secret"}
+      </button>
+    )
+  }
+
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className="font-mono text-xs text-gray-800 select-all">
+        {visible ? secret : "••••••••••••••••"}
+      </span>
+      <button
+        onClick={() => setVisible((v) => !v)}
+        className="text-gray-400 hover:text-gray-700"
+        title={visible ? "Hide" : "Show"}
+      >
+        {visible ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+      </button>
+    </span>
+  )
+}
+
+// ── Row Actions ───────────────────────────────────────────────────────────────
 
 function ConsumerActions({ consumer }: { consumer: ConsumerRow }) {
   const fetcher        = useFetcher()
@@ -101,6 +143,8 @@ function ConsumerActions({ consumer }: { consumer: ConsumerRow }) {
   )
 }
 
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function ConsumersPage() {
   const { consumers } = useLoaderData<typeof loader>()
   const [search, setSearch] = useState("")
@@ -148,7 +192,7 @@ export default function ConsumersPage() {
           </div>
         </div>
       ) : (
-        <div className="px-6">
+        <div className="px-6 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
@@ -156,7 +200,8 @@ export default function ConsumersPage() {
                 <TableHead className="font-semibold text-gray-700">Product</TableHead>
                 <TableHead className="font-semibold text-gray-700">Stage</TableHead>
                 <TableHead className="font-semibold text-gray-700">Plan</TableHead>
-                <TableHead className="font-semibold text-gray-700">Created By</TableHead>
+                <TableHead className="font-semibold text-gray-700">Client ID</TableHead>
+                <TableHead className="font-semibold text-gray-700">Client Secret</TableHead>
                 <TableHead className="font-semibold text-gray-700">Created</TableHead>
                 <TableHead className="w-12" />
               </TableRow>
@@ -180,7 +225,20 @@ export default function ConsumersPage() {
                       {consumer.planName}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{consumer.createdBy}</TableCell>
+                  <TableCell>
+                    {consumer.clientId ? (
+                      <span className="font-mono text-xs text-gray-700 select-all">{consumer.clientId}</span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {consumer.clientId ? (
+                      <RevealSecret consumerId={consumer.id} />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {new Date(consumer.createdAt).toLocaleDateString()}
                   </TableCell>

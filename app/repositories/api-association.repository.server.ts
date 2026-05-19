@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm"
+import { and, eq, isNotNull } from "drizzle-orm"
 import { db } from "~/lib/db.server"
 import { apiAssociations, apis, type NewApiAssociation } from "~/lib/schema"
 
@@ -37,6 +37,27 @@ export async function syncApiAssociations(
       await db.insert(apiAssociations).values({ productId, apiId, gatewayId, createdBy })
     }
   }
+}
+
+/** Returns APIs for a product that have both a scope and an AWS API ID — used during consumer provisioning. */
+export async function listApiScopesForProduct(productId: number) {
+  return db
+    .select({
+      id:          apis.id,
+      name:        apis.name,
+      displayName: apis.displayName,
+      scope:       apis.scope,
+      awsApiId:    apis.awsApiId,
+    })
+    .from(apiAssociations)
+    .innerJoin(apis, eq(apiAssociations.apiId, apis.id))
+    .where(
+      and(
+        eq(apiAssociations.productId, productId),
+        isNotNull(apis.scope),
+        isNotNull(apis.awsApiId),
+      ),
+    )
 }
 
 export async function listApisByProduct(productId: number) {

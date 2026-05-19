@@ -1,4 +1,6 @@
-import { Form, redirect, useActionData, useLoaderData, useNavigate } from "react-router"
+import { useState } from "react"
+import { Form, redirect, useActionData, useLoaderData, useNavigate, useFetcher } from "react-router"
+import { Eye, EyeOff } from "lucide-react"
 
 import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/cognito.server"
@@ -58,6 +60,44 @@ export async function action({ request, params }: Route.ActionArgs) {
 
   await updateConsumer(id, { name, productId, environmentId, planId, updatedBy, updatedAt: new Date() })
   throw redirect("/consumers")
+}
+
+function RevealSecret({ consumerId }: { consumerId: number }) {
+  const fetcher  = useFetcher<{ secret?: string; error?: string }>()
+  const [visible, setVisible] = useState(false)
+  const secret   = fetcher.data?.secret
+  const fetchErr = fetcher.data?.error
+
+  if (fetchErr) {
+    return <span className="text-sm text-destructive">{fetchErr}</span>
+  }
+
+  if (!secret) {
+    return (
+      <button
+        onClick={() => fetcher.load(`/api/consumer-secret/${consumerId}`)}
+        disabled={fetcher.state === "loading"}
+        className="text-sm text-blue-600 hover:underline disabled:opacity-50"
+      >
+        {fetcher.state === "loading" ? "Loading…" : "Show secret"}
+      </button>
+    )
+  }
+
+  return (
+    <span className="flex items-center gap-2">
+      <span className="font-mono text-sm text-gray-800 select-all">
+        {visible ? secret : "••••••••••••••••"}
+      </span>
+      <button
+        onClick={() => setVisible((v) => !v)}
+        className="text-gray-400 hover:text-gray-700"
+        title={visible ? "Hide" : "Show"}
+      >
+        {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+      </button>
+    </span>
+  )
 }
 
 export default function ConsumerEdit() {
@@ -140,19 +180,33 @@ export default function ConsumerEdit() {
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100 text-xs text-muted-foreground">
-            <div>
-              <span className="font-medium text-gray-500">Created by</span>
-              <p className="mt-0.5">{consumer.createdBy}</p>
-              <p>{new Date(consumer.createdAt).toLocaleString()}</p>
-            </div>
-            {consumer.updatedBy && (
-              <div>
-                <span className="font-medium text-gray-500">Last updated by</span>
-                <p className="mt-0.5">{consumer.updatedBy}</p>
-                <p>{new Date(consumer.updatedAt).toLocaleString()}</p>
+          <div className="space-y-4 pt-4 border-t border-gray-100">
+            {consumer.clientId && (
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-gray-500">Client ID</p>
+                  <p className="font-mono text-sm text-gray-800 select-all">{consumer.clientId}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-gray-500">Client Secret</p>
+                  <RevealSecret consumerId={consumer.id} />
+                </div>
               </div>
             )}
+            <div className="grid grid-cols-2 gap-4 text-xs text-muted-foreground">
+              <div>
+                <span className="font-medium text-gray-500">Created by</span>
+                <p className="mt-0.5">{consumer.createdBy}</p>
+                <p>{new Date(consumer.createdAt).toLocaleString()}</p>
+              </div>
+              {consumer.updatedBy && (
+                <div>
+                  <span className="font-medium text-gray-500">Last updated by</span>
+                  <p className="mt-0.5">{consumer.updatedBy}</p>
+                  <p>{new Date(consumer.updatedAt).toLocaleString()}</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </Form>

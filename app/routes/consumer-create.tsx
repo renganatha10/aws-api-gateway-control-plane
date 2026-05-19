@@ -4,8 +4,13 @@ import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/cognito.server"
 import { createConsumer } from "~/repositories/consumer.repository.server"
 import { listProductsByGateway } from "~/repositories/product.repository.server"
-import { listEnvironmentsByGateway } from "~/repositories/environment.repository.server"
-import { listPlansByGateway } from "~/repositories/plan.repository.server"
+import { listEnvironmentsByGateway, findEnvironmentById } from "~/repositories/environment.repository.server"
+import { listPlansByGateway, findPlanById } from "~/repositories/plan.repository.server"
+import { listApiScopesForProduct } from "~/repositories/api-association.repository.server"
+import { ensureResourceServer } from "~/aws/cognito-resource-server.server"
+import { createMachineClient } from "~/aws/cognito-app-client.server"
+import { createApiKey, provisionConsumerKey } from "~/aws/api-key.server"
+import { USER_POOL_ID } from "~/aws/cognito-client.server"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import { Label } from "~/components/ui/label"
@@ -42,17 +47,49 @@ export async function action({ request }: Route.ActionArgs) {
 
   if (!gatewayId) return { error: "No active gateway selected." }
 
-  const formData     = await request.formData()
-  const name         = (formData.get("name") as string)?.trim()
-  const productId    = Number(formData.get("productId"))
+  const formData      = await request.formData()
+  const name          = (formData.get("name") as string)?.trim()
+  const productId     = Number(formData.get("productId"))
   const environmentId = Number(formData.get("environmentId"))
-  const planId       = Number(formData.get("planId"))
+  const planId        = Number(formData.get("planId"))
 
   if (!name)          return { error: "Name is required." }
   if (!productId)     return { error: "Please select a product." }
   if (!environmentId) return { error: "Please select a stage." }
   if (!planId)        return { error: "Please select a plan." }
 
+  const [apis, environment, plan] = await Promise.all([
+    listApiScopesForProduct(productId),
+    findEnvironmentById(environmentId),
+    findPlanById(planId),
+  ])
+
+  if (!environment) return { error: "Selected stage not found." }
+  if (!plan?.awsUsagePlanId) return { error: "Selected plan has not been synced to AWS yet." }
+  if (apis.length === 0) return { error: "No AWS-synced APIs with scopes found in this product." }
+
+  // 1. Ensure a Cognito resource server exists for each API
+  for (const api of apis) {
+    await ensureResourceServer(USER_POOL_ID, api.name, api.displayName, [api.scope!])
+  }
+
+  // 2. Build full OAuth scopes: "{api.name}/{api.scope}"
+  const fullScopes = apis.map((api) => `${api.name}/${api.scope}`)
+
+  // 3. Create Cognito machine client
+  const { clientId } = await createMachineClient(USER_POOL_ID, name, fullScopes)
+
+  // 4. Create AWS API key
+  const { id: awsApiKeyId } = await createApiKey(name)
+
+  // 5. Associate API key with usage plan + add API stages
+  await provisionConsumerKey(
+    plan.awsUsagePlanId,
+    awsApiKeyId,
+    apis.map((api) => ({ apiId: api.awsApiId!, stage: environment.name })),
+  )
+
+  // 6. Persist consumer
   const now = new Date()
   await createConsumer({
     name,
@@ -60,6 +97,8 @@ export async function action({ request }: Route.ActionArgs) {
     environmentId,
     planId,
     gatewayId,
+    clientId,
+    awsApiKeyId,
     createdBy,
     updatedBy: createdBy,
     createdAt: now,
@@ -160,6 +199,10 @@ export default function ConsumerCreate() {
               </SelectContent>
             </Select>
           </div>
+
+          <p className="text-xs text-muted-foreground max-w-sm">
+            Saving will provision a Cognito app client, resource servers for each API in the product, and an AWS API key associated with the selected plan.
+          </p>
         </div>
       </Form>
     </div>

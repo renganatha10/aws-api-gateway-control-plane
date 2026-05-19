@@ -19,6 +19,8 @@ export async function listConsumersByGateway(gatewayId: number) {
       productName:     products.displayName,
       environmentName: environments.name,
       planName:        plans.displayName,
+      clientId:        consumers.clientId,
+      awsApiKeyId:     consumers.awsApiKeyId,
     })
     .from(consumers)
     .innerJoin(products,     eq(consumers.productId,     products.id))
@@ -26,6 +28,7 @@ export async function listConsumersByGateway(gatewayId: number) {
     .innerJoin(plans,        eq(consumers.planId,        plans.id))
     .where(eq(consumers.gatewayId, gatewayId))
     .orderBy(consumers.createdAt)
+
 }
 
 export async function findConsumerById(id: number): Promise<Consumer | undefined> {
