@@ -100,6 +100,7 @@ import { Tooltip as TooltipPrimitive } from "radix-ui"
 | `AWS_REGION` | AWS region for API Gateway |
 | `AWS_ACCESS_KEY_ID` | AWS credentials |
 | `AWS_SECRET_ACCESS_KEY` | AWS credentials |
+| `COGNITO_USER_POOL_ARN` | Cognito User Pool ARN injected into `CognitoAuth` authorizer in every API spec (e.g. `arn:aws:cognito-idp:ap-south-1:443985162942:userpool/ap-south-1_AY6l4PkyX`) |
 
 ## Database migrations
 

@@ -1,9 +1,9 @@
-import * as React from "react"
+﻿import * as React from "react"
 import * as yaml from "js-yaml"
 import { Form, redirect, useActionData, useNavigate } from "react-router"
 
 import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
-import { getUserProfile } from "~/lib/keycloak.server"
+import { getUserProfile } from "~/lib/cognito.server"
 import { createApi, findApiByGatewayAndBasePath } from "~/repositories/api.repository.server"
 import { buildAwsSpec, extractBasePath } from "~/aws/build-aws-spec.server"
 import { importApiSpec } from "~/aws/import-api.server"
@@ -58,7 +58,7 @@ export async function action({ request }: Route.ActionArgs) {
   try {
     const specObj  = spec as Record<string, unknown>
     const specForAws = { ...specObj, info: { ...(specObj.info as object ?? {}), title: name } }
-    awsApiId = await importApiSpec(buildAwsSpec(specForAws))
+    awsApiId = await importApiSpec(buildAwsSpec(specForAws, scope))
   } catch (err) {
     return { error: `AWS import failed: ${err instanceof Error ? err.message : "Unknown error"}` }
   }

@@ -1,10 +1,10 @@
-import * as React from "react"
+﻿import * as React from "react"
 import * as yaml from "js-yaml"
 import { Form, Link, useActionData, useNavigation } from "react-router"
 import { toast } from "sonner"
 
 import { requireAuth } from "~/lib/session.server"
-import { getUserProfile } from "~/lib/keycloak.server"
+import { getUserProfile } from "~/lib/cognito.server"
 import { findApiById, findApiByGatewayAndBasePath, updateApi } from "~/repositories/api.repository.server"
 import { buildAwsSpec, extractBasePath } from "~/aws/build-aws-spec.server"
 import { importApiSpec, putApiSpec } from "~/aws/import-api.server"
@@ -310,7 +310,7 @@ export async function action({ request, params }: Route.ActionArgs) {
   try {
     const specObj    = spec as Record<string, unknown>
     const specForAws = { ...specObj, info: { ...(specObj.info as object ?? {}), title: existing?.name ?? "" } }
-    const awsSpec    = buildAwsSpec(specForAws)
+    const awsSpec    = buildAwsSpec(specForAws, scope)
     if (awsApiId) {
       await putApiSpec(awsApiId, awsSpec)
     } else {

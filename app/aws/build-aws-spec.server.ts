@@ -11,23 +11,49 @@ export function extractBasePath(spec: Record<string, unknown>): string {
 }
 
 /**
- * Takes a clean Swagger 2.0 spec (with custom `hosts` field) and returns an
+ * Takes a clean Swagger 2.0 or OAS3 spec (with custom `hosts` field) and returns an
  * AWS API Gateway-compatible spec by injecting x-amazon-apigateway-integration
- * blocks for each path/method. The integration URI uses `${stageVariables.backendHost}`
- * so each stage (dev/prod) can point to the corresponding URL from `hosts`.
- * The custom `hosts` field is removed from the output.
+ * blocks for each path/method, plus api_key + CognitoAuth security schemes.
+ * The integration URI uses `${stageVariables.backendHost}` so each stage can
+ * point to the corresponding URL from `hosts`. The custom `hosts` field is removed.
  */
-export function buildAwsSpec(spec: Record<string, unknown>): Record<string, unknown> {
+export function buildAwsSpec(spec: Record<string, unknown>, scope?: string | null): Record<string, unknown> {
   const aws = JSON.parse(JSON.stringify(spec)) as Record<string, unknown>
+  const isOas3 = typeof aws.openapi === "string"
+  const scopeValue = scope?.trim() ?? ""
 
   aws["x-amazon-apigateway-api-key-source"] = "HEADER"
   aws["x-amazon-apigateway-request-validators"] = {
     basic: { validateRequestBody: true, validateRequestParameters: false },
   }
 
-  const secDefs = (aws.securityDefinitions ?? {}) as Record<string, unknown>
-  secDefs["apigw_key"] = { type: "apiKey", name: "x-api-key", in: "header" }
-  aws.securityDefinitions = secDefs
+  const cognitoArn = process.env.COGNITO_USER_POOL_ARN ?? ""
+  const apiKeyScheme = { type: "apiKey", name: "x-api-key", in: "header" }
+  const cognitoScheme = {
+    type: "apiKey",
+    name: "Authorization",
+    in: "header",
+    "x-amazon-apigateway-authtype": "cognito_user_pools",
+    "x-amazon-apigateway-authorizer": {
+      type: "cognito_user_pools",
+      providerARNs: [cognitoArn],
+    },
+  }
+
+  if (isOas3) {
+    const components = (aws.components ?? {}) as Record<string, unknown>
+    const schemes = (components.securitySchemes ?? {}) as Record<string, unknown>
+    schemes["api_key"] = apiKeyScheme
+    schemes["CognitoAuth"] = cognitoScheme
+    components.securitySchemes = schemes
+    aws.components = components
+  } else {
+    const secDefs = (aws.securityDefinitions ?? {}) as Record<string, unknown>
+    delete secDefs["apigw_key"]
+    secDefs["api_key"] = apiKeyScheme
+    secDefs["CognitoAuth"] = cognitoScheme
+    aws.securityDefinitions = secDefs
+  }
 
   delete aws.hosts
 
@@ -53,7 +79,7 @@ export function buildAwsSpec(spec: Record<string, unknown>): Record<string, unkn
         connectionType: "INTERNET",
         ...(Object.keys(requestParameters).length > 0 && { requestParameters }),
       }
-      operation["security"] = [{ apigw_key: [] }]
+      operation["security"] = [{ api_key: [], CognitoAuth: [scopeValue] }]
     }
   }
 
