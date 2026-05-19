@@ -1,6 +1,6 @@
-import { Form, Outlet, redirect, useLoaderData } from "react-router"
+﻿import { Form, Outlet, redirect, useLoaderData } from "react-router"
 
-import { getUserProfile } from "~/lib/keycloak.server"
+import { getUserProfile } from "~/lib/cognito.server"
 import { getActiveGatewayId, requireAuth, setActiveGatewayId } from "~/lib/session.server"
 import { countGateways, listGateways } from "~/repositories/gateway.repository.server"
 import { AppSidebar } from "~/components/app-sidebar"

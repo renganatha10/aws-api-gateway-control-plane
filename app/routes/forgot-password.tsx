@@ -1,7 +1,7 @@
 import { MailCheck, Zap } from "lucide-react"
 import { data, Form, Link } from "react-router"
 
-import { sendPasswordResetEmail } from "~/lib/keycloak.server"
+import { sendPasswordResetEmail } from "~/lib/cognito.server"
 import { Button } from "~/components/ui/button"
 import {
   Card,
@@ -19,16 +19,17 @@ export async function action({ request }: Route.ActionArgs) {
   const email = (formData.get("email") as string)?.trim()
 
   if (!email) {
-    return data({ sent: false, error: "Email is required" }, { status: 400 })
+    return data({ sent: false, email: "", error: "Email is required" }, { status: 400 })
   }
 
-  // Always send success — never reveal whether the account exists
+  // Always resolve silently — never reveal whether the account exists
   await sendPasswordResetEmail(email)
-  return data({ sent: true, error: null })
+  return data({ sent: true, email, error: null })
 }
 
 export default function ForgotPassword({ actionData }: Route.ComponentProps) {
   const sent = actionData?.sent === true
+  const email = actionData?.email ?? ""
 
   return (
     <div className="min-h-svh flex items-center justify-center bg-gradient-to-br from-stone-50 via-stone-100 to-stone-200 dark:from-stone-950 dark:via-stone-900 dark:to-stone-800 relative overflow-hidden">
@@ -44,8 +45,8 @@ export default function ForgotPassword({ actionData }: Route.ComponentProps) {
           </CardTitle>
           <CardDescription className="text-center">
             {sent
-              ? "If that email is registered, a reset link is on its way."
-              : "Enter your email and we'll send you a reset link."}
+              ? "A 6-digit code has been sent to your email. Use it to set a new password."
+              : "Enter your email and we'll send you a reset code."}
           </CardDescription>
         </CardHeader>
 
@@ -71,9 +72,20 @@ export default function ForgotPassword({ actionData }: Route.ComponentProps) {
               </div>
 
               <Button className="w-full" size="lg" type="submit">
-                Send reset link
+                Send reset code
               </Button>
             </Form>
+          )}
+
+          {sent && (
+            <Link
+              to={`/reset-password?email=${encodeURIComponent(email)}`}
+              className="block w-full"
+            >
+              <Button className="w-full" size="lg">
+                Enter reset code →
+              </Button>
+            </Link>
           )}
 
           <div className="text-center">

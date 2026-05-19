@@ -1,8 +1,8 @@
-import { useState } from "react"
+﻿import { useState } from "react"
 import { Form, Link, redirect, useFetcher, useLoaderData, useNavigation } from "react-router"
 
 import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
-import { getUserProfile } from "~/lib/keycloak.server"
+import { getUserProfile } from "~/lib/cognito.server"
 import { findProductById, updateProduct, deleteProduct } from "~/repositories/product.repository.server"
 import { listApisByProduct, syncApiAssociations } from "~/repositories/api-association.repository.server"
 import { listPlansByProduct, syncPlanAssociations } from "~/repositories/plan-association.repository.server"

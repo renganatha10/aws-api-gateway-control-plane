@@ -1,9 +1,9 @@
-import * as React from "react"
+﻿import * as React from "react"
 import { Form, redirect, useNavigate, useActionData } from "react-router"
 import { toast } from "sonner"
 
 import { requireAuth } from "~/lib/session.server"
-import { getUserProfile } from "~/lib/keycloak.server"
+import { getUserProfile } from "~/lib/cognito.server"
 import { createGateway } from "~/repositories/gateway.repository.server"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"

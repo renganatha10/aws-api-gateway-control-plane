@@ -5,6 +5,7 @@ export default [
   route("logout", "routes/logout.tsx"),
   route("api/gateway-switch", "routes/api.gateway-switch.ts"),
   route("forgot-password", "routes/forgot-password.tsx"),
+  route("reset-password", "routes/reset-password.tsx"),
   layout("routes/layout.tsx", [
     index("routes/home.tsx"),
     route("gateway", "routes/gateway.tsx"),

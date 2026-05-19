@@ -1,9 +1,9 @@
-import { useState } from "react"
+﻿import { useState } from "react"
 import { useFetcher } from "react-router"
 import { Zap } from "lucide-react"
 
 import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
-import { getUserProfile } from "~/lib/keycloak.server"
+import { getUserProfile } from "~/lib/cognito.server"
 import {
   createPlan,
   deletePlan,

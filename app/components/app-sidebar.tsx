@@ -1,7 +1,7 @@
 import { Globe, LayoutList, Package, Zap } from "lucide-react"
 import { Link, useLocation } from "react-router"
 
-import type { UserProfile } from "~/lib/keycloak.server"
+import type { UserProfile } from "~/lib/cognito.server"
 import type { Gateway } from "~/lib/schema"
 import { Avatar, AvatarFallback } from "~/components/ui/avatar"
 import {

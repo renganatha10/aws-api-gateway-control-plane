@@ -1,7 +1,7 @@
-import { Form, Link, redirect, useActionData, useNavigation } from "react-router"
+﻿import { Form, Link, redirect, useActionData, useNavigation } from "react-router"
 
 import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
-import { getUserProfile } from "~/lib/keycloak.server"
+import { getUserProfile } from "~/lib/cognito.server"
 import { createProduct } from "~/repositories/product.repository.server"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"

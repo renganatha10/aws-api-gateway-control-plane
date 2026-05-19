@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react"
+﻿import { useEffect, useState } from "react"
 import { Link, useFetcher, useLoaderData, useLocation } from "react-router"
 import { MoreHorizontal, Rocket, Trash2 } from "lucide-react"
 
 import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
-import { getUserProfile } from "~/lib/keycloak.server"
+import { getUserProfile } from "~/lib/cognito.server"
 import { deleteProduct, listProductsByGateway } from "~/repositories/product.repository.server"
 import { listEnvironmentsByGateway } from "~/repositories/environment.repository.server"
 import { findEnvironmentById } from "~/repositories/environment.repository.server"
