@@ -1,9 +1,9 @@
-import { useState } from "react"
+﻿import { useState } from "react"
 import { Link, useFetcher, useLocation, useNavigation, useNavigate } from "react-router"
 import { Trash2, Zap } from "lucide-react"
 
 import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
-import { getUserProfile } from "~/lib/keycloak.server"
+import { getUserProfile } from "~/lib/cognito.server"
 import { deleteApi, listApisByGateway } from "~/repositories/api.repository.server"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
@@ -18,7 +18,7 @@ import {
 import type { Route } from "./+types/apis"
 
 export function meta({}: Route.MetaArgs) {
-  return [{ title: "Develop — APIs" }]
+  return [{ title: "APIs" }]
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -107,7 +107,7 @@ export default function ApisPage({ loaderData }: Route.ComponentProps) {
     <div className="flex flex-col min-h-full bg-white">
       {/* Page header */}
       <div className="flex items-center justify-between px-6 pt-6 pb-4">
-        <h1 className="text-3xl font-normal text-gray-900">Develop</h1>
+        <h1 className="text-3xl font-normal text-gray-900">APIs</h1>
         <Button
           className="bg-blue-600 hover:bg-blue-700 text-white rounded-sm px-6"
           onClick={() => navigate("/apis/new")}

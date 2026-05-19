@@ -5,7 +5,7 @@ import {
   extractUserId,
   loginWithCredentials,
   registerUser,
-} from "~/lib/keycloak.server"
+} from "~/lib/cognito.server"
 import { createUserSession, getSession } from "~/lib/session.server"
 import { Button } from "~/components/ui/button"
 import {
@@ -166,7 +166,7 @@ export default function Login({ loaderData, actionData }: Route.ComponentProps) 
                 minLength={isSignup ? 8 : 1}
               />
               {isSignup && (
-                <p className="text-xs text-muted-foreground">Minimum 8 characters</p>
+                <p className="text-xs text-muted-foreground">Min 8 characters with uppercase, lowercase, number, and symbol</p>
               )}
             </div>
 
