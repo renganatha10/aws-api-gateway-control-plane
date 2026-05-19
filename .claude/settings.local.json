@@ -18,7 +18,16 @@
       "Bash(git rm *)",
       "Bash(del \"app\\\\routes\\\\onboard.tsx\")",
       "PowerShell(echo \"ACCESS: $env:AWS_ACCESS_KEY_ID\"; echo \"SECRET: $env:AWS_SECRET_ACCESS_KEY\"; echo \"REGION: $env:AWS_REGION\")",
-      "WebFetch(domain:petstore.swagger.io)"
+      "WebFetch(domain:petstore.swagger.io)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\RENGA\\\\sidehussle\\\\cdn\\\\my-app\" -Recurse -Filter \"*.json\")",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Select-String -Pattern \"\\(package\\\\.json|tsconfig|drizzle\\)\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\RENGA\\\\sidehussle\\\\cdn\\\\my-app\\\\db\\\\migrations\" -Name)",
+      "Bash(Sort-Object)",
+      "Bash(cat docker-compose.yml)",
+      "Bash(cat docker-compose.yaml)",
+      "Bash(git push *)",
+      "Bash(ssh -T git@github.com)"
     ]
   }
 }

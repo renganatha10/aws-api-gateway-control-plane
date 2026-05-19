@@ -36,6 +36,13 @@ export function buildAwsSpec(spec: Record<string, unknown>): Record<string, unkn
     for (const [method, op] of Object.entries(methods)) {
       if (!HTTP_METHODS.includes(method)) continue
       const operation = op as Record<string, unknown>
+      const pathParams = [...path.matchAll(/\{(\w+)\}/g)].map((m) => m[1])
+      const opParams = (operation.parameters ?? []) as Array<{ in?: string; name?: string }>
+      const queryParams = opParams.filter((p) => p.in === "query" && p.name).map((p) => p.name!)
+      const requestParameters = {
+        ...Object.fromEntries(pathParams.map((p) => [`integration.request.path.${p}`, `method.request.path.${p}`])),
+        ...Object.fromEntries(queryParams.map((q) => [`integration.request.querystring.${q}`, `method.request.querystring.${q}`])),
+      }
       operation["x-amazon-apigateway-integration"] = {
         type: "http_proxy",
         httpMethod: method.toUpperCase(),
@@ -44,6 +51,7 @@ export function buildAwsSpec(spec: Record<string, unknown>): Record<string, unkn
         uri: `https://\${stageVariables.backendHost}${path}`,
         passthroughBehavior: "when_no_match",
         connectionType: "INTERNET",
+        ...(Object.keys(requestParameters).length > 0 && { requestParameters }),
       }
       operation["security"] = [{ apigw_key: [] }]
     }
