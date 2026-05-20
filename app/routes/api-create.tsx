@@ -58,7 +58,7 @@ export async function action({ request }: Route.ActionArgs) {
   try {
     const specObj  = spec as Record<string, unknown>
     const specForAws = { ...specObj, info: { ...(specObj.info as object ?? {}), title: name } }
-    awsApiId = await importApiSpec(buildAwsSpec(specForAws, scope))
+    awsApiId = await importApiSpec(buildAwsSpec(specForAws, scope, name))
   } catch (err) {
     return { error: `AWS import failed: ${err instanceof Error ? err.message : "Unknown error"}` }
   }

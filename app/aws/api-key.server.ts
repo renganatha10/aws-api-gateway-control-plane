@@ -16,10 +16,10 @@ export async function getApiKeyValue(apiKeyId: string): Promise<string> {
   return result.value
 }
 
-/** Creates an enabled API Gateway API key and returns its ID. */
-export async function createApiKey(name: string): Promise<{ id: string }> {
+/** Creates an enabled API Gateway API key and returns its ID. Pass `value` to pin the key to a specific string (e.g. a Cognito clientId). */
+export async function createApiKey(name: string, value?: string): Promise<{ id: string }> {
   const result = await apigwClient.send(
-    new CreateApiKeyCommand({ name, enabled: true }),
+    new CreateApiKeyCommand({ name, enabled: true, ...(value ? { value } : {}) }),
   )
   if (!result.id) throw new Error("CreateApiKey returned no id")
   console.log("[aws:api-key] created", { id: result.id, name })

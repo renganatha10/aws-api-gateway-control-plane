@@ -17,7 +17,7 @@ export function extractBasePath(spec: Record<string, unknown>): string {
  * The integration URI uses `${stageVariables.backendHost}` so each stage can
  * point to the corresponding URL from `hosts`. The custom `hosts` field is removed.
  */
-export function buildAwsSpec(spec: Record<string, unknown>, scope?: string | null): Record<string, unknown> {
+export function buildAwsSpec(spec: Record<string, unknown>, scope?: string | null, apiName?: string): Record<string, unknown> {
   const aws = JSON.parse(JSON.stringify(spec)) as Record<string, unknown>
   const isOas3 = typeof aws.openapi === "string"
   const scopeValue = scope?.trim() ?? ""
@@ -26,6 +26,9 @@ export function buildAwsSpec(spec: Record<string, unknown>, scope?: string | nul
   aws["x-amazon-apigateway-request-validators"] = {
     basic: { validateRequestBody: true, validateRequestParameters: false },
   }
+
+  // Build full Cognito scope: "{apiName}/{scope}" (e.g. "pets-api-24/pets")
+  const fullScope = apiName && scopeValue ? `${apiName}/${scopeValue}` : scopeValue
 
   const cognitoArn = process.env.COGNITO_USER_POOL_ARN ?? ""
   const apiKeyScheme = { type: "apiKey", name: "x-api-key", in: "header" }
@@ -79,7 +82,7 @@ export function buildAwsSpec(spec: Record<string, unknown>, scope?: string | nul
         connectionType: "INTERNET",
         ...(Object.keys(requestParameters).length > 0 && { requestParameters }),
       }
-      operation["security"] = [{ api_key: [], CognitoAuth: [scopeValue] }]
+      operation["security"] = [{ api_key: [], CognitoAuth: [fullScope] }]
     }
   }
 

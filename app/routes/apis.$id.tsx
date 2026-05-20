@@ -310,7 +310,7 @@ export async function action({ request, params }: Route.ActionArgs) {
   try {
     const specObj    = spec as Record<string, unknown>
     const specForAws = { ...specObj, info: { ...(specObj.info as object ?? {}), title: existing?.name ?? "" } }
-    const awsSpec    = buildAwsSpec(specForAws, scope)
+    const awsSpec    = buildAwsSpec(specForAws, scope, existing?.name)
     if (awsApiId) {
       await putApiSpec(awsApiId, awsSpec)
     } else {

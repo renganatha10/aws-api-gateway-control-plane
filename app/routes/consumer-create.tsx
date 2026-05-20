@@ -83,13 +83,15 @@ export async function action({ request }: Route.ActionArgs) {
   const fullScopes = apis.map((api) => `${api.name}/${api.scope}`)
 
   // 3. Create Cognito machine client + resolve token URL
+  // Client name scoped to gateway so the same consumer name can exist across gateways
+  const awsResourceName = `${name}-${gatewayId}`
   const [{ clientId }, tokenUrl] = await Promise.all([
-    createMachineClient(USER_POOL_ID, name, fullScopes),
+    createMachineClient(USER_POOL_ID, awsResourceName, fullScopes),
     getTokenUrl(USER_POOL_ID),
   ])
 
-  // 4. Create AWS API key
-  const { id: awsApiKeyId } = await createApiKey(name)
+  // 4. Create AWS API key pinned to the Cognito clientId as its value
+  const { id: awsApiKeyId } = await createApiKey(awsResourceName, clientId)
 
   // 5. Associate API key with usage plan + add API stages
   await provisionConsumerKey(
