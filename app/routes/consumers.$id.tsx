@@ -185,12 +185,18 @@ export default function ConsumerEdit() {
               <div className="space-y-3">
                 <div className="space-y-1">
                   <p className="text-xs font-medium text-gray-500">Client ID</p>
-                  <p className="font-mono text-sm text-gray-800 select-all">{consumer.clientId}</p>
+                  <p className="font-mono text-sm text-gray-800 select-all" data-testid="client-id">{consumer.clientId}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs font-medium text-gray-500">Client Secret</p>
                   <RevealSecret consumerId={consumer.id} />
                 </div>
+                {consumer.tokenUrl && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-gray-500">Token URL</p>
+                    <p className="font-mono text-sm text-gray-800 select-all break-all" data-testid="token-url">{consumer.tokenUrl}</p>
+                  </div>
+                )}
               </div>
             )}
             <div className="grid grid-cols-2 gap-4 text-xs text-muted-foreground">

@@ -1,6 +1,7 @@
 import {
   CreateUserPoolClientCommand,
   DescribeUserPoolClientCommand,
+  DescribeUserPoolCommand,
 } from "@aws-sdk/client-cognito-identity-provider"
 
 import { cognitoClient } from "./cognito-client.server"
@@ -26,6 +27,15 @@ export async function createMachineClient(
   if (!clientId) throw new Error("CreateUserPoolClient returned no ClientId")
   console.log("[aws:cognito] app client created", { clientId, clientName })
   return { clientId }
+}
+
+/** Returns the OAuth2 token endpoint URL for the user pool's hosted domain. */
+export async function getTokenUrl(userPoolId: string): Promise<string> {
+  const result = await cognitoClient.send(new DescribeUserPoolCommand({ UserPoolId: userPoolId }))
+  const domain = result.UserPool?.Domain
+  if (!domain) throw new Error("Cognito User Pool has no hosted UI domain configured")
+  const region = process.env.AWS_REGION!
+  return `https://${domain}.auth.${region}.amazoncognito.com/oauth2/token`
 }
 
 /** Retrieves the client secret for a Cognito app client. Never stored in DB. */

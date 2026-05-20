@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { Form, redirect, useActionData, useLoaderData, useNavigate } from "react-router"
 
 import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
@@ -6,9 +7,10 @@ import { createConsumer } from "~/repositories/consumer.repository.server"
 import { listProductsByGateway } from "~/repositories/product.repository.server"
 import { listEnvironmentsByGateway, findEnvironmentById } from "~/repositories/environment.repository.server"
 import { listPlansByGateway, findPlanById } from "~/repositories/plan.repository.server"
+import { listDeploymentsByGateway } from "~/repositories/product-deployment.repository.server"
 import { listApiScopesForProduct } from "~/repositories/api-association.repository.server"
 import { ensureResourceServer } from "~/aws/cognito-resource-server.server"
-import { createMachineClient } from "~/aws/cognito-app-client.server"
+import { createMachineClient, getTokenUrl } from "~/aws/cognito-app-client.server"
 import { createApiKey, provisionConsumerKey } from "~/aws/api-key.server"
 import { USER_POOL_ID } from "~/aws/cognito-client.server"
 import { Button } from "~/components/ui/button"
@@ -31,13 +33,17 @@ export async function loader({ request }: Route.LoaderArgs) {
   await requireAuth(request)
   const gatewayId = await getActiveGatewayId(request)
 
-  const [products, environments, plans] = await Promise.all([
+  const [allProducts, allEnvironments, plans, deployments] = await Promise.all([
     gatewayId ? listProductsByGateway(gatewayId) : [],
     gatewayId ? listEnvironmentsByGateway(gatewayId) : [],
     gatewayId ? listPlansByGateway(gatewayId) : [],
+    gatewayId ? listDeploymentsByGateway(gatewayId) : [],
   ])
 
-  return { products, environments, plans, gatewayId }
+  const deployedProductIds = new Set(deployments.map((d) => d.productId))
+  const products = allProducts.filter((p) => deployedProductIds.has(p.id))
+
+  return { products, allEnvironments, plans, deployments, gatewayId }
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -76,8 +82,11 @@ export async function action({ request }: Route.ActionArgs) {
   // 2. Build full OAuth scopes: "{api.name}/{api.scope}"
   const fullScopes = apis.map((api) => `${api.name}/${api.scope}`)
 
-  // 3. Create Cognito machine client
-  const { clientId } = await createMachineClient(USER_POOL_ID, name, fullScopes)
+  // 3. Create Cognito machine client + resolve token URL
+  const [{ clientId }, tokenUrl] = await Promise.all([
+    createMachineClient(USER_POOL_ID, name, fullScopes),
+    getTokenUrl(USER_POOL_ID),
+  ])
 
   // 4. Create AWS API key
   const { id: awsApiKeyId } = await createApiKey(name)
@@ -99,6 +108,7 @@ export async function action({ request }: Route.ActionArgs) {
     gatewayId,
     clientId,
     awsApiKeyId,
+    tokenUrl,
     createdBy,
     updatedBy: createdBy,
     createdAt: now,
@@ -109,9 +119,24 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function ConsumerCreate() {
-  const { products, environments, plans } = useLoaderData<typeof loader>()
+  const { products, allEnvironments, plans, deployments } = useLoaderData<typeof loader>()
   const actionData = useActionData<typeof action>()
   const navigate   = useNavigate()
+
+  const [selectedProductId,     setSelectedProductId]     = useState("")
+  const [selectedEnvironmentId, setSelectedEnvironmentId] = useState("")
+
+  const deployedEnvIds = new Set(
+    deployments
+      .filter((d) => d.productId === Number(selectedProductId))
+      .map((d) => d.environmentId),
+  )
+  const availableEnvironments = allEnvironments.filter((e) => deployedEnvIds.has(e.id))
+
+  function handleProductChange(val: string) {
+    setSelectedProductId(val)
+    setSelectedEnvironmentId("")
+  }
 
   return (
     <div className="flex flex-col h-full bg-white">
@@ -148,13 +173,18 @@ export default function ConsumerCreate() {
 
           <div className="space-y-2">
             <Label htmlFor="productId">Product</Label>
-            <Select name="productId" required>
+            <Select
+              name="productId"
+              required
+              value={selectedProductId}
+              onValueChange={handleProductChange}
+            >
               <SelectTrigger className="max-w-sm" id="productId">
                 <SelectValue placeholder="Select a product…" />
               </SelectTrigger>
               <SelectContent>
                 {products.length === 0 ? (
-                  <SelectItem value="_none" disabled>No products available</SelectItem>
+                  <SelectItem value="_none" disabled>No deployed products — publish a product first</SelectItem>
                 ) : (
                   products.map((p) => (
                     <SelectItem key={p.id} value={String(p.id)}>{p.displayName}</SelectItem>
@@ -166,15 +196,21 @@ export default function ConsumerCreate() {
 
           <div className="space-y-2">
             <Label htmlFor="environmentId">Stage</Label>
-            <Select name="environmentId" required>
+            <Select
+              name="environmentId"
+              required
+              value={selectedEnvironmentId}
+              onValueChange={setSelectedEnvironmentId}
+              disabled={!selectedProductId}
+            >
               <SelectTrigger className="max-w-sm" id="environmentId">
-                <SelectValue placeholder="Select a stage…" />
+                <SelectValue placeholder={!selectedProductId ? "Select a product first…" : "Select a stage…"} />
               </SelectTrigger>
               <SelectContent>
-                {environments.length === 0 ? (
-                  <SelectItem value="_none" disabled>No stages available</SelectItem>
+                {availableEnvironments.length === 0 ? (
+                  <SelectItem value="_none" disabled>No deployed stages for this product</SelectItem>
                 ) : (
-                  environments.map((e) => (
+                  availableEnvironments.map((e) => (
                     <SelectItem key={e.id} value={String(e.id)}>{e.name}</SelectItem>
                   ))
                 )}

@@ -21,6 +21,7 @@ export async function listConsumersByGateway(gatewayId: number) {
       planName:        plans.displayName,
       clientId:        consumers.clientId,
       awsApiKeyId:     consumers.awsApiKeyId,
+      tokenUrl:        consumers.tokenUrl,
     })
     .from(consumers)
     .innerJoin(products,     eq(consumers.productId,     products.id))

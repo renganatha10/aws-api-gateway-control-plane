@@ -27,7 +27,14 @@
       "Bash(cat docker-compose.yml)",
       "Bash(cat docker-compose.yaml)",
       "Bash(git push *)",
-      "Bash(ssh -T git@github.com)"
+      "Bash(ssh -T git@github.com)",
+      "Bash(aws cognito-idp describe-user-pool *)",
+      "Bash(aws cognito-idp describe-user-pool-client *)",
+      "Skill(update-config)",
+      "Bash(git diff *)",
+      "Bash(npx playwright *)",
+      "Bash(Start-Process \"npx\" -ArgumentList \"playwright\",\"show-report\" -NoNewWindow)",
+      "Bash(Get-ChildItem *)"
     ]
   }
 }

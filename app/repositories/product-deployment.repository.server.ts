@@ -10,6 +10,7 @@ export async function upsertProductDeployment(data: NewProductDeployment) {
       target: [productDeployments.productId, productDeployments.environmentId],
       set: {
         status:    data.status ?? "deployed",
+        invokeUrl: data.invokeUrl,
         updatedBy: data.updatedBy ?? data.createdBy,
         updatedAt: new Date(),
       },

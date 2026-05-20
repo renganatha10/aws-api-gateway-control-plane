@@ -22,8 +22,9 @@ function resolveBackendHost(
 export async function publishProductToEnvironment(
   apis:    ApiToPublish[],
   envName: string,
-): Promise<{ warnings: string[] }> {
+): Promise<{ warnings: string[]; invokeUrl: string }> {
   const stageName = sanitizeStageName(envName)
+  const region    = process.env.AWS_REGION!
   const warnings: string[] = []
 
   for (const api of apis) {
@@ -47,5 +48,8 @@ export async function publishProductToEnvironment(
     }
   }
 
-  return { warnings }
+  const firstApiId = apis[0].awsApiId
+  const invokeUrl  = `https://${firstApiId}.execute-api.${region}.amazonaws.com/${stageName}`
+
+  return { warnings, invokeUrl }
 }

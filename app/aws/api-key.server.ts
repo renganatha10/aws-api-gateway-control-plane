@@ -1,10 +1,20 @@
 import {
   CreateApiKeyCommand,
   CreateUsagePlanKeyCommand,
+  GetApiKeyCommand,
   UpdateUsagePlanCommand,
 } from "@aws-sdk/client-api-gateway"
 
 import { apigwClient } from "./client.server"
+
+/** Retrieves the plaintext value of an API key. */
+export async function getApiKeyValue(apiKeyId: string): Promise<string> {
+  const result = await apigwClient.send(
+    new GetApiKeyCommand({ apiKey: apiKeyId, includeValue: true }),
+  )
+  if (!result.value) throw new Error("API key has no value")
+  return result.value
+}
 
 /** Creates an enabled API Gateway API key and returns its ID. */
 export async function createApiKey(name: string): Promise<{ id: string }> {

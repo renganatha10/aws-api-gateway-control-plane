@@ -28,19 +28,16 @@ export async function requireAuth(request: Request) {
 export async function createUserSession({
   request,
   accessToken,
-  refreshToken,
   userId,
   redirectTo,
 }: {
   request: Request
   accessToken: string
-  refreshToken: string
   userId: string
   redirectTo: string
 }) {
   const session = await getSession(request)
   session.set("accessToken", accessToken)
-  session.set("refreshToken", refreshToken)
   session.set("userId", userId)
   return redirect(redirectTo, {
     headers: { "Set-Cookie": await sessionStorage.commitSession(session) },

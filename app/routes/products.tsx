@@ -99,13 +99,14 @@ export async function action({ request }: Route.ActionArgs) {
       return { error: "No AWS-synced APIs found in this product. Sync your APIs to AWS first." }
     }
 
-    const { warnings } = await publishProductToEnvironment(apisToPublish, environment.name)
+    const { warnings, invokeUrl } = await publishProductToEnvironment(apisToPublish, environment.name)
 
     await upsertProductDeployment({
       productId,
       environmentId: envId,
       gatewayId,
       status:    "deployed",
+      invokeUrl,
       createdBy: email,
       updatedBy: email,
     })
