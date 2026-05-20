@@ -8,6 +8,17 @@ import {
 
 import { apigwClient } from "./client.server"
 
+const ACCESS_LOG_FORMAT = JSON.stringify({
+  requestId:      "$context.requestId",
+  ip:             "$context.identity.sourceIp",
+  requestTime:    "$context.requestTime",
+  httpMethod:     "$context.httpMethod",
+  resourcePath:   "$context.resourcePath",
+  status:         "$context.status",
+  responseLength: "$context.responseLength",
+  apiKey:         "$context.identity.apiKey",
+})
+
 /** Create a stage for a REST API, linked to the given deployment. */
 export async function createStage(
   restApiId: string,
@@ -15,11 +26,25 @@ export async function createStage(
   deploymentId: string,
   variables?: Record<string, string>,
 ): Promise<Stage> {
+  const accessLogArn = process.env.APIGW_ACCESS_LOG_GROUP_ARN
   const command = new CreateStageCommand({
     restApiId,
     stageName: sanitizeStageName(stageName),
     deploymentId,
     variables,
+    methodSettings: {
+      "*/*": {
+        loggingLevel:     "INFO",
+        dataTraceEnabled: false,
+        metricsEnabled:   true,
+      },
+    },
+    ...(accessLogArn && {
+      accessLogSettings: {
+        destinationArn: accessLogArn,
+        format:         ACCESS_LOG_FORMAT,
+      },
+    }),
   })
   const result = await apigwClient.send(command)
   console.log("[aws:stage] created", { restApiId, stageName: result.stageName, variables })
@@ -58,6 +83,7 @@ export async function updateStageDeployment(
   deploymentId: string,
   variables?: Record<string, string>,
 ): Promise<void> {
+  const accessLogArn = process.env.APIGW_ACCESS_LOG_GROUP_ARN
   const varPatches = Object.entries(variables ?? {}).map(([key, value]) => ({
     op:    "replace" as const,
     path:  `/variables/${key}`,
@@ -68,7 +94,14 @@ export async function updateStageDeployment(
     restApiId,
     stageName,
     patchOperations: [
-      { op: "replace", path: "/deploymentId", value: deploymentId },
+      { op: "replace", path: "/deploymentId",                        value: deploymentId },
+      { op: "replace", path: "/methodSettings/*/*/loggingLevel",     value: "INFO" },
+      { op: "replace", path: "/methodSettings/*/*/dataTraceEnabled", value: "false" },
+      { op: "replace", path: "/methodSettings/*/*/metricsEnabled",   value: "true" },
+      ...(accessLogArn ? [
+        { op: "replace" as const, path: "/accessLogSettings/destinationArn", value: accessLogArn },
+        { op: "replace" as const, path: "/accessLogSettings/format",         value: ACCESS_LOG_FORMAT },
+      ] : []),
       ...varPatches,
     ],
   }))

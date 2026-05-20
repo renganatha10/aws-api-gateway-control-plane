@@ -11,7 +11,8 @@ function resolveBackendHost(
   envName: string,
 ): string | undefined {
   const hosts = spec.hosts as Record<string, string> | undefined
-  return hosts?.[envName]
+  const host  = hosts?.[envName]
+  return host?.replace(/^https?:\/\//i, "")
 }
 
 /**

@@ -101,6 +101,7 @@ import { Tooltip as TooltipPrimitive } from "radix-ui"
 | `AWS_ACCESS_KEY_ID` | AWS credentials |
 | `AWS_SECRET_ACCESS_KEY` | AWS credentials |
 | `COGNITO_USER_POOL_ARN` | Cognito User Pool ARN injected into `CognitoAuth` authorizer in every API spec (e.g. `arn:aws:cognito-idp:ap-south-1:443985162942:userpool/ap-south-1_AY6l4PkyX`) |
+| `APIGW_ACCESS_LOG_GROUP_ARN` | CloudWatch log group ARN for API Gateway access logs (e.g. `arn:aws:logs:ap-south-1:443985162942:log-group:api-gw-access-logs`). If unset, access logging is skipped but execution logging (INFO) is still enabled. |
 
 ## Database migrations
 
