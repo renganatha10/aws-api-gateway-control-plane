@@ -104,14 +104,19 @@ export async function registerUser(params: {
   }
 
   // Confirm the user immediately so they can log in right away
-  await client.send(
-    new AdminSetUserPasswordCommand({
-      UserPoolId: USER_POOL_ID,
-      Username: params.email,
-      Password: params.password,
-      Permanent: true,
-    }),
-  );
+  try {
+    await client.send(
+      new AdminSetUserPasswordCommand({
+        UserPoolId: USER_POOL_ID,
+        Username: params.email,
+        Password: params.password,
+        Permanent: true,
+      }),
+    );
+  } catch (err) {
+    console.error("[cognito] set permanent password failed", { email: params.email, error: String(err) });
+    throw new Error("Failed to create account");
+  }
 }
 
 /** Extract the user ID from the Cognito ID token (JWT sub claim) */

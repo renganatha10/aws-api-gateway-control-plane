@@ -321,7 +321,12 @@ export async function action({ request, params }: Route.ActionArgs) {
     return { error: "Something went wrong while syncing to AWS. Please try again." }
   }
 
-  await updateApi(id, { scope, spec, basePath, awsApiId, updatedBy, updatedAt: new Date() })
+  try {
+    await updateApi(id, { scope, spec, basePath, awsApiId, updatedBy, updatedAt: new Date() })
+  } catch (err) {
+    console.error("[api-update] DB update failed", err)
+    return { error: "Something went wrong while saving. Please try again." }
+  }
   return { ok: true }
 }
 

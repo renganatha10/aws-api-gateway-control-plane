@@ -58,7 +58,12 @@ export async function action({ request, params }: Route.ActionArgs) {
   if (!environmentId) return { error: "Please select a stage." }
   if (!planId)        return { error: "Please select a plan." }
 
-  await updateConsumer(id, { name, productId, environmentId, planId, updatedBy, updatedAt: new Date() })
+  try {
+    await updateConsumer(id, { name, productId, environmentId, planId, updatedBy, updatedAt: new Date() })
+  } catch (err) {
+    console.error("[consumers.$id] updateConsumer failed", err)
+    return { error: "Something went wrong while saving. Please try again." }
+  }
   throw redirect("/consumers")
 }
 

@@ -41,16 +41,20 @@ export async function action({ request }: Route.ActionArgs) {
 
   const name = `${gatewayId}-${displayName}`
 
-  const created = await createProduct({
-    name,
-    displayName,
-    description,
-    visibility,
-    gatewayId,
-    createdBy,
-  })
-
-  return redirect(`/products/${created.id}`)
+  try {
+    const created = await createProduct({
+      name,
+      displayName,
+      description,
+      visibility,
+      gatewayId,
+      createdBy,
+    })
+    return redirect(`/products/${created.id}`)
+  } catch (err) {
+    console.error("[product-create] createProduct failed", err)
+    return { error: "Something went wrong while creating the product. Please try again." }
+  }
 }
 
 export default function ProductCreatePage() {

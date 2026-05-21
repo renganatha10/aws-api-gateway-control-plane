@@ -42,7 +42,12 @@ export async function action({ request }: Route.ActionArgs) {
   if (intent === "delete") {
     const id = Number(formData.get("id"))
     if (!id) return { error: "Missing id" }
-    await deleteConsumer(id)
+    try {
+      await deleteConsumer(id)
+    } catch (err) {
+      console.error("[consumers] deleteConsumer failed", err)
+      return { error: "Something went wrong while deleting. Please try again." }
+    }
     return { ok: true }
   }
 

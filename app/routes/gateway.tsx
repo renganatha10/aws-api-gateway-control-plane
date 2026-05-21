@@ -39,8 +39,8 @@ export async function action({ request }: Route.ActionArgs) {
   try {
     await createGateway({ name, createdBy })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error"
-    return { error: `Failed to create gateway: ${msg}` }
+    console.error("[gateway] create failed", err)
+    return { error: "Failed to create gateway. Please try again." }
   }
 
   throw redirect("/")

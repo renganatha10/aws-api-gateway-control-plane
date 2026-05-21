@@ -78,16 +78,26 @@ export async function action({ request, params }: Route.ActionArgs) {
     const apiIds  = formData.getAll("apiIds").map(Number).filter(Boolean)
     const planIds = formData.getAll("planIds").map(Number).filter(Boolean)
 
-    await updateProduct(id, { displayName, description, visibility, updatedBy: createdBy, updatedAt: new Date() })
-    if (gatewayId) {
-      await syncApiAssociations(id, apiIds, gatewayId, createdBy)
-      await syncPlanAssociations(id, planIds, gatewayId, createdBy)
+    try {
+      await updateProduct(id, { displayName, description, visibility, updatedBy: createdBy, updatedAt: new Date() })
+      if (gatewayId) {
+        await syncApiAssociations(id, apiIds, gatewayId, createdBy)
+        await syncPlanAssociations(id, planIds, gatewayId, createdBy)
+      }
+    } catch (err) {
+      console.error("[products.$id] update failed", err)
+      return { error: "Something went wrong while saving. Please try again." }
     }
     return { ok: true }
   }
 
   if (intent === "delete") {
-    await deleteProduct(id)
+    try {
+      await deleteProduct(id)
+    } catch (err) {
+      console.error("[products.$id] delete failed", err)
+      return { error: "Something went wrong while deleting. Please try again." }
+    }
     return redirect("/products")
   }
 

@@ -26,7 +26,12 @@ export async function action({ request }: Route.ActionArgs) {
   const formData = await request.formData()
   const id = Number(formData.get("id"))
   if (!id) return { error: "Missing id" }
-  await deleteApi(id)
+  try {
+    await deleteApi(id)
+  } catch (err) {
+    console.error("[apis] deleteApi failed", err)
+    return { error: "Something went wrong while deleting. Please try again." }
+  }
   return { ok: true }
 }
 
@@ -34,8 +39,13 @@ export async function loader({ request }: Route.LoaderArgs) {
   const { accessToken } = await requireAuth(request)
   const { email }       = getUserProfile(accessToken)
   const gatewayId       = await getActiveGatewayId(request)
-  const apis            = gatewayId ? await listApisByGateway(gatewayId) : []
-  return { apis, gatewayId, email }
+  try {
+    const apis = gatewayId ? await listApisByGateway(gatewayId) : []
+    return { apis, gatewayId, email }
+  } catch (err) {
+    console.error("[apis] loader failed", err)
+    return { apis: [], gatewayId, email }
+  }
 }
 
 const DEV_TABS = [

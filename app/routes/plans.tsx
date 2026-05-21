@@ -75,10 +75,16 @@ export async function action({ request }: Route.ActionArgs) {
     try {
       awsUsagePlanId = await createUsagePlan({ ...params, name: displayName })
     } catch (err) {
-      return { error: `AWS sync failed: ${err instanceof Error ? err.message : "Unknown error"}` }
+      console.error("[plans] AWS createUsagePlan failed", err)
+      return { error: "Failed to sync with AWS. Please try again." }
     }
 
-    await createPlan({ ...params, gatewayId, createdBy: email, awsUsagePlanId })
+    try {
+      await createPlan({ ...params, gatewayId, createdBy: email, awsUsagePlanId })
+    } catch (err) {
+      console.error("[plans] createPlan DB failed", err)
+      return { error: "Something went wrong while saving. Please try again." }
+    }
     return { ok: true }
   }
 
@@ -104,16 +110,22 @@ export async function action({ request }: Route.ActionArgs) {
       try {
         await updateUsagePlan(existing.awsUsagePlanId, { ...params, name: displayName })
       } catch (err) {
-        return { error: `AWS sync failed: ${err instanceof Error ? err.message : "Unknown error"}` }
+        console.error("[plans] AWS updateUsagePlan failed", err)
+        return { error: "Failed to sync with AWS. Please try again." }
       }
     }
 
-    await updatePlan(id, {
-      ...params,
-      awsUsagePlanId: existing.awsUsagePlanId ?? null,
-      updatedBy: email,
-      updatedAt: new Date(),
-    })
+    try {
+      await updatePlan(id, {
+        ...params,
+        awsUsagePlanId: existing.awsUsagePlanId ?? null,
+        updatedBy: email,
+        updatedAt: new Date(),
+      })
+    } catch (err) {
+      console.error("[plans] updatePlan DB failed", err)
+      return { error: "Something went wrong while saving. Please try again." }
+    }
     return { ok: true }
   }
 
@@ -128,11 +140,17 @@ export async function action({ request }: Route.ActionArgs) {
       try {
         await deleteUsagePlan(existing.awsUsagePlanId)
       } catch (err) {
-        return { error: `AWS sync failed: ${err instanceof Error ? err.message : "Unknown error"}` }
+        console.error("[plans] AWS deleteUsagePlan failed", err)
+        return { error: "Failed to sync with AWS. Please try again." }
       }
     }
 
-    await deletePlan(id)
+    try {
+      await deletePlan(id)
+    } catch (err) {
+      console.error("[plans] deletePlan DB failed", err)
+      return { error: "Something went wrong while deleting. Please try again." }
+    }
     return { ok: true }
   }
 

@@ -74,48 +74,64 @@ export async function action({ request }: Route.ActionArgs) {
   if (!plan?.awsUsagePlanId) return { error: "Selected plan has not been synced to AWS yet." }
   if (apis.length === 0) return { error: "No AWS-synced APIs with scopes found in this product." }
 
-  // 1. Ensure a Cognito resource server exists for each API
-  for (const api of apis) {
-    await ensureResourceServer(USER_POOL_ID, api.name, api.displayName, [api.scope!])
+  let clientId: string
+  let tokenUrl: string
+  let awsApiKeyId: string
+
+  try {
+    // 1. Ensure a Cognito resource server exists for each API
+    for (const api of apis) {
+      await ensureResourceServer(USER_POOL_ID, api.name, api.displayName, [api.scope!])
+    }
+
+    // 2. Build full OAuth scopes: "{api.name}/{api.scope}"
+    const fullScopes = apis.map((api) => `${api.name}/${api.scope}`)
+
+    // 3. Create Cognito machine client + resolve token URL
+    const awsResourceName = `${name}-${gatewayId}`
+    const [machineClient, resolvedTokenUrl] = await Promise.all([
+      createMachineClient(USER_POOL_ID, awsResourceName, fullScopes),
+      getTokenUrl(USER_POOL_ID),
+    ])
+    clientId = machineClient.clientId
+    tokenUrl = resolvedTokenUrl
+
+    // 4. Create AWS API key pinned to the Cognito clientId as its value
+    const apiKey = await createApiKey(awsResourceName, clientId)
+    awsApiKeyId = apiKey.id
+
+    // 5. Associate API key with usage plan + add API stages
+    await provisionConsumerKey(
+      plan.awsUsagePlanId,
+      awsApiKeyId,
+      apis.map((api) => ({ apiId: api.awsApiId!, stage: environment.name })),
+    )
+  } catch (err) {
+    console.error("[consumer-create] AWS provisioning failed", err)
+    return { error: "Failed to provision consumer in AWS. Please try again." }
   }
 
-  // 2. Build full OAuth scopes: "{api.name}/{api.scope}"
-  const fullScopes = apis.map((api) => `${api.name}/${api.scope}`)
-
-  // 3. Create Cognito machine client + resolve token URL
-  // Client name scoped to gateway so the same consumer name can exist across gateways
-  const awsResourceName = `${name}-${gatewayId}`
-  const [{ clientId }, tokenUrl] = await Promise.all([
-    createMachineClient(USER_POOL_ID, awsResourceName, fullScopes),
-    getTokenUrl(USER_POOL_ID),
-  ])
-
-  // 4. Create AWS API key pinned to the Cognito clientId as its value
-  const { id: awsApiKeyId } = await createApiKey(awsResourceName, clientId)
-
-  // 5. Associate API key with usage plan + add API stages
-  await provisionConsumerKey(
-    plan.awsUsagePlanId,
-    awsApiKeyId,
-    apis.map((api) => ({ apiId: api.awsApiId!, stage: environment.name })),
-  )
-
   // 6. Persist consumer
-  const now = new Date()
-  await createConsumer({
-    name,
-    productId,
-    environmentId,
-    planId,
-    gatewayId,
-    clientId,
-    awsApiKeyId,
-    tokenUrl,
-    createdBy,
-    updatedBy: createdBy,
-    createdAt: now,
-    updatedAt: now,
-  })
+  try {
+    const now = new Date()
+    await createConsumer({
+      name,
+      productId,
+      environmentId,
+      planId,
+      gatewayId,
+      clientId,
+      awsApiKeyId,
+      tokenUrl,
+      createdBy,
+      updatedBy: createdBy,
+      createdAt: now,
+      updatedAt: now,
+    })
+  } catch (err) {
+    console.error("[consumer-create] DB insert failed", err)
+    return { error: "Something went wrong while saving. Please try again." }
+  }
 
   throw redirect("/consumers")
 }

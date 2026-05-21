@@ -67,7 +67,12 @@ export async function action({ request }: Route.ActionArgs) {
   if (intent === "delete") {
     const id = Number(formData.get("id"))
     if (!id) return { error: "Missing id" }
-    await deleteProduct(id)
+    try {
+      await deleteProduct(id)
+    } catch (err) {
+      console.error("[products] deleteProduct failed", err)
+      return { error: "Something went wrong while deleting. Please try again." }
+    }
     return { ok: true }
   }
 
@@ -99,17 +104,29 @@ export async function action({ request }: Route.ActionArgs) {
       return { error: "No AWS-synced APIs found in this product. Sync your APIs to AWS first." }
     }
 
-    const { warnings, invokeUrl } = await publishProductToEnvironment(apisToPublish, environment.name)
+    let warnings: string[]
+    let invokeUrl: string
+    try {
+      ;({ warnings, invokeUrl } = await publishProductToEnvironment(apisToPublish, environment.name))
+    } catch (err) {
+      console.error("[products] publishProductToEnvironment failed", err)
+      return { error: "Failed to deploy to AWS. Please try again." }
+    }
 
-    await upsertProductDeployment({
-      productId,
-      environmentId: envId,
-      gatewayId,
-      status:    "deployed",
-      invokeUrl,
-      createdBy: email,
-      updatedBy: email,
-    })
+    try {
+      await upsertProductDeployment({
+        productId,
+        environmentId: envId,
+        gatewayId,
+        status:    "deployed",
+        invokeUrl,
+        createdBy: email,
+        updatedBy: email,
+      })
+    } catch (err) {
+      console.error("[products] upsertProductDeployment failed", err)
+      return { error: "Deployed to AWS but failed to save deployment record. Please try again." }
+    }
 
     return { ok: true, publishedTo: environment.name, warnings }
   }

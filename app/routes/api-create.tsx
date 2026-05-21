@@ -65,7 +65,12 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   const now = new Date()
-  await createApi({ name, displayName, scope, specType, spec, basePath, gatewayId, createdBy, updatedBy: createdBy, awsApiId, updatedAt: now })
+  try {
+    await createApi({ name, displayName, scope, specType, spec, basePath, gatewayId, createdBy, updatedBy: createdBy, awsApiId, updatedAt: now })
+  } catch (err) {
+    console.error("[api-create] DB insert failed", err)
+    return { error: "Something went wrong while saving. Please try again." }
+  }
 
   throw redirect("/apis")
 }
