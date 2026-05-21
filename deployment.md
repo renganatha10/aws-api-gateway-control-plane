@@ -152,37 +152,45 @@ Attach the WebACL to CloudFront. Rules are evaluated in priority order (lower nu
 
 ---
 
-## Phase 3: Ansible Deployment (Recurring)
+## Phase 3: GitHub Actions + Ansible Deployment (Recurring)
 
-Ansible connects via **SSM Session Manager** (no SSH keys), using the `community.aws` collection.
+Steps 1–4 (health check, code pull, install, build) run in the **GitHub Actions workflow**. Ansible takes over from step 5 — it only runs on the EC2 instance to configure and restart the already-built app.
 
-### Playbook Steps
+### GitHub Actions Workflow (runs first)
 
 ```
 1. Pre-deploy checks
-   - Health check current app (curl /health)
-   - Snapshot or tag current deployment
+   - curl ALB /health → assert HTTP 200 (confirm current app is up before touching anything)
 
-2. Pull application code
-   - git pull from your repo (or copy artifact from S3 build bucket)
-
-3. Install dependencies
-   - npm ci --production
-
-4. Build (if SSR build step needed)
+2. Build application
+   - npm ci
+   - npm run typecheck
    - npm run build
 
-5. Environment config
-   - Write .env from Secrets Manager (aws secretsmanager get-secret-value)
-   - Never store secrets in your repo or Ansible vars
+3. Upload artifact to S3
+   - aws s3 cp ./build s3://<artifact-bucket>/api-portal/<git-sha>/ --recursive
 
-6. Restart application
+4. Trigger Ansible via aws ssm send-command
+   - Passes git SHA so Ansible knows which artifact to pull
+```
+
+### Ansible Playbook Steps (runs on EC2 via SSM)
+
+```
+1. Download artifact from S3
+   - aws s3 cp s3://<artifact-bucket>/api-portal/<git-sha>/ ./build/ --recursive
+
+2. Environment config
+   - Pull secrets from Secrets Manager (aws secretsmanager get-secret-value)
+   - Write .env file — never stored in repo or Ansible vars
+
+3. Restart application
    - systemctl restart myapp (PM2 or systemd unit)
-   - Wait for health check to pass (retry loop)
+   - Wait for health check to pass (retry loop, 30s timeout)
 
-7. Post-deploy validation
-   - curl ALB /health → assert HTTP 200
-   - Tail CloudWatch logs for 30s, check for errors
+4. Post-deploy validation
+   - curl localhost:3000/health → assert HTTP 200
+   - Tail CloudWatch log group for 30s, fail playbook if ERROR lines appear
 ```
 
 ### Zero-Downtime Option
