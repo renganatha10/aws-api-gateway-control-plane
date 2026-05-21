@@ -154,3 +154,38 @@ The portal creates an AWS deployment for each API and attaches a stage named aft
 - `npm run typecheck` must pass before committing — it runs `react-router typegen` first
 - Add new migrations with `npm run db:migrate:create -- <description>`, then edit the generated file under `-- Up Migration` / `-- Down Migration`
 - shadcn components are added with `npx shadcn add <component>` and use the unified `radix-ui` package (not `@radix-ui/react-*`)
+
+---
+
+## TODO
+
+### Polish
+- [ ] Match the design of empty states and search across all pages (inconsistent between pages)
+- [ ] Error handling and user-facing error logging
+- [ ] UX of consumers is not great — allow try-out and edit directly on the consumer detail page rather than through the dropdown menu; same applies to products
+
+### Missing actions
+- [ ] Delete consumer
+- [ ] Delete product
+- [ ] Delete API
+
+### New pages / features
+- [ ] Settings page — add custom domain and path mapping
+- [ ] Custom Domain page
+- [ ] User Management page
+- [ ] Add "Deploy" option directly from the product detail page (currently only available from the product list)
+- [ ] Analytics — API call volume, latency, error rates
+- [ ] View logs from APIs (stream or query CloudWatch)
+
+### Code quality
+- [ ] Extract each page's sub-components into their own files
+- [ ] Write unit tests for all extracted components
+
+### Think about
+- [ ] Organisation / multi-tenancy model
+- [ ] UX rethink for consumers and products (see Polish note above)
+
+### Infrastructure
+- [ ] CloudFormation template — Aurora (RDS), CloudFront, WAF, EC2 instance
+- [ ] Ansible playbook — deploy application to EC2
+- [ ] S3 bucket + pipeline — upload and serve static assets
