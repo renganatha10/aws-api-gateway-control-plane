@@ -1,12 +1,11 @@
 ﻿import { useState } from "react"
 import { Link, useFetcher } from "react-router"
-import { Trash2, Zap } from "lucide-react"
+import { Zap } from "lucide-react"
 
 import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/cognito.server"
 import {
   createEnvironment,
-  deleteEnvironment,
   listEnvironmentsByGateway,
 } from "~/repositories/environment.repository.server"
 import { Button } from "~/components/ui/button"
@@ -63,57 +62,9 @@ export async function action({ request }: Route.ActionArgs) {
     return { ok: true }
   }
 
-  if (intent === "delete") {
-    const id = Number(formData.get("id"))
-    if (!id) return { error: "Missing id" }
-    try {
-      await deleteEnvironment(id)
-    } catch (err) {
-      console.error("[environments] deleteEnvironment failed", err)
-      return { error: "Something went wrong while deleting. Please try again." }
-    }
-    return { ok: true }
-  }
-
   return { error: "Unknown intent" }
 }
 
-function DeleteButton({ id }: { id: number }) {
-  const fetcher  = useFetcher()
-  const [confirm, setConfirm] = useState(false)
-  const deleting = fetcher.state !== "idle"
-
-  if (confirm) {
-    return (
-      <div className="flex items-center gap-1">
-        <button
-          onClick={() => {
-            fetcher.submit({ _intent: "delete", id: String(id) }, { method: "post" })
-            setConfirm(false)
-          }}
-          className="text-xs text-red-600 font-medium hover:underline"
-        >
-          Delete
-        </button>
-        <span className="text-gray-300">|</span>
-        <button onClick={() => setConfirm(false)} className="text-xs text-gray-500 hover:underline">
-          Cancel
-        </button>
-      </div>
-    )
-  }
-
-  return (
-    <button
-      onClick={() => setConfirm(true)}
-      disabled={deleting}
-      className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
-      aria-label="Delete environment"
-    >
-      <Trash2 className="size-4" />
-    </button>
-  )
-}
 
 export default function EnvironmentsPage({ loaderData }: Route.ComponentProps) {
   const { environments, gatewayId } = loaderData
@@ -215,8 +166,8 @@ export default function EnvironmentsPage({ loaderData }: Route.ComponentProps) {
           <TableHeader>
             <TableRow className="bg-gray-100 hover:bg-gray-100">
               <TableHead className="w-[35%] font-semibold text-gray-700">Name</TableHead>
-              <TableHead className="w-[30%] font-semibold text-gray-700">Created By</TableHead>
-              <TableHead className="w-[25%] font-semibold text-gray-700">
+              <TableHead className="w-[35%] font-semibold text-gray-700">Created By</TableHead>
+              <TableHead className="font-semibold text-gray-700">
                 <span className="flex items-center gap-1">
                   Created
                   <svg className="size-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -224,7 +175,6 @@ export default function EnvironmentsPage({ loaderData }: Route.ComponentProps) {
                   </svg>
                 </span>
               </TableHead>
-              <TableHead className="w-[10%]" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -241,9 +191,6 @@ export default function EnvironmentsPage({ loaderData }: Route.ComponentProps) {
                 <TableCell className="text-gray-700">{env.createdBy}</TableCell>
                 <TableCell className="text-gray-500 text-sm">
                   {new Date(env.createdAt).toLocaleDateString()}
-                </TableCell>
-                <TableCell className="text-right pr-4">
-                  <DeleteButton id={env.id} />
                 </TableCell>
               </TableRow>
             ))}

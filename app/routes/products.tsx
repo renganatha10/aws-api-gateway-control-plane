@@ -5,6 +5,7 @@ import { MoreHorizontal, Rocket, Trash2 } from "lucide-react"
 import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/cognito.server"
 import { deleteProduct, listProductsByGateway } from "~/repositories/product.repository.server"
+import { listConsumersByProduct } from "~/repositories/consumer.repository.server"
 import { listEnvironmentsByGateway } from "~/repositories/environment.repository.server"
 import { findEnvironmentById } from "~/repositories/environment.repository.server"
 import { listApisByProduct } from "~/repositories/api-association.repository.server"
@@ -67,6 +68,20 @@ export async function action({ request }: Route.ActionArgs) {
   if (intent === "delete") {
     const id = Number(formData.get("id"))
     if (!id) return { error: "Missing id" }
+
+    let activeConsumers: { id: number; name: string }[]
+    try {
+      activeConsumers = await listConsumersByProduct(id)
+    } catch (err) {
+      console.error("[products] listConsumersByProduct failed", err)
+      return { error: "Something went wrong. Please try again." }
+    }
+    if (activeConsumers.length > 0) {
+      return {
+        error: `${activeConsumers.length} consumer${activeConsumers.length === 1 ? "" : "s"} are using this product. Delete them first.`,
+      }
+    }
+
     try {
       await deleteProduct(id)
     } catch (err) {
@@ -287,8 +302,36 @@ function ProductActions({
   product: ProductRow
   onPublish: (p: ProductRow) => void
 }) {
-  const fetcher = useFetcher()
+  const fetcher = useFetcher<typeof action>()
   const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const deleting     = fetcher.state !== "idle"
+  const deleteError  = fetcher.data && "error" in fetcher.data ? fetcher.data.error : null
+
+  if (deleting) {
+    return (
+      <div className="flex items-center justify-end pr-1">
+        <svg className="size-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+        </svg>
+      </div>
+    )
+  }
+
+  if (deleteError) {
+    return (
+      <div className="flex items-center gap-1 justify-end">
+        <span className="text-xs text-destructive max-w-[180px] text-right leading-tight">{deleteError}</span>
+        <button
+          onClick={() => fetcher.submit({ _intent: "delete", id: String(product.id) }, { method: "post" })}
+          className="text-xs text-red-600 font-medium hover:underline shrink-0"
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
 
   if (confirmDelete) {
     return (

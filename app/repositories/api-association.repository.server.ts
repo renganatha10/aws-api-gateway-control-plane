@@ -1,6 +1,6 @@
 import { and, eq, isNotNull } from "drizzle-orm"
 import { db } from "~/lib/db.server"
-import { apiAssociations, apis, type NewApiAssociation } from "~/lib/schema"
+import { apiAssociations, apis, products, type NewApiAssociation } from "~/lib/schema"
 
 export async function addApiToProduct(data: NewApiAssociation) {
   const [created] = await db.insert(apiAssociations).values(data).returning()
@@ -75,6 +75,14 @@ export async function listApisByProduct(productId: number) {
     .from(apiAssociations)
     .innerJoin(apis, eq(apiAssociations.apiId, apis.id))
     .where(eq(apiAssociations.productId, productId))
+}
+
+export async function listProductsByApi(apiId: number) {
+  return db
+    .select({ id: products.id, displayName: products.displayName })
+    .from(apiAssociations)
+    .innerJoin(products, eq(apiAssociations.productId, products.id))
+    .where(eq(apiAssociations.apiId, apiId))
 }
 
 export async function listApisWithSpecByProduct(productId: number) {

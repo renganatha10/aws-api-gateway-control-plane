@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm"
 import { db } from "~/lib/db.server"
-import { planAssociations, plans, type NewPlanAssociation } from "~/lib/schema"
+import { planAssociations, plans, products, type NewPlanAssociation } from "~/lib/schema"
 
 export async function addPlanToProduct(data: NewPlanAssociation) {
   const [created] = await db.insert(planAssociations).values(data).returning()
@@ -37,6 +37,14 @@ export async function syncPlanAssociations(
       await db.insert(planAssociations).values({ productId, planId, gatewayId, createdBy })
     }
   }
+}
+
+export async function listProductsByPlan(planId: number) {
+  return db
+    .select({ id: products.id, displayName: products.displayName })
+    .from(planAssociations)
+    .innerJoin(products, eq(planAssociations.productId, products.id))
+    .where(eq(planAssociations.planId, planId))
 }
 
 export async function listPlansByProduct(productId: number) {

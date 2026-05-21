@@ -80,3 +80,10 @@ export async function updateConsumer(
 export async function deleteConsumer(id: number): Promise<void> {
   await db.delete(consumers).where(eq(consumers.id, id))
 }
+
+export async function listConsumersByProduct(productId: number) {
+  return db
+    .select({ id: consumers.id, name: consumers.name })
+    .from(consumers)
+    .where(eq(consumers.productId, productId))
+}

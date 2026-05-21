@@ -11,6 +11,7 @@ import {
   listPlansByGateway,
   updatePlan,
 } from "~/repositories/plan.repository.server"
+import { listProductsByPlan } from "~/repositories/plan-association.repository.server"
 import {
   createUsagePlan,
   deleteUsagePlan,
@@ -136,6 +137,19 @@ export async function action({ request }: Route.ActionArgs) {
     const existing = await findPlanById(id)
     if (!existing) return { error: "Plan not found" }
 
+    let linkedProducts: { id: number; displayName: string }[]
+    try {
+      linkedProducts = await listProductsByPlan(id)
+    } catch (err) {
+      console.error("[plans] listProductsByPlan failed", err)
+      return { error: "Something went wrong. Please try again." }
+    }
+    if (linkedProducts.length > 0) {
+      return {
+        error: `${linkedProducts.length} product${linkedProducts.length === 1 ? "" : "s"} include this plan. Remove it from all products first.`,
+      }
+    }
+
     if (existing.awsUsagePlanId) {
       try {
         await deleteUsagePlan(existing.awsUsagePlanId)
@@ -190,13 +204,15 @@ function formFromPlan(p: Plan): PlanForm {
 
 export default function PlansPage({ loaderData }: Route.ComponentProps) {
   const { plans, gatewayId } = loaderData
-  const fetcher = useFetcher()
+  const fetcher       = useFetcher<typeof action>()
+  const deleteFetcher = useFetcher<typeof action>()
 
-  const [dialogOpen,   setDialogOpen]   = useState(false)
-  const [editingPlan,  setEditingPlan]  = useState<Plan | null>(null)
-  const [form,         setForm]         = useState<PlanForm>(EMPTY_FORM)
-  const [errors,       setErrors]       = useState<FormErrors>({})
+  const [dialogOpen,    setDialogOpen]    = useState(false)
+  const [editingPlan,   setEditingPlan]   = useState<Plan | null>(null)
+  const [form,          setForm]          = useState<PlanForm>(EMPTY_FORM)
+  const [errors,        setErrors]        = useState<FormErrors>({})
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
+  const [deletingId,    setDeletingId]    = useState<number | null>(null)
 
   const submitting = fetcher.state !== "idle"
 
@@ -239,8 +255,9 @@ export default function PlansPage({ loaderData }: Route.ComponentProps) {
   }
 
   function handleDelete(id: number) {
-    fetcher.submit({ _intent: "delete", id: String(id) }, { method: "post" })
+    setDeletingId(id)
     setDeleteConfirm(null)
+    deleteFetcher.submit({ _intent: "delete", id: String(id) }, { method: "post" })
   }
 
   return (
@@ -295,46 +312,66 @@ export default function PlansPage({ loaderData }: Route.ComponentProps) {
                 {/* Name + hover actions */}
                 <div className="flex items-start justify-between mb-3">
                   <h3 className="text-base font-semibold text-gray-900">{plan.name}</h3>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => openEdit(plan)}
-                      className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-700"
-                      aria-label="Edit plan"
-                    >
-                      <svg className="size-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                      </svg>
-                    </button>
 
-                    {deleteConfirm === plan.id ? (
-                      <div className="flex items-center gap-1 ml-1">
-                        <button
-                          onClick={() => handleDelete(plan.id)}
-                          className="text-xs text-red-600 font-medium hover:underline"
-                        >
-                          Delete
-                        </button>
-                        <span className="text-gray-300">|</span>
-                        <button
-                          onClick={() => setDeleteConfirm(null)}
-                          className="text-xs text-gray-500 hover:underline"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
+                  {deletingId === plan.id && deleteFetcher.state !== "idle" ? (
+                    <svg className="size-4 animate-spin text-gray-400 mt-0.5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                    </svg>
+                  ) : deletingId === plan.id && deleteFetcher.state === "idle" && deleteFetcher.data && "error" in deleteFetcher.data ? (
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-destructive text-right leading-tight max-w-[120px]">
+                        {deleteFetcher.data.error}
+                      </span>
                       <button
-                        onClick={() => setDeleteConfirm(plan.id)}
-                        className="p-1 hover:bg-red-50 rounded text-gray-400 hover:text-red-500"
-                        aria-label="Delete plan"
+                        onClick={() => setDeletingId(null)}
+                        className="text-xs text-gray-500 hover:underline shrink-0"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => openEdit(plan)}
+                        className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-700"
+                        aria-label="Edit plan"
                       >
                         <svg className="size-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                          <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                         </svg>
                       </button>
-                    )}
-                  </div>
+
+                      {deleteConfirm === plan.id ? (
+                        <div className="flex items-center gap-1 ml-1">
+                          <button
+                            onClick={() => handleDelete(plan.id)}
+                            className="text-xs text-red-600 font-medium hover:underline"
+                          >
+                            Delete
+                          </button>
+                          <span className="text-gray-300">|</span>
+                          <button
+                            onClick={() => setDeleteConfirm(null)}
+                            className="text-xs text-gray-500 hover:underline"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setDeleteConfirm(plan.id)}
+                          className="p-1 hover:bg-red-50 rounded text-gray-400 hover:text-red-500"
+                          aria-label="Delete plan"
+                        >
+                          <svg className="size-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <dl className="space-y-2 text-sm">

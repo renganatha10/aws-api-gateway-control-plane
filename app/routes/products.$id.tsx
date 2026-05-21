@@ -4,6 +4,7 @@ import { Form, Link, redirect, useFetcher, useLoaderData, useNavigation } from "
 import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/cognito.server"
 import { findProductById, updateProduct, deleteProduct } from "~/repositories/product.repository.server"
+import { listConsumersByProduct } from "~/repositories/consumer.repository.server"
 import { listApisByProduct, syncApiAssociations } from "~/repositories/api-association.repository.server"
 import { listPlansByProduct, syncPlanAssociations } from "~/repositories/plan-association.repository.server"
 import { listApisByGateway } from "~/repositories/api.repository.server"
@@ -92,6 +93,19 @@ export async function action({ request, params }: Route.ActionArgs) {
   }
 
   if (intent === "delete") {
+    let activeConsumers: { id: number; name: string }[]
+    try {
+      activeConsumers = await listConsumersByProduct(id)
+    } catch (err) {
+      console.error("[products.$id] listConsumersByProduct failed", err)
+      return { error: "Something went wrong. Please try again." }
+    }
+    if (activeConsumers.length > 0) {
+      return {
+        error: `${activeConsumers.length} consumer${activeConsumers.length === 1 ? "" : "s"} are using this product. Delete them first.`,
+      }
+    }
+
     try {
       await deleteProduct(id)
     } catch (err) {
@@ -172,8 +186,9 @@ export default function ProductDetailPage() {
   const selectedDeployment = deployments.find((d) => d.environmentId === selectedEnvId) ?? null
 
   // Delete
-  const deleteFetcher   = useFetcher()
+  const deleteFetcher   = useFetcher<typeof action>()
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const deleteError = deleteFetcher.data && "error" in deleteFetcher.data ? deleteFetcher.data.error : null
 
   return (
     <div className="flex flex-col min-h-full bg-white">
@@ -188,6 +203,9 @@ export default function ProductDetailPage() {
         <h1 className="text-2xl font-semibold text-gray-900 truncate">{product.displayName}</h1>
 
         <div className="flex items-center gap-2 shrink-0">
+          {deleteError && (
+            <p className="text-xs text-destructive max-w-[240px] text-right leading-tight">{deleteError}</p>
+          )}
           {confirmDelete ? (
             <>
               <span className="text-sm text-gray-600">Delete this product?</span>

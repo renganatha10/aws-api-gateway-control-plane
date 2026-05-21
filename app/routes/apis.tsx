@@ -4,7 +4,9 @@ import { Trash2, Zap } from "lucide-react"
 
 import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/cognito.server"
-import { deleteApi, listApisByGateway } from "~/repositories/api.repository.server"
+import { deleteApi, findApiById, listApisByGateway } from "~/repositories/api.repository.server"
+import { listProductsByApi } from "~/repositories/api-association.repository.server"
+import { deleteRestApi } from "~/aws/rest-api.server"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import {
@@ -26,6 +28,37 @@ export async function action({ request }: Route.ActionArgs) {
   const formData = await request.formData()
   const id = Number(formData.get("id"))
   if (!id) return { error: "Missing id" }
+
+  let linkedProducts: { id: number; displayName: string }[]
+  try {
+    linkedProducts = await listProductsByApi(id)
+  } catch (err) {
+    console.error("[apis] listProductsByApi failed", err)
+    return { error: "Something went wrong. Please try again." }
+  }
+  if (linkedProducts.length > 0) {
+    return {
+      error: `This API is used by ${linkedProducts.length} product${linkedProducts.length === 1 ? "" : "s"}. Remove it from all products first.`,
+    }
+  }
+
+  let api: Awaited<ReturnType<typeof findApiById>>
+  try {
+    api = await findApiById(id)
+  } catch (err) {
+    console.error("[apis] findApiById failed", err)
+    return { error: "Something went wrong. Please try again." }
+  }
+
+  if (api?.awsApiId) {
+    try {
+      await deleteRestApi(api.awsApiId)
+    } catch (err) {
+      console.error("[apis] deleteRestApi failed", { awsApiId: api.awsApiId, err })
+      return { error: "Failed to delete from AWS. Please try again." }
+    }
+  }
+
   try {
     await deleteApi(id)
   } catch (err) {
@@ -59,9 +92,35 @@ const SPEC_TYPE_LABEL: Record<string, string> = {
 }
 
 function DeleteButton({ id }: { id: number }) {
-  const fetcher  = useFetcher()
+  const fetcher   = useFetcher<typeof action>()
   const [confirm, setConfirm] = useState(false)
-  const deleting = fetcher.state !== "idle"
+  const deleting  = fetcher.state !== "idle"
+  const deleteError = fetcher.data && "error" in fetcher.data ? fetcher.data.error : null
+
+  if (deleting) {
+    return (
+      <div className="flex items-center justify-end pr-1">
+        <svg className="size-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+        </svg>
+      </div>
+    )
+  }
+
+  if (deleteError) {
+    return (
+      <div className="flex items-center gap-1 justify-end">
+        <span className="text-xs text-destructive max-w-[200px] text-right leading-tight">{deleteError}</span>
+        <button
+          onClick={() => fetcher.submit({ id: String(id) }, { method: "post" })}
+          className="text-xs text-red-600 font-medium hover:underline shrink-0"
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
 
   if (confirm) {
     return (
@@ -89,8 +148,7 @@ function DeleteButton({ id }: { id: number }) {
   return (
     <button
       onClick={() => setConfirm(true)}
-      disabled={deleting}
-      className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+      className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
       aria-label="Delete API"
     >
       <Trash2 className="size-4" />
