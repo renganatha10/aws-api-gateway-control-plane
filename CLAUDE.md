@@ -93,6 +93,24 @@ import { Tooltip as TooltipPrimitive } from "radix-ui"
 
 **Associations** — managed client-side in the UI, saved atomically on the single Save action (see `products.$id.tsx`).
 
+**Error handling** — never return raw error messages to the UI. Every `catch` block must:
+1. `console.error("[route-or-module] description", err)` on the server
+2. Return a generic, user-friendly message: `return { error: "Something went wrong. Please try again." }`
+3. Use specific messages only for known, safe cases (e.g. auth failures, not-found, validation).
+- AWS operations: `"Failed to sync with AWS. Please try again."`
+- DB operations: `"Something went wrong while saving/deleting. Please try again."`
+- Multi-step AWS flows (e.g. consumer provisioning): wrap each phase separately so partial failures are logged precisely.
+
+**Loading states** — every `useFetcher` submit should disable/replace its trigger while `fetcher.state !== "idle"`. Show a spinner for async operations (AWS calls, multi-step provisioning). Pattern for row-level actions:
+```tsx
+const deleting = fetcher.state !== "idle"
+const actionError = fetcher.data && "error" in fetcher.data ? fetcher.data.error : null
+
+if (deleting) return <Spinner />
+if (actionError) return <ErrorWithRetry message={actionError} onRetry={() => fetcher.submit(...)} />
+```
+For full-page forms use `useNavigation`: `const submitting = navigation.state === "submitting"`.
+
 ## Environment variables
 
 | Variable | Purpose |
@@ -119,3 +137,4 @@ Migrations live in `db/migrations/` as plain SQL with `-- Up Migration` / `-- Do
 - Plans sync to AWS Usage Plans via `createUsagePlan` / `updateUsagePlan`
 - Publishing a product calls `publishProductToEnvironment` which creates/updates one stage per API per environment and stores the `invoke_url`
 - Creating a consumer provisions a Cognito App Client and an AWS API key, storing `client_id`, `aws_api_key_id`, and `token_url` on the consumer record
+- Deleting a consumer removes the Cognito App Client (`deleteAppClient`) and the API Gateway key (`deleteApiKey`) before removing the DB record. AWS cleanup runs first — if it fails the record is preserved and the user can retry.

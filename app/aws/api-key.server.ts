@@ -1,6 +1,7 @@
 import {
   CreateApiKeyCommand,
   CreateUsagePlanKeyCommand,
+  DeleteApiKeyCommand,
   GetApiKeyCommand,
   UpdateUsagePlanCommand,
 } from "@aws-sdk/client-api-gateway"
@@ -24,6 +25,12 @@ export async function createApiKey(name: string, value?: string): Promise<{ id: 
   if (!result.id) throw new Error("CreateApiKey returned no id")
   console.log("[aws:api-key] created", { id: result.id, name })
   return { id: result.id }
+}
+
+/** Deletes an API Gateway API key by its ID. */
+export async function deleteApiKey(apiKeyId: string): Promise<void> {
+  await apigwClient.send(new DeleteApiKeyCommand({ apiKey: apiKeyId }))
+  console.log("[aws:api-key] deleted", { apiKeyId })
 }
 
 /**

@@ -1,5 +1,6 @@
 import {
   CreateUserPoolClientCommand,
+  DeleteUserPoolClientCommand,
   DescribeUserPoolClientCommand,
   DescribeUserPoolCommand,
 } from "@aws-sdk/client-cognito-identity-provider"
@@ -27,6 +28,17 @@ export async function createMachineClient(
   if (!clientId) throw new Error("CreateUserPoolClient returned no ClientId")
   console.log("[aws:cognito] app client created", { clientId, clientName })
   return { clientId }
+}
+
+/** Deletes a Cognito app client by client ID. */
+export async function deleteAppClient(
+  userPoolId: string,
+  clientId: string,
+): Promise<void> {
+  await cognitoClient.send(
+    new DeleteUserPoolClientCommand({ UserPoolId: userPoolId, ClientId: clientId }),
+  )
+  console.log("[aws:cognito] app client deleted", { clientId })
 }
 
 /** Returns the OAuth2 token endpoint URL for the user pool's hosted domain. */

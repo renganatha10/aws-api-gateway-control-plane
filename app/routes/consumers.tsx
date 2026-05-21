@@ -3,7 +3,10 @@ import { Link, useFetcher, useLoaderData } from "react-router"
 import { Eye, EyeOff, FlaskConical, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 
 import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
-import { deleteConsumer, listConsumersByGateway } from "~/repositories/consumer.repository.server"
+import { deleteConsumer, findConsumerById, listConsumersByGateway } from "~/repositories/consumer.repository.server"
+import { deleteAppClient } from "~/aws/cognito-app-client.server"
+import { deleteApiKey } from "~/aws/api-key.server"
+import { USER_POOL_ID } from "~/aws/cognito-client.server"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import {
@@ -42,12 +45,44 @@ export async function action({ request }: Route.ActionArgs) {
   if (intent === "delete") {
     const id = Number(formData.get("id"))
     if (!id) return { error: "Missing id" }
+
+    let consumer: Awaited<ReturnType<typeof findConsumerById>>
+    try {
+      consumer = await findConsumerById(id)
+    } catch (err) {
+      console.error("[consumers] findConsumerById failed", err)
+      return { error: "Something went wrong. Please try again." }
+    }
+    if (!consumer) return { error: "Consumer not found." }
+
+    // Remove Cognito app client
+    if (consumer.clientId) {
+      try {
+        await deleteAppClient(USER_POOL_ID, consumer.clientId)
+      } catch (err) {
+        console.error("[consumers] deleteAppClient failed", { clientId: consumer.clientId, err })
+        return { error: "Failed to remove the Cognito app client. Please try again." }
+      }
+    }
+
+    // Remove API Gateway key
+    if (consumer.awsApiKeyId) {
+      try {
+        await deleteApiKey(consumer.awsApiKeyId)
+      } catch (err) {
+        console.error("[consumers] deleteApiKey failed", { awsApiKeyId: consumer.awsApiKeyId, err })
+        return { error: "Failed to remove the API key. Please try again." }
+      }
+    }
+
+    // Delete DB record last — AWS is already cleaned up at this point
     try {
       await deleteConsumer(id)
     } catch (err) {
-      console.error("[consumers] deleteConsumer failed", err)
-      return { error: "Something went wrong while deleting. Please try again." }
+      console.error("[consumers] deleteConsumer DB failed", err)
+      return { error: "AWS resources removed but failed to delete the record. Please try again." }
     }
+
     return { ok: true }
   }
 
@@ -99,8 +134,36 @@ function RevealSecret({ consumerId }: { consumerId: number }) {
 // ── Row Actions ───────────────────────────────────────────────────────────────
 
 function ConsumerActions({ consumer }: { consumer: ConsumerRow }) {
-  const fetcher        = useFetcher()
+  const fetcher = useFetcher<typeof action>()
   const [confirm, setConfirm] = useState(false)
+
+  const deleting = fetcher.state !== "idle"
+  const deleteError = fetcher.data && "error" in fetcher.data ? fetcher.data.error : null
+
+  if (deleting) {
+    return (
+      <div className="flex items-center justify-end pr-1">
+        <svg className="size-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+        </svg>
+      </div>
+    )
+  }
+
+  if (deleteError) {
+    return (
+      <div className="flex items-center gap-1 justify-end">
+        <span className="text-xs text-destructive max-w-[160px] text-right leading-tight">{deleteError}</span>
+        <button
+          onClick={() => fetcher.submit({ _intent: "delete", id: String(consumer.id) }, { method: "post" })}
+          className="text-xs text-red-600 font-medium hover:underline shrink-0"
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
 
   if (confirm) {
     return (
