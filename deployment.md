@@ -1,526 +1,312 @@
-# Serverless Deployment Plan
-
-Deploys the API Gateway portal to AWS using Lambda + CloudFront (SSR), Aurora Serverless v1 (PostgreSQL), and Amazon Cognito (auth) — replacing Docker-based Keycloak and a persistent server.
+# AWS Hosting Plan: EC2 + S3/CloudFront + WAF + Serverless DB
 
 ---
 
-## Architecture
+## Architecture Overview
 
 ```
-Browser
+Internet
   │
   ▼
-CloudFront (CDN)
-  ├── /assets/*  ──────────────────► S3 (static files)
-  └── /*  ────────────────────────► Lambda Function URL
-                                         │
-                                         ├── React Router 7 SSR
-                                         ├── Cognito SDK (auth)
-                                         ├── AWS API Gateway SDK (existing)
-                                         └── RDS Proxy ──► Aurora Serverless v1
+Route 53 (DNS)
+  │
+  ▼
+AWS WAF  ──────────────────────────────┐
+  │                                    │
+  ├──► CloudFront (CDN)                │
+  │         │                          │
+  │         ├──► S3 (static assets)    │
+  │         └──► EC2 (API/SSR origin)  │
+  │                   │                │
+  │                   ├──► Aurora Serverless v2 (RDS)
+  │                   └──► CloudWatch Logs
+  │
+  └── (WAF also attached to CloudFront and optionally ALB)
 ```
 
-| Service | Role | Replaces |
+---
+
+## Phase 1: CloudFormation Template (One-Time Setup)
+
+Run once to provision all infrastructure. Split into logical stacks or one nested stack.
+
+### Stack 1 — Networking (VPC)
+
+- **VPC** with public and private subnets across 2 AZs
+- **Internet Gateway** for public subnet
+- **NAT Gateway** in public subnet (EC2 in private subnet needs outbound for npm installs, AWS SDK calls)
+- **Security Groups**:
+  - `sg-alb` — allows 80/443 from internet (or CloudFront IP prefix list only)
+  - `sg-ec2` — allows 3000 (app port) from `sg-alb` only
+  - `sg-db` — allows 5432 from `sg-ec2` only
+- **Route tables** for public and private subnets
+
+### Stack 2 — Database (Aurora Serverless v2)
+
+- **Aurora Serverless v2 cluster** (PostgreSQL-compatible)
+  - Min ACU: 0.5, Max ACU: 4 (tune based on load)
+  - Placed in **private subnets** — no public access
+  - **DB subnet group** spanning both private subnets
+  - Master credentials stored in **AWS Secrets Manager** (auto-rotation optional)
+  - Enable **Performance Insights** for query monitoring
+  - Enable **Enhanced Monitoring** (60s interval)
+- **CloudWatch log exports**: `postgresql` logs exported to log group `/aws/rds/cluster/<name>/postgresql`
+- **Parameter group**: set `log_min_duration_statement = 1000` to capture slow queries
+
+### Stack 3 — Compute (EC2 + ALB)
+
+- **Application Load Balancer (ALB)**
+  - Public subnets, `sg-alb`
+  - HTTPS listener (443) with ACM certificate
+  - HTTP listener (80) → redirect to HTTPS
+  - Target group pointing to EC2, health check on `/health` (add this endpoint to your app)
+- **EC2 instance** (t3.medium or t3.small to start)
+  - Private subnet, `sg-ec2`
+  - Amazon Linux 2023 AMI
+  - **IAM Instance Profile** with permissions:
+    - `ssm:*` — for AWS Systems Manager (no SSH needed)
+    - `secretsmanager:GetSecretValue` — to read DB credentials
+    - `s3:GetObject` — if app reads assets
+    - `logs:CreateLogStream`, `logs:PutLogEvents` — for CloudWatch agent
+    - `cloudwatch:PutMetricData`
+  - **CloudWatch Agent** installed via UserData (bootstrap only — Ansible handles app)
+  - **SSM Session Manager** enabled — no bastion host, no SSH key management
+- **Auto Scaling Group** (optional but recommended): min 1, max 2, scale on CPU > 70%
+
+### Stack 4 — Static Assets (S3 + CloudFront)
+
+- **S3 bucket** (private — no public access)
+  - Versioning enabled
+  - Lifecycle rule: expire old versions after 30 days
+  - Server-side encryption (SSE-S3 or SSE-KMS)
+- **Origin Access Control (OAC)** — CloudFront-only access to S3 (replaces legacy OAI)
+- **CloudFront distribution**
+  - **Origin 1 (S3)**: path pattern `/assets/*`, `/favicon.ico`, `/_build/*`
+  - **Origin 2 (ALB)**: default (`/*`) — all SSR/API traffic
+  - **Cache behaviors**:
+    - S3 origin: long TTL (1 year) with cache-busting via hashed filenames
+    - ALB origin: short TTL or no cache (SSR pages) — forward cookies/auth headers
+  - **HTTPS only**, TLS 1.2+, custom domain + ACM certificate (must be in `us-east-1` for CloudFront)
+  - **Compress objects automatically**: yes
+  - **Price class**: PriceClass_100 (US/EU) or All to start
+
+### Stack 5 — WAF
+
+- **WebACL** attached to **CloudFront** (must be in `us-east-1`)
+  - All rules below apply at the edge, before traffic hits your origin
+- See WAF rules section below
+
+### Stack 6 — Observability (CloudWatch)
+
+- **Log Groups** (all created by CloudFormation with retention policies):
+
+| Log Group | Source | Retention |
 |---|---|---|
-| Lambda + Lambda Web Adapter | SSR application server | Node.js process / ECS |
-| CloudFront | CDN, HTTPS, static asset cache | Nginx / ALB |
-| S3 | Static asset storage | Served from Node |
-| Aurora Serverless v1 | PostgreSQL (auto-pauses when idle) | Docker Postgres |
-| RDS Proxy | Connection pooling for Lambda | Direct pg connection |
-| Amazon Cognito | User auth (OIDC) | Keycloak |
+| `/app/ec2/application` | App logs via CloudWatch agent | 30 days |
+| `/app/ec2/system` | System logs (syslog, messages) | 14 days |
+| `/app/alb/access` | ALB access logs (via S3 → subscription) | 90 days |
+| `/aws/rds/cluster/<name>/postgresql` | Aurora slow query logs | 30 days |
+| `/aws/waf/webacl` | WAF sampled requests | 90 days |
+
+- **CloudWatch Agent config** on EC2 (deployed by Ansible):
+  - Tail your app's stdout/stderr and write to `/app/ec2/application`
+  - Collect memory and disk metrics (not native EC2 metrics)
+- **Metric Alarms**:
+  - CPU > 80% for 5 minutes → SNS email
+  - ALB 5xx rate > 1% → SNS email
+  - Aurora CPU > 70% → SNS email
+- **CloudWatch Dashboard**: CPU, memory, request count, DB connections, WAF blocked requests
 
 ---
 
-## Prerequisites
+## Phase 2: WAF Rules and Use Cases
 
-- AWS CLI configured (`aws configure`)
-- Node.js 20+
-- An S3 bucket for deployment artifacts (create once)
+Attach the WebACL to CloudFront. Rules are evaluated in priority order (lower number = higher priority).
+
+### Rule Set
+
+| Priority | Rule | Action | Use Case |
+|---|---|---|---|
+| 1 | **IP Reputation List** (AWS Managed) | Block | Blocks known malicious IPs (botnets, scanners, Tor exit nodes) — zero config |
+| 2 | **Core Rule Set (CRS)** (AWS Managed) | Block | OWASP Top 10: SQLi, XSS, command injection, path traversal, HTTP protocol violations |
+| 3 | **Known Bad Inputs** (AWS Managed) | Block | Log4Shell, Spring4Shell, SSRF patterns, common exploit payloads |
+| 4 | **Anonymous IP List** (AWS Managed) | Count → Block after tuning | VPNs, proxies, Tor — useful for API abuse; `Count` first to avoid blocking legitimate users |
+| 5 | **Rate limit — global** | Rate-based Block | 2000 requests / 5 minutes per IP across all paths — blunt DDoS protection |
+| 6 | **Rate limit — login endpoint** | Rate-based Block | 20 requests / 5 minutes per IP on `/login` — brute force protection |
+| 7 | **Rate limit — API paths** | Rate-based Block | 500 requests / 5 minutes per IP on `/api/*` — API abuse |
+| 8 | **Geo block** (optional) | Block | Block countries you don't serve — reduces noise from overseas scanners |
+| 9 | **Size restriction** | Block | Request body > 8KB blocked — prevents large payload attacks on your API |
+
+### WAF Logging
+
+- Enable WAF logging → **Kinesis Firehose** → S3 bucket → optional Athena queries
+- Or WAF logs → CloudWatch log group `/aws/waf/webacl` directly (simpler, higher cost at volume)
+- Set `log_scope: REDACTED` for sensitive headers (Authorization, Cookie) in logs
+
+### WAF Tuning Workflow
+
+1. Start rules in **Count mode** (not Block) for 1–2 weeks
+2. Review sampled requests in WAF console — identify false positives
+3. Add **IP set allow rules** or **rule exclusions** for legitimate traffic patterns
+4. Switch to **Block mode** once confident
 
 ---
 
-## Step 1 — Amazon Cognito (replacing Keycloak)
+## Phase 3: Ansible Deployment (Recurring)
 
-### 1a. Create User Pool
+Ansible connects via **SSM Session Manager** (no SSH keys), using the `community.aws` collection.
 
-```bash
-aws cognito-idp create-user-pool \
-  --pool-name api-portal \
-  --auto-verified-attributes email \
-  --username-attributes email \
-  --policies "PasswordPolicy={MinimumLength=8,RequireUppercase=false,RequireLowercase=false,RequireNumbers=false,RequireSymbols=false}" \
-  --query "UserPool.Id" --output text
-# → saves as COGNITO_USER_POOL_ID
+### Playbook Steps
+
+```
+1. Pre-deploy checks
+   - Health check current app (curl /health)
+   - Snapshot or tag current deployment
+
+2. Pull application code
+   - git pull from your repo (or copy artifact from S3 build bucket)
+
+3. Install dependencies
+   - npm ci --production
+
+4. Build (if SSR build step needed)
+   - npm run build
+
+5. Environment config
+   - Write .env from Secrets Manager (aws secretsmanager get-secret-value)
+   - Never store secrets in your repo or Ansible vars
+
+6. Restart application
+   - systemctl restart myapp (PM2 or systemd unit)
+   - Wait for health check to pass (retry loop)
+
+7. Post-deploy validation
+   - curl ALB /health → assert HTTP 200
+   - Tail CloudWatch logs for 30s, check for errors
 ```
 
-### 1b. Create App Client
+### Zero-Downtime Option
+
+- **With ASG**: launch new instance with new code, wait for health, drain old instance
+- **Without ASG (single EC2)**: use PM2 reload (in-process) for near-zero downtime on single instance
+
+---
+
+## Phase 4: S3 Asset Update (Recurring)
+
+Three options depending on your build pipeline:
+
+### Option A — Local Build + AWS CLI Upload
 
 ```bash
-aws cognito-idp create-user-pool-client \
-  --user-pool-id $COGNITO_USER_POOL_ID \
-  --client-name api-portal-server \
-  --no-generate-secret \
-  --explicit-auth-flows ALLOW_USER_PASSWORD_AUTH ALLOW_REFRESH_TOKEN_AUTH \
-  --query "UserPoolClient.ClientId" --output text
-# → saves as COGNITO_CLIENT_ID
+# 1. Build
+npm run build  # produces hashed filenames: main.abc123.js
+
+# 2. Sync hashed assets (long cache — never need invalidation)
+aws s3 sync ./build/client s3://<bucket>/ \
+  --delete \
+  --cache-control "max-age=31536000,immutable" \
+  --exclude "*.html"
+
+# 3. Sync HTML separately (short cache — always revalidate)
+aws s3 sync ./build/client s3://<bucket>/ \
+  --include "*.html" \
+  --cache-control "no-cache,no-store"
+
+# 4. Invalidate only non-hashed files (HTML, manifest)
+aws cloudfront create-invalidation \
+  --distribution-id <id> \
+  --paths "/*.html" "/manifest.json"
 ```
 
-`ALLOW_USER_PASSWORD_AUTH` is the Cognito equivalent of Keycloak's Direct Access Grant — accepts username + password directly.
+**Key insight**: hashed JS/CSS never need invalidation (new hash = new URL). Only invalidate HTML and manifests.
 
-### 1c. Update app auth module
+### Option B — CI/CD (GitHub Actions / CodePipeline)
 
-Replace `app/lib/keycloak.server.ts` with `app/lib/cognito.server.ts`:
+- Push to `main` → GitHub Action builds → uploads to S3 → CloudFront invalidation
+- EC2 deployment via Ansible triggered from the same pipeline (`aws ssm send-command`)
+- Keeps deployment atomic: assets and server code deploy together
 
-```typescript
-// app/lib/cognito.server.ts
-import {
-  CognitoIdentityProviderClient,
-  InitiateAuthCommand,
-  AdminCreateUserCommand,
-  AdminSetUserPasswordCommand,
-  AdminGetUserCommand,
-  ForgotPasswordCommand,
-  type AuthenticationResultType,
-} from "@aws-sdk/client-cognito-identity-provider"
+### Option C — S3 Versioning Rollback
 
-const client = new CognitoIdentityProviderClient({ region: process.env.AWS_REGION })
-const USER_POOL_ID = process.env.COGNITO_USER_POOL_ID!
-const CLIENT_ID    = process.env.COGNITO_CLIENT_ID!
-
-export interface TokenResponse {
-  access_token:  string
-  refresh_token: string
-  expires_in:    number
-  token_type:    string
-}
-
-export async function loginWithCredentials(
-  username: string,
-  password: string,
-): Promise<TokenResponse> {
-  const res = await client.send(new InitiateAuthCommand({
-    AuthFlow:       "USER_PASSWORD_AUTH",
-    ClientId:       CLIENT_ID,
-    AuthParameters: { USERNAME: username, PASSWORD: password },
-  }))
-
-  const auth = res.AuthenticationResult as AuthenticationResultType
-  if (!auth?.AccessToken) throw new Error("Invalid username or password")
-
-  return {
-    access_token:  auth.AccessToken,
-    refresh_token: auth.RefreshToken ?? "",
-    expires_in:    auth.ExpiresIn ?? 3600,
-    token_type:    auth.TokenType ?? "Bearer",
-  }
-}
-
-export async function registerUser(params: {
-  email: string
-  password: string
-  firstName?: string
-  lastName?: string
-}): Promise<void> {
-  // AdminCreateUser creates the account; AdminSetUserPassword confirms it immediately
-  await client.send(new AdminCreateUserCommand({
-    UserPoolId:        USER_POOL_ID,
-    Username:          params.email,
-    TemporaryPassword: params.password,
-    UserAttributes: [
-      { Name: "email",          Value: params.email },
-      { Name: "email_verified", Value: "true" },
-      { Name: "given_name",     Value: params.firstName ?? "" },
-      { Name: "family_name",    Value: params.lastName ?? "" },
-    ],
-    MessageAction: "SUPPRESS",
-  })).catch((e: Error) => {
-    if (e.name === "UsernameExistsException") throw new Error("An account with this email already exists")
-    throw new Error("Failed to create account")
-  })
-
-  await client.send(new AdminSetUserPasswordCommand({
-    UserPoolId: USER_POOL_ID,
-    Username:   params.email,
-    Password:   params.password,
-    Permanent:  true,
-  }))
-}
-
-export async function sendPasswordResetEmail(email: string): Promise<void> {
-  try {
-    await client.send(new ForgotPasswordCommand({
-      ClientId: CLIENT_ID,
-      Username: email,
-    }))
-  } catch {
-    // swallow — never leak account existence
-  }
-}
-
-export function extractUserId(accessToken: string): string {
-  return decodePayload(accessToken)?.sub ?? ""
-}
-
-export function getUserProfile(accessToken: string) {
-  const p = decodePayload(accessToken)
-  return {
-    sub:         p?.sub ?? "",
-    email:       p?.email ?? "",
-    given_name:  p?.given_name ?? "",
-    family_name: p?.family_name ?? "",
-    name:        p?.name ?? [p?.given_name, p?.family_name].filter(Boolean).join(" "),
-  }
-}
-
-function decodePayload(token: string): Record<string, string> | null {
-  try {
-    return JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString())
-  } catch {
-    return null
-  }
-}
-```
-
-Update all imports in route files from `~/lib/keycloak.server` → `~/lib/cognito.server`. The exported function signatures are identical so no other changes are needed.
-
-Also install the Cognito SDK:
+If a bad asset deploy goes out, restore previous version:
 
 ```bash
-npm install @aws-sdk/client-cognito-identity-provider
+aws s3api list-object-versions --bucket <bucket> --prefix assets/main.js
+aws s3api copy-object ... --copy-source <bucket>/assets/main.js?versionId=<old-version-id>
 ```
 
 ---
 
-## Step 2 — Aurora Serverless v1
+## Phase 5: CloudFormation Update Strategy
 
-### 2a. Create VPC (if not using an existing one)
+Never update prod CloudFormation stacks blindly. Three patterns:
 
-```bash
-# Use the default VPC or create a dedicated one.
-# Easiest: use AWS Console → VPC → Create VPC with public + private subnets.
-# Save the VPC ID, private subnet IDs, and default security group ID.
-```
+### Pattern A — Change Sets (Recommended for Infra Changes)
 
-### 2b. Create Aurora Serverless v1 cluster
+1. `aws cloudformation create-change-set` — preview what will change
+2. Review in console: will anything be **replaced** (destructive) or just **modified**?
+3. `aws cloudformation execute-change-set` — apply
+4. Watch stack events in real time
 
-```bash
-aws rds create-db-cluster \
-  --db-cluster-identifier api-portal-db \
-  --engine aurora-postgresql \
-  --engine-mode serverless \
-  --engine-version 13.12 \
-  --scaling-configuration MinCapacity=2,MaxCapacity=8,AutoPause=true,SecondsUntilAutoPause=300,TimeoutAction=RollbackCapacityChange \
-  --master-username app \
-  --master-user-password <strong-password> \
-  --database-name app \
-  --vpc-security-group-ids <sg-id> \
-  --db-subnet-group-name <subnet-group-name>
-```
+**Always use this for**: VPC changes, SG changes, DB changes, EC2 AMI updates.
 
-Key scaling config:
-- `AutoPause=true` — pauses after 5 minutes idle (scales to zero)
-- `MinCapacity=2` — minimum 2 ACUs when active (prevents out-of-memory on cold queries)
-- `SecondsUntilAutoPause=300` — 5-minute idle timeout
+### Pattern B — Parameter Updates (Safe for Config Changes)
 
-### 2c. Create RDS Proxy (required for Lambda)
+For updating AMI IDs, instance types, or WAF rule thresholds:
+- Pass new `--parameter-overrides` without touching the template
+- Low risk, fast
 
-Lambda spawns many short-lived connections. Without a proxy, Aurora Serverless v1 hits its connection limit quickly.
+### Pattern C — Stack Drift Detection
 
-```bash
-aws rds create-db-proxy \
-  --db-proxy-name api-portal-proxy \
-  --engine-family POSTGRESQL \
-  --auth '[{"AuthScheme":"SECRETS","IAMAuth":"DISABLED","SecretArn":"<secret-arn>"}]' \
-  --role-arn <rds-proxy-role-arn> \
-  --vpc-subnet-ids <private-subnet-1> <private-subnet-2> \
-  --vpc-security-group-ids <sg-id>
+- Periodically run `aws cloudformation detect-stack-drift`
+- Finds manual console changes that diverge from your template
+- Fix drift by importing resources or updating the template — never leave drift unresolved
 
-aws rds register-db-proxy-targets \
-  --db-proxy-name api-portal-proxy \
-  --db-cluster-identifiers api-portal-db
-```
+### What NOT to Do
 
-Store the proxy endpoint — use it as `DATABASE_URL` in Lambda:
-```
-postgresql://app:<password>@<proxy-endpoint>:5432/app
-```
-
-### 2d. Run migrations from local machine
-
-Point `DATABASE_URL` at the cluster endpoint (not the proxy — proxy is for app connections), then:
-
-```bash
-DATABASE_URL=postgresql://app:<password>@<cluster-endpoint>:5432/app npm run db:migrate
-```
-
-> Aurora Serverless v1 may take 15–30 seconds to resume from pause on first connection.
+- Never delete and recreate a stack containing the database
+- Never update an RDS cluster's engine version via CloudFormation without a manual snapshot first
+- Use `DeletionPolicy: Retain` on S3 buckets and RDS clusters in your template
 
 ---
 
-## Step 3 — Lambda Function (SSR)
-
-Uses [AWS Lambda Web Adapter](https://github.com/awslabs/aws-lambda-web-adapter) — runs `npm run start` as-is inside Lambda with zero code changes. The adapter layer converts Lambda events to HTTP and back.
-
-### 3a. Add Lambda entry point
-
-Create `server/lambda.ts`:
-
-```typescript
-// server/lambda.ts
-// Lambda Web Adapter intercepts the port — this file just starts the standard
-// production server. The adapter layer handles event ↔ HTTP translation.
-import "../build/server/index.js"
-```
-
-Or more simply, point Lambda's handler at the existing `npm run start` script by configuring the Lambda Web Adapter environment variable:
+## Summary Checklist
 
 ```
-AWS_LAMBDA_EXEC_WRAPPER=/opt/bootstrap
-PORT=3000
-```
+CloudFormation (one-time)
+  ☐ VPC + subnets + SGs + NAT Gateway
+  ☐ Aurora Serverless v2 + Secrets Manager
+  ☐ EC2 + ALB + IAM Instance Profile + SSM
+  ☐ S3 bucket + CloudFront + OAC
+  ☐ WAF WebACL attached to CloudFront
+  ☐ CloudWatch log groups + metric alarms + dashboard
 
-### 3b. Create Lambda function
+Ansible (per deploy)
+  ☐ Pull code → install deps → build → reload app
+  ☐ Inject secrets from Secrets Manager at runtime
+  ☐ Health check validation post-deploy
 
-```bash
-# Package the app
-npm run build
-zip -r function.zip build/ node_modules/ package.json
+S3 asset update (per deploy)
+  ☐ aws s3 sync with correct cache-control headers
+  ☐ CloudFront invalidation for HTML/manifest only
 
-# Upload to S3
-aws s3 cp function.zip s3://<artifact-bucket>/api-portal/function.zip
-
-# Create function
-aws lambda create-function \
-  --function-name api-portal \
-  --runtime nodejs20.x \
-  --role <lambda-execution-role-arn> \
-  --handler run.sh \
-  --code S3Bucket=<artifact-bucket>,S3Key=api-portal/function.zip \
-  --timeout 30 \
-  --memory-size 512 \
-  --vpc-config SubnetIds=<private-subnet-1>,<private-subnet-2>,SecurityGroupIds=<sg-id> \
-  --layers arn:aws:lambda:<region>:753240598075:layer:LambdaAdapterLayerX86:24 \
-  --environment Variables="{
-    NODE_ENV=production,
-    PORT=3000,
-    AWS_LAMBDA_EXEC_WRAPPER=/opt/bootstrap,
-    DATABASE_URL=postgresql://app:<password>@<proxy-endpoint>:5432/app,
-    SESSION_SECRET=<secret>,
-    COGNITO_USER_POOL_ID=<pool-id>,
-    COGNITO_CLIENT_ID=<client-id>,
-    AWS_REGION=<region>,
-    AWS_ACCESS_KEY_ID=<key>,
-    AWS_SECRET_ACCESS_KEY=<secret>
-  }"
-```
-
-Lambda Web Adapter layer ARNs by region: https://github.com/awslabs/aws-lambda-web-adapter#lambda-functions-packaged-as-zip-package-for-other-languages
-
-### 3c. Create Function URL
-
-```bash
-aws lambda create-function-url-config \
-  --function-name api-portal \
-  --auth-type NONE
-
-aws lambda add-permission \
-  --function-name api-portal \
-  --action lambda:InvokeFunctionUrl \
-  --principal "*" \
-  --function-url-auth-type NONE \
-  --statement-id public-url
-```
-
-Note the Function URL — used as CloudFront origin.
-
----
-
-## Step 4 — S3 + CloudFront
-
-### 4a. Upload static assets
-
-```bash
-# After npm run build
-aws s3 sync build/client/ s3://<assets-bucket>/assets/ \
-  --cache-control "public,max-age=31536000,immutable"
-```
-
-### 4b. Create CloudFront distribution
-
-Two origins:
-1. **S3 origin** — serves `/assets/*` (long-cache, immutable hashes)
-2. **Lambda Function URL origin** — serves everything else (SSR)
-
-```bash
-# Use AWS Console or CDK — the JSON config is verbose.
-# Key settings:
-#   Default behavior → Lambda Function URL origin, cache disabled (TTL=0)
-#   /assets/* behavior → S3 origin, cache max-age=1 year
-#   Viewer protocol → Redirect HTTP to HTTPS
-#   Price class → PriceClass_100 (US/EU) or PriceClass_All
-```
-
-With CDK (recommended, saves the JSON config):
-
-```typescript
-import * as cloudfront from "aws-cdk-lib/aws-cloudfront"
-import * as origins from "aws-cdk-lib/aws-cloudfront-origins"
-
-const distribution = new cloudfront.Distribution(this, "Portal", {
-  defaultBehavior: {
-    origin: new origins.FunctionUrlOrigin(fn.addFunctionUrl({ authType: FunctionUrlAuthType.NONE })),
-    cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
-    allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
-    viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-    originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
-  },
-  additionalBehaviors: {
-    "/assets/*": {
-      origin: new origins.S3Origin(assetsBucket),
-      cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
-      viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-    },
-  },
-})
+Ongoing
+  ☐ Review WAF Count-mode hits weekly before switching to Block
+  ☐ Monitor CloudWatch dashboard after each deploy
+  ☐ Run CloudFormation drift detection monthly
+  ☐ Rotate DB credentials via Secrets Manager auto-rotation
 ```
 
 ---
 
-## Step 5 — Environment Variables
+## Key Risks and Mitigations
 
-Remove all Keycloak variables. Final set for Lambda:
-
-```env
-NODE_ENV=production
-PORT=3000
-AWS_LAMBDA_EXEC_WRAPPER=/opt/bootstrap
-
-# Database (via RDS Proxy)
-DATABASE_URL=postgresql://app:<password>@<rds-proxy-endpoint>:5432/app
-
-# Session
-SESSION_SECRET=<random-64-char-string>
-
-# Cognito
-COGNITO_USER_POOL_ID=<us-east-1_xxxxxxx>
-COGNITO_CLIENT_ID=<26-char-client-id>
-
-# AWS (API Gateway SDK — existing)
-AWS_REGION=ap-southeast-2
-AWS_ACCESS_KEY_ID=<key>
-AWS_SECRET_ACCESS_KEY=<secret>
-```
-
-Store secrets in **AWS Systems Manager Parameter Store** (SecureString) and pull them into Lambda via the AWS Parameters and Secrets Lambda Extension, or set them directly in Lambda environment variables for simplicity.
-
----
-
-## Step 6 — Code Changes Summary
-
-| File | Change |
+| Risk | Mitigation |
 |---|---|
-| `app/lib/cognito.server.ts` | New — replaces `keycloak.server.ts` |
-| `app/lib/keycloak.server.ts` | Delete |
-| All route files importing keycloak | Change import path to `~/lib/cognito.server` |
-| `app/lib/session.server.ts` | No changes needed |
-| `docker-compose.yml` | Remove Keycloak service (keep Postgres for local dev) |
-| `.env.example` | Replace `KEYCLOAK_*` with `COGNITO_*` |
-
----
-
-## Step 7 — CI/CD (GitHub Actions)
-
-```yaml
-# .github/workflows/deploy.yml
-name: Deploy
-
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm run build
-
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ap-southeast-2
-
-      # Upload static assets to S3
-      - run: |
-          aws s3 sync build/client/ s3://${{ secrets.ASSETS_BUCKET }}/assets/ \
-            --cache-control "public,max-age=31536000,immutable" \
-            --delete
-
-      # Package and deploy Lambda
-      - run: zip -r function.zip build/ node_modules/ package.json
-      - run: |
-          aws s3 cp function.zip s3://${{ secrets.ARTIFACT_BUCKET }}/api-portal/function.zip
-          aws lambda update-function-code \
-            --function-name api-portal \
-            --s3-bucket ${{ secrets.ARTIFACT_BUCKET }} \
-            --s3-key api-portal/function.zip
-
-      # Invalidate CloudFront cache for HTML (assets are immutable)
-      - run: |
-          aws cloudfront create-invalidation \
-            --distribution-id ${{ secrets.CF_DISTRIBUTION_ID }} \
-            --paths "/*"
-```
-
----
-
-## Cost Estimate
-
-Assumes light usage: ~10k page requests/day, dev portal with moderate traffic.
-
-| Service | Monthly estimate |
-|---|---|
-| Lambda (512 MB, 30s timeout, ~300k invocations) | ~$1–3 |
-| CloudFront (10 GB transfer, 1M requests) | ~$1–2 |
-| S3 (100 MB assets, 1M requests) | < $0.50 |
-| Aurora Serverless v1 (active ~4 hrs/day, 2 ACU) | ~$7–10 |
-| RDS Proxy | ~$0.015/vCPU-hr × hours active ≈ $2–4 |
-| Cognito (< 50k MAU, minimal M2M) | $0 |
-| **Total** | **~$12–20/month** |
-
-Compare to always-on ECS/EC2: $30–80/month minimum.
-
-Aurora Serverless v1 cold start (resume from pause) takes 15–30 seconds on first request after idle. This is acceptable for a dev portal. If unacceptable, increase `SecondsUntilAutoPause` to keep it warmer, or switch to Aurora Serverless v2 (no pause, ~$1/day minimum).
-
----
-
-## Known Gotchas
-
-### Lambda cold starts + Aurora pause
-If Aurora is paused when Lambda wakes up, the first request will time out unless the Lambda timeout is set ≥ 35 seconds. Set Lambda timeout to **60 seconds** to cover this.
-
-### VPC required
-Lambda must be in the same VPC as Aurora and RDS Proxy. This adds ~500ms to Lambda cold starts (ENI attachment). Use **Provisioned Concurrency** if cold start latency is unacceptable in production.
-
-### Lambda response size limit
-Lambda Function URLs have a 6 MB response body limit. React Router SSR responses are small, but avoid returning large JSON blobs directly from loaders.
-
-### Session cookies on Lambda Web Adapter
-The adapter forwards all headers including `Cookie` and `Set-Cookie` correctly. No changes needed to `session.server.ts`.
-
-### Cognito password reset flow
-`ForgotPasswordCommand` sends a code to the user's email (not a magic link). The app's forgot-password route currently expects a magic link (Keycloak). Update the UI to show a "check your email for a reset code" message and add a `/reset-password` route that calls `ConfirmForgotPasswordCommand` with the code + new password.
-
-### Local development
-Keep Docker Compose Postgres for local dev. For Cognito locally, either:
-- Point local `.env` at a real Cognito dev User Pool (free, no Docker needed)
-- Or keep Keycloak in `docker-compose.yml` and only swap to Cognito in production via env vars (both modules share the same interface)
+| WAF blocks legitimate users | Start all rules in Count mode, tune for 1–2 weeks before blocking |
+| CloudFormation update breaks DB | Always take Aurora snapshot before any stack update touching RDS |
+| Secrets in Ansible vars | Pull all secrets from Secrets Manager at runtime, never store in repo |
+| S3 assets serve stale files | Use hashed filenames + CloudFront invalidation on deploy |
+| EC2 deploy causes downtime | PM2 reload (no ASG) or ASG rolling update (with ASG) |
+| ALB accessible without WAF | Restrict `sg-alb` to CloudFront managed prefix list only |
