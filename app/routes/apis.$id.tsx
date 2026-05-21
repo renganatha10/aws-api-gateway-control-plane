@@ -317,7 +317,8 @@ export async function action({ request, params }: Route.ActionArgs) {
       awsApiId = await importApiSpec(awsSpec)
     }
   } catch (err) {
-    return { error: `AWS sync failed: ${err instanceof Error ? err.message : "Unknown error"}` }
+    console.error("[api-update] AWS sync failed", err)
+    return { error: "Something went wrong while syncing to AWS. Please try again." }
   }
 
   await updateApi(id, { scope, spec, basePath, awsApiId, updatedBy, updatedAt: new Date() })

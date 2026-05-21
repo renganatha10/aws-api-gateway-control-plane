@@ -76,3 +76,19 @@ export async function listApisByProduct(productId: number) {
     .innerJoin(apis, eq(apiAssociations.apiId, apis.id))
     .where(eq(apiAssociations.productId, productId))
 }
+
+export async function listApisWithSpecByProduct(productId: number) {
+  return db
+    .select({
+      id:          apis.id,
+      name:        apis.name,
+      displayName: apis.displayName,
+      basePath:    apis.basePath,
+      specType:    apis.specType,
+      spec:        apis.spec,
+      awsApiId:    apis.awsApiId,
+    })
+    .from(apiAssociations)
+    .innerJoin(apis, eq(apiAssociations.apiId, apis.id))
+    .where(eq(apiAssociations.productId, productId))
+}

@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Link, useFetcher, useLoaderData } from "react-router"
-import { Eye, EyeOff, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { Eye, EyeOff, FlaskConical, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 
 import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
 import { deleteConsumer, listConsumersByGateway } from "~/repositories/consumer.repository.server"
@@ -125,6 +125,12 @@ function ConsumerActions({ consumer }: { consumer: ConsumerRow }) {
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        <DropdownMenuItem asChild>
+          <Link to={`/consumers/${consumer.id}/tryout`}>
+            <FlaskConical className="size-4 mr-2 text-blue-500" />
+            Try Out
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link to={`/consumers/${consumer.id}`}>
             <Pencil className="size-4 mr-2 text-gray-500" />

@@ -37,6 +37,34 @@ export async function findConsumerById(id: number): Promise<Consumer | undefined
   return row
 }
 
+export async function findConsumerWithDetailById(id: number) {
+  const [row] = await db
+    .select({
+      id:              consumers.id,
+      name:            consumers.name,
+      productId:       consumers.productId,
+      environmentId:   consumers.environmentId,
+      planId:          consumers.planId,
+      gatewayId:       consumers.gatewayId,
+      clientId:        consumers.clientId,
+      awsApiKeyId:     consumers.awsApiKeyId,
+      tokenUrl:        consumers.tokenUrl,
+      createdBy:       consumers.createdBy,
+      updatedBy:       consumers.updatedBy,
+      createdAt:       consumers.createdAt,
+      updatedAt:       consumers.updatedAt,
+      productName:     products.displayName,
+      environmentName: environments.name,
+      planName:        plans.displayName,
+    })
+    .from(consumers)
+    .innerJoin(products,     eq(consumers.productId,     products.id))
+    .innerJoin(environments, eq(consumers.environmentId, environments.id))
+    .innerJoin(plans,        eq(consumers.planId,        plans.id))
+    .where(eq(consumers.id, id))
+  return row ?? null
+}
+
 export async function createConsumer(data: NewConsumer): Promise<Consumer> {
   const [created] = await db.insert(consumers).values(data).returning()
   return created

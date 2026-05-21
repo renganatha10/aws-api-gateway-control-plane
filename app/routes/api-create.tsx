@@ -60,7 +60,8 @@ export async function action({ request }: Route.ActionArgs) {
     const specForAws = { ...specObj, info: { ...(specObj.info as object ?? {}), title: name } }
     awsApiId = await importApiSpec(buildAwsSpec(specForAws, scope, name))
   } catch (err) {
-    return { error: `AWS import failed: ${err instanceof Error ? err.message : "Unknown error"}` }
+    console.error("[api-create] AWS import failed", err)
+    return { error: "Something went wrong while importing to AWS. Please try again." }
   }
 
   const now = new Date()

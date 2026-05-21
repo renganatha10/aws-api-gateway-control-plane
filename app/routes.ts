@@ -6,6 +6,8 @@ export default [
   route("api/gateway-switch", "routes/api.gateway-switch.ts"),
   route("api/consumer-secret/:id", "routes/api.consumer-secret.$id.ts"),
   route("api/consumer-apikey/:id", "routes/api.consumer-apikey.$id.ts"),
+  route("api/consumer-token/:id", "routes/api.consumer-token.$id.ts"),
+  route("api/consumer-proxy", "routes/api.consumer-proxy.ts"),
   route("forgot-password", "routes/forgot-password.tsx"),
   route("reset-password", "routes/reset-password.tsx"),
   layout("routes/layout.tsx", [
@@ -23,5 +25,6 @@ export default [
     route("consumers", "routes/consumers.tsx"),
     route("consumers/new", "routes/consumer-create.tsx"),
     route("consumers/:id", "routes/consumers.$id.tsx"),
+    route("consumers/:id/tryout", "routes/consumers.$id.tryout.tsx"),
   ]),
 ] satisfies RouteConfig;
