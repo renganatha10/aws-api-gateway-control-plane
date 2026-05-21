@@ -183,9 +183,11 @@ export default function ProductDetailPage() {
               <span className="text-sm text-gray-600">Delete this product?</span>
               <deleteFetcher.Form method="post">
                 <input type="hidden" name="_intent" value="delete" />
-                <Button type="submit" variant="destructive" size="sm">Confirm Delete</Button>
+                <Button type="submit" variant="destructive" size="sm" disabled={deleteFetcher.state !== "idle"}>
+                  {deleteFetcher.state !== "idle" ? "Deleting…" : "Confirm Delete"}
+                </Button>
               </deleteFetcher.Form>
-              <Button variant="outline" size="sm" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+              <Button variant="outline" size="sm" disabled={deleteFetcher.state !== "idle"} onClick={() => setConfirmDelete(false)}>Cancel</Button>
             </>
           ) : (
             <>

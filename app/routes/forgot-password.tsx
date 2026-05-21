@@ -1,5 +1,5 @@
 import { MailCheck, Zap } from "lucide-react"
-import { data, Form, Link } from "react-router"
+import { data, Form, Link, useNavigation } from "react-router"
 
 import { sendPasswordResetEmail } from "~/lib/cognito.server"
 import { Button } from "~/components/ui/button"
@@ -28,6 +28,8 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function ForgotPassword({ actionData }: Route.ComponentProps) {
+  const navigation = useNavigation()
+  const submitting = navigation.state === "submitting"
   const sent = actionData?.sent === true
   const email = actionData?.email ?? ""
 
@@ -71,8 +73,8 @@ export default function ForgotPassword({ actionData }: Route.ComponentProps) {
                 />
               </div>
 
-              <Button className="w-full" size="lg" type="submit">
-                Send reset code
+              <Button className="w-full" size="lg" type="submit" disabled={submitting}>
+                {submitting ? "Sending…" : "Send reset code"}
               </Button>
             </Form>
           )}

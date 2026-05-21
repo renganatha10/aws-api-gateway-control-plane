@@ -1,6 +1,6 @@
 ﻿import * as React from "react"
 import * as yaml from "js-yaml"
-import { Form, redirect, useActionData, useNavigate } from "react-router"
+import { Form, redirect, useActionData, useNavigate, useNavigation } from "react-router"
 
 import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/cognito.server"
@@ -76,8 +76,10 @@ const API_TYPES = [
 ]
 
 export default function ApiCreate() {
-  const actionData = useActionData<typeof action>()
-  const navigate   = useNavigate()
+  const actionData  = useActionData<typeof action>()
+  const navigate    = useNavigate()
+  const navigation  = useNavigation()
+  const submitting  = navigation.state === "submitting"
   const [type, setType] = React.useState("swagger2")
 
   return (
@@ -87,10 +89,10 @@ export default function ApiCreate() {
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-200 shrink-0">
           <h1 className="text-2xl font-normal text-gray-900">Create API</h1>
           <div className="flex gap-2">
-            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-6">
-              Save API
+            <Button type="submit" disabled={submitting} className="bg-blue-600 hover:bg-blue-700 text-white px-6">
+              {submitting ? "Saving…" : "Save API"}
             </Button>
-            <Button type="button" variant="outline" onClick={() => navigate(-1)}>
+            <Button type="button" variant="outline" disabled={submitting} onClick={() => navigate(-1)}>
               Cancel
             </Button>
           </div>

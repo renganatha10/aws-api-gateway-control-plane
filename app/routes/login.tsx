@@ -1,5 +1,5 @@
 import { Zap } from "lucide-react"
-import { data, Form, Link, redirect } from "react-router"
+import { data, Form, Link, redirect, useNavigation } from "react-router"
 
 import {
   extractUserId,
@@ -67,6 +67,8 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function Login({ loaderData, actionData }: Route.ComponentProps) {
+  const navigation = useNavigation()
+  const submitting = navigation.state === "submitting"
   // actionData.mode preserves mode on validation error; loaderData.mode comes from URL
   const mode = actionData?.mode ?? loaderData.mode
   const isSignup = mode === "signup"
@@ -170,8 +172,10 @@ export default function Login({ loaderData, actionData }: Route.ComponentProps) 
               )}
             </div>
 
-            <Button className="w-full" size="lg" type="submit">
-              {isSignup ? "Create Account" : "Sign In"}
+            <Button className="w-full" size="lg" type="submit" disabled={submitting}>
+              {submitting
+                ? (isSignup ? "Creating account…" : "Signing in…")
+                : (isSignup ? "Create Account" : "Sign In")}
             </Button>
           </Form>
         </CardContent>

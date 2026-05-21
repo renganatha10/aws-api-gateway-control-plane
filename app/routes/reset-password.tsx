@@ -1,5 +1,5 @@
 import { KeyRound, Zap } from "lucide-react"
-import { data, Form, Link, redirect } from "react-router"
+import { data, Form, Link, redirect, useNavigation } from "react-router"
 
 import { confirmPasswordReset } from "~/lib/cognito.server"
 import { Button } from "~/components/ui/button"
@@ -50,6 +50,8 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function ResetPassword({ loaderData, actionData }: Route.ComponentProps) {
+  const navigation = useNavigation()
+  const submitting = navigation.state === "submitting"
   const email = actionData?.email ?? loaderData.email
 
   return (
@@ -115,8 +117,8 @@ export default function ResetPassword({ loaderData, actionData }: Route.Componen
               />
             </div>
 
-            <Button className="w-full" size="lg" type="submit">
-              Reset password
+            <Button className="w-full" size="lg" type="submit" disabled={submitting}>
+              {submitting ? "Resetting…" : "Reset password"}
             </Button>
           </Form>
 
