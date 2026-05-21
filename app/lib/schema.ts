@@ -138,3 +138,31 @@ export const consumers = pgTable("consumers", {
 
 export type Consumer    = typeof consumers.$inferSelect
 export type NewConsumer = typeof consumers.$inferInsert
+
+export const domains = pgTable("domains", {
+  id:             serial("id").primaryKey(),
+  gatewayId:      integer("gateway_id").notNull().references(() => gateways.id, { onDelete: "cascade" }),
+  domainName:     varchar("domain_name", { length: 255 }).notNull().unique(),
+  certificateArn: varchar("certificate_arn", { length: 500 }).notNull(),
+  awsDomainName:  varchar("aws_domain_name", { length: 255 }),
+  endpointType:   varchar("endpoint_type", { length: 20 }).notNull().default("REGIONAL"),
+  godaddyDomain:  varchar("godaddy_domain", { length: 255 }),
+  createdBy:      varchar("created_by", { length: 255 }).notNull(),
+  updatedBy:      varchar("updated_by", { length: 255 }),
+  createdAt:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:      timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const domainRouteMappings = pgTable("domain_route_mappings", {
+  id:        serial("id").primaryKey(),
+  domainId:  integer("domain_id").notNull().references(() => domains.id, { onDelete: "cascade" }),
+  apiId:     integer("api_id").notNull().references(() => apis.id, { onDelete: "cascade" }),
+  stage:     varchar("stage", { length: 255 }).notNull(),
+  basePath:  varchar("base_path", { length: 255 }).notNull().default("(none)"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+})
+
+export type Domain               = typeof domains.$inferSelect
+export type NewDomain            = typeof domains.$inferInsert
+export type DomainRouteMapping    = typeof domainRouteMappings.$inferSelect
+export type NewDomainRouteMapping = typeof domainRouteMappings.$inferInsert

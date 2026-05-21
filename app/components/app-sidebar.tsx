@@ -1,4 +1,4 @@
-import { Globe, LayoutList, Package, Users, Zap } from "lucide-react"
+import { Globe, LayoutList, Link2, Package, Users, Zap } from "lucide-react"
 import { Link, useLocation } from "react-router"
 
 import type { UserProfile } from "~/lib/cognito.server"
@@ -24,6 +24,7 @@ const navItems = [
   { title: "Environments", url: "/environments", icon: Globe      },
   { title: "Plans",        url: "/plans",        icon: LayoutList },
   { title: "Consumers",    url: "/consumers",    icon: Users      },
+  { title: "Domains",      url: "/domains",      icon: Link2      },
 ]
 
 function getInitials(given: string, family: string): string {
