@@ -46,7 +46,10 @@
       "Bash(xargs -I{} basename {})",
       "Bash(npx tsc *)",
       "Bash(npx react-router *)",
-      "Bash(Select-Object -First 10)"
+      "Bash(Select-Object -First 10)",
+      "Bash(xargs ls -la)",
+      "Bash(New-Item -ItemType Directory -Path \"apps/admin\" -Force)",
+      "Bash(New-Item -ItemType Directory -Path \"apps/portal\" -Force)"
     ]
   }
 }

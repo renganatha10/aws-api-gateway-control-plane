@@ -1,16 +1,24 @@
 .DS_Store
 .claude/
-.env
-/node_modules/
 
-# React Router
-/.react-router/
-/build/
+# env files — each app has its own
+apps/**/.env
 
-mockserver/node_modules/
+# node_modules at all levels
+node_modules/
+apps/*/node_modules/
 
-/specs/
+# React Router generated output
+apps/*/.react-router/
+apps/*/build/
 
 # Playwright
+apps/*/playwright-report/
+apps/*/test-results/
+
+# Legacy (root-level, can be cleaned up)
+/.react-router/
+/build/
 /playwright-report/
 /test-results/
+/specs/
