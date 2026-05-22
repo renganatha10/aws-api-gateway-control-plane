@@ -20,7 +20,7 @@ Resources:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     Properties:
-      BucketName: !Sub "api-portal-${EnvironmentName}-assets-${AWS::AccountId}"
+      BucketName: !Sub "api-portal-${EnvironmentName}-assets-${AWS::Region}-${AWS::AccountId}"
       VersioningConfiguration:
         Status: Enabled
       LifecycleConfiguration:
@@ -43,7 +43,7 @@ Resources:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     Properties:
-      BucketName: !Sub "api-portal-${EnvironmentName}-artifacts-${AWS::AccountId}"
+      BucketName: !Sub "api-portal-${EnvironmentName}-artifacts-${AWS::Region}-${AWS::AccountId}"
       OwnershipControls:
         Rules:
           - ObjectOwnership: BucketOwnerPreferred
