@@ -53,6 +53,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
       - name: Deploy stack
+        id: deploy
         run: |
           aws cloudformation deploy \
             --stack-name "api-portal-cognito" \
@@ -61,6 +62,14 @@ jobs:
               PoolName=api-gateway-portal \
               DomainPrefix=${{ github.event.inputs.cognito_domain_prefix }} \
             --region $REGION
+      - name: Show failed events
+        if: failure()
+        run: |
+          aws cloudformation describe-stack-events \
+            --stack-name "api-portal-cognito" \
+            --region $REGION \
+            --query 'StackEvents[?contains(`["CREATE_FAILED","UPDATE_FAILED","DELETE_FAILED"]`,ResourceStatus)].[LogicalResourceId,ResourceType,ResourceStatusReason]' \
+            --output table
       - name: Capture outputs
         id: out
         run: |
@@ -92,13 +101,23 @@ jobs:
           aws-access-key-id:     ${{ secrets.BOOTSTRAP_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
-      - run: |
+      - name: Deploy stack
+        id: deploy
+        run: |
           aws cloudformation deploy \
             --stack-name "api-portal-${{ github.event.inputs.environment }}-vpc" \
             --template-file infra/1-vpc.yaml \
             --parameter-overrides EnvironmentName=${{ github.event.inputs.environment }} \
             --region $REGION \
             --capabilities CAPABILITY_NAMED_IAM
+      - name: Show failed events
+        if: failure()
+        run: |
+          aws cloudformation describe-stack-events \
+            --stack-name "api-portal-${{ github.event.inputs.environment }}-vpc" \
+            --region $REGION \
+            --query 'StackEvents[?contains(`["CREATE_FAILED","UPDATE_FAILED","DELETE_FAILED"]`,ResourceStatus)].[LogicalResourceId,ResourceType,ResourceStatusReason]' \
+            --output table
 
   # ── Job 2 ─────────────────────────────────────────────────────────────────
   generate-db-password:
@@ -139,6 +158,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
       - name: Deploy stack
+        id: deploy
         run: |
           aws cloudformation deploy \
             --stack-name "api-portal-${{ github.event.inputs.environment }}-database" \
@@ -146,6 +166,14 @@ jobs:
             --parameter-overrides EnvironmentName=${{ github.event.inputs.environment }} \
             --region $REGION \
             --capabilities CAPABILITY_NAMED_IAM
+      - name: Show failed events
+        if: failure()
+        run: |
+          aws cloudformation describe-stack-events \
+            --stack-name "api-portal-${{ github.event.inputs.environment }}-database" \
+            --region $REGION \
+            --query 'StackEvents[?contains(`["CREATE_FAILED","UPDATE_FAILED","DELETE_FAILED"]`,ResourceStatus)].[LogicalResourceId,ResourceType,ResourceStatusReason]' \
+            --output table
       - name: Capture outputs
         id: out
         run: |
@@ -172,6 +200,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
       - name: Deploy stack
+        id: deploy
         run: |
           aws cloudformation deploy \
             --stack-name "api-portal-${{ github.event.inputs.environment }}-storage" \
@@ -180,6 +209,14 @@ jobs:
               EnvironmentName=${{ github.event.inputs.environment }} \
               AlbDnsName="placeholder.example.com" \
             --region $REGION
+      - name: Show failed events
+        if: failure()
+        run: |
+          aws cloudformation describe-stack-events \
+            --stack-name "api-portal-${{ github.event.inputs.environment }}-storage" \
+            --region $REGION \
+            --query 'StackEvents[?contains(`["CREATE_FAILED","UPDATE_FAILED","DELETE_FAILED"]`,ResourceStatus)].[LogicalResourceId,ResourceType,ResourceStatusReason]' \
+            --output table
       - name: Capture outputs
         id: out
         run: |
@@ -209,6 +246,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
       - name: Deploy stack
+        id: deploy
         run: |
           aws cloudformation deploy \
             --stack-name "api-portal-${{ github.event.inputs.environment }}-iam" \
@@ -220,6 +258,14 @@ jobs:
               CognitoUserPoolArn=${{ needs.deploy-cognito.outputs.user_pool_arn }} \
             --region $REGION \
             --capabilities CAPABILITY_NAMED_IAM
+      - name: Show failed events
+        if: failure()
+        run: |
+          aws cloudformation describe-stack-events \
+            --stack-name "api-portal-${{ github.event.inputs.environment }}-iam" \
+            --region $REGION \
+            --query 'StackEvents[?contains(`["CREATE_FAILED","UPDATE_FAILED","DELETE_FAILED"]`,ResourceStatus)].[LogicalResourceId,ResourceType,ResourceStatusReason]' \
+            --output table
       - name: Capture outputs
         id: out
         run: |
@@ -258,6 +304,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
       - name: Deploy stack
+        id: deploy
         run: |
           aws cloudformation deploy \
             --stack-name "api-portal-${{ github.event.inputs.environment }}-compute" \
@@ -268,6 +315,14 @@ jobs:
               ArtifactBucketName=${{ needs.deploy-storage.outputs.artifact_bucket }} \
             --region $REGION \
             --capabilities CAPABILITY_NAMED_IAM
+      - name: Show failed events
+        if: failure()
+        run: |
+          aws cloudformation describe-stack-events \
+            --stack-name "api-portal-${{ github.event.inputs.environment }}-compute" \
+            --region $REGION \
+            --query 'StackEvents[?contains(`["CREATE_FAILED","UPDATE_FAILED","DELETE_FAILED"]`,ResourceStatus)].[LogicalResourceId,ResourceType,ResourceStatusReason]' \
+            --output table
       - name: Capture outputs
         id: out
         run: |
@@ -290,7 +345,9 @@ jobs:
           aws-access-key-id:     ${{ secrets.BOOTSTRAP_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
-      - run: |
+      - name: Deploy stack
+        id: deploy
+        run: |
           aws cloudformation deploy \
             --stack-name "api-portal-${{ github.event.inputs.environment }}-storage" \
             --template-file infra/4-storage.yaml \
@@ -298,6 +355,14 @@ jobs:
               EnvironmentName=${{ github.event.inputs.environment }} \
               AlbDnsName=${{ needs.deploy-compute.outputs.alb_dns }} \
             --region $REGION
+      - name: Show failed events
+        if: failure()
+        run: |
+          aws cloudformation describe-stack-events \
+            --stack-name "api-portal-${{ github.event.inputs.environment }}-storage" \
+            --region $REGION \
+            --query 'StackEvents[?contains(`["CREATE_FAILED","UPDATE_FAILED","DELETE_FAILED"]`,ResourceStatus)].[LogicalResourceId,ResourceType,ResourceStatusReason]' \
+            --output table
 
   # ── Job 8 ─────────────────────────────────────────────────────────────────
   write-app-env:
