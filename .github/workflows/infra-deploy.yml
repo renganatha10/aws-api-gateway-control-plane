@@ -444,6 +444,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GH_PAT }}
     steps:
+      - uses: actions/checkout@v4
       - run: |
           gh secret set AWS_ACCESS_KEY_ID          --body "${{ needs.deploy-iam.outputs.cicd_key_id }}"
           gh secret set AWS_SECRET_ACCESS_KEY      --body "${{ needs.deploy-iam.outputs.cicd_secret }}"
