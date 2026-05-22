@@ -185,7 +185,7 @@ Resources:
 
 # ── Outputs ───────────────────────────────────────────────────────────────────
 #
-# Copy these values into your .env file (or Secrets Manager / Parameter Store).
+# Copy these values into the /api-portal/env SSM Parameter Store SecureString.
 #
 #   COGNITO_USER_POOL_ID   = UserPoolId
 #   COGNITO_USER_POOL_ARN  = UserPoolArn
@@ -193,8 +193,7 @@ Resources:
 #   COGNITO_CLIENT_SECRET  = AppClientSecret
 #
 # Note: AppClientSecret is visible in CloudFormation outputs and via the API.
-# Restrict stack-describe permissions accordingly, or pipe it straight into
-# Secrets Manager after deployment.
+# Restrict cloudformation:DescribeStacks on this stack to ops accounts only.
 
 Outputs:
 

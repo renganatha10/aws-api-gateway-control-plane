@@ -1,0 +1,287 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  EC2 instance + ALB for the API Portal SSR server.
+  EC2 is in a private subnet — all access via ALB.
+  No SSH port. Access via SSM Session Manager only.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: prod
+
+  InstanceType:
+    Type: String
+    Default: t3.small
+    AllowedValues: [t3.small, t3.medium, t3.large]
+
+  # Amazon Linux 2023 AMI — update periodically
+  # aws ssm get-parameter --name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64 --query Parameter.Value
+  AmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+
+  ArtifactBucketName:
+    Type: String
+    Description: S3 bucket where CI uploads build artifacts
+
+  NodeVersion:
+    Type: String
+    Default: "22"
+
+Resources:
+
+  # ── IAM Instance Profile ───────────────────────────────────────────────────
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "api-portal-${EnvironmentName}-ec2-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore  # SSM Session Manager (no SSH)
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy    # CloudWatch metrics + logs
+      Policies:
+        - PolicyName: InfraAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # Fetch app env vars from Parameter Store at deploy time (Ansible)
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - ssm:GetParametersByPath
+                Resource:
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/api-portal/*"
+              # Download release artifacts from S3 (Ansible deploy step)
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::${ArtifactBucketName}"
+                  - !Sub "arn:aws:s3:::${ArtifactBucketName}/*"
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref EC2Role]
+
+  # ── EC2 Instance ───────────────────────────────────────────────────────────
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      SubnetId: !ImportValue !Sub "api-portal-${EnvironmentName}-private-subnet-a"
+      SecurityGroupIds:
+        - !ImportValue !Sub "api-portal-${EnvironmentName}-sg-ec2"
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 20
+            VolumeType: gp3
+            Encrypted: true
+            DeleteOnTermination: true
+      Tags:
+        - Key: Name
+          Value: !Sub "api-portal-${EnvironmentName}-ec2"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euo pipefail
+          exec > >(tee /var/log/userdata.log) 2>&1
+
+          echo "=== UserData: bootstrapping api-portal EC2 ==="
+          dnf update -y
+
+          # ── Node.js (via NodeSource) ───────────────────────────────────────
+          curl -fsSL https://rpm.nodesource.com/setup_${NodeVersion}.x | bash -
+          dnf install -y nodejs
+
+          # ── PM2 ───────────────────────────────────────────────────────────
+          npm install -g pm2
+          pm2 startup systemd -u ec2-user --hp /home/ec2-user | tail -1 | bash
+
+          # ── Ansible ───────────────────────────────────────────────────────
+          pip3 install ansible
+
+          # ── CloudWatch Agent ──────────────────────────────────────────────
+          dnf install -y amazon-cloudwatch-agent
+
+          # ── App directory structure ───────────────────────────────────────
+          mkdir -p /opt/api-portal/releases
+          mkdir -p /var/log/api-portal
+          chown -R ec2-user:ec2-user /opt/api-portal /var/log/api-portal
+
+          # ── CloudWatch Agent config ───────────────────────────────────────
+          cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << 'CWA'
+          {
+            "agent": { "metrics_collection_interval": 60, "run_as_user": "cwagent" },
+            "logs": {
+              "logs_collected": {
+                "files": {
+                  "collect_list": [
+                    {
+                      "file_path": "/var/log/api-portal/out.log",
+                      "log_group_name": "/app/ec2/application",
+                      "log_stream_name": "{instance_id}/stdout",
+                      "timestamp_format": "%Y-%m-%d %H:%M:%S"
+                    },
+                    {
+                      "file_path": "/var/log/api-portal/error.log",
+                      "log_group_name": "/app/ec2/application",
+                      "log_stream_name": "{instance_id}/stderr",
+                      "timestamp_format": "%Y-%m-%d %H:%M:%S"
+                    },
+                    {
+                      "file_path": "/var/log/api-portal/deploy-*.log",
+                      "log_group_name": "/app/ec2/deploys",
+                      "log_stream_name": "{instance_id}/ansible",
+                      "timestamp_format": "%Y-%m-%d %H:%M:%S"
+                    },
+                    {
+                      "file_path": "/var/log/userdata.log",
+                      "log_group_name": "/app/ec2/system",
+                      "log_stream_name": "{instance_id}/userdata"
+                    }
+                  ]
+                }
+              }
+            },
+            "metrics": {
+              "namespace": "ApiPortal/EC2",
+              "metrics_collected": {
+                "mem": { "measurement": ["mem_used_percent"] },
+                "disk": { "measurement": ["disk_used_percent"], "resources": ["/"] }
+              }
+            }
+          }
+          CWA
+
+          /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+            -a fetch-config \
+            -m ec2 \
+            -s \
+            -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+
+          echo "=== UserData: bootstrap complete ==="
+
+  # ── Application Load Balancer ──────────────────────────────────────────────
+  ALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub "api-portal-${EnvironmentName}-alb"
+      Scheme: internet-facing
+      Type: application
+      Subnets:
+        - !ImportValue !Sub "api-portal-${EnvironmentName}-public-subnet-a"
+        - !ImportValue !Sub "api-portal-${EnvironmentName}-public-subnet-b"
+      SecurityGroups:
+        - !ImportValue !Sub "api-portal-${EnvironmentName}-sg-alb"
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "api-portal-${EnvironmentName}-tg"
+      Protocol: HTTP
+      Port: 3000
+      VpcId: !ImportValue !Sub "api-portal-${EnvironmentName}-vpc-id"
+      TargetType: instance
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Targets:
+        - Id: !Ref EC2Instance
+          Port: 3000
+
+  ALBListenerHTTP:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ALB
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+  # ── CloudWatch log groups (app + system) ───────────────────────────────────
+  AppLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /app/ec2/application
+      RetentionInDays: 30
+
+  SystemLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /app/ec2/system
+      RetentionInDays: 14
+
+  # ── CloudWatch Alarms ──────────────────────────────────────────────────────
+  AlarmSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "api-portal-${EnvironmentName}-alerts"
+
+  AlarmHighCPU:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "api-portal-${EnvironmentName}-high-cpu"
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 80
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref EC2Instance
+      AlarmActions: [!Ref AlarmSNSTopic]
+      TreatMissingData: notBreaching
+
+  Alarm5xxRate:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "api-portal-${EnvironmentName}-5xx-rate"
+      MetricName: HTTPCode_Target_5XX_Count
+      Namespace: AWS/ApplicationELB
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 2
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt ALB.LoadBalancerFullName
+      AlarmActions: [!Ref AlarmSNSTopic]
+      TreatMissingData: notBreaching
+
+Outputs:
+  EC2InstanceId:
+    Value: !Ref EC2Instance
+    Export:
+      Name: !Sub "api-portal-${EnvironmentName}-ec2-instance-id"
+
+  AlbDnsName:
+    Value: !GetAtt ALB.DNSName
+    Export:
+      Name: !Sub "api-portal-${EnvironmentName}-alb-dns"
+
+  AlbArn:
+    Value: !Ref ALB
+
+  AlarmSNSTopicArn:
+    Value: !Ref AlarmSNSTopic
+    Description: Subscribe your email to this SNS topic to receive alerts

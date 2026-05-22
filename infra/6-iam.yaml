@@ -1,0 +1,237 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  IAM managed policies and users for the API Portal.
+
+  Two users are created:
+    1. app-user  — holds credentials that go into AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
+                   in the SSM Parameter Store SecureString (/api-portal/env).
+                   Needs: Cognito (M2M clients, resource servers, auth flows) +
+                          API Gateway (full CRUD) +
+                          ACM (list certs in ap-south-1 and us-east-1).
+
+    2. cicd-user — credentials that go into GitHub Actions secrets.
+                   Needs: S3 (artifacts + assets), CloudFront (invalidations), SSM (send-command).
+
+  The same AppPolicy managed policy is also attached to the EC2 instance role
+  (stack 3-compute). The EC2 role covers the Cognito calls that use the default
+  credential chain (no explicit creds in code); the app-user covers API Gateway
+  and ACM which use explicit creds.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: prod
+
+  ArtifactBucketName:
+    Type: String
+    Description: Artifact S3 bucket (output of stack 4-storage)
+
+  AssetsBucketName:
+    Type: String
+    Description: Assets S3 bucket (output of stack 4-storage)
+
+  CognitoUserPoolArn:
+    Type: String
+    Description: Cognito User Pool ARN (output of cognito.yaml stack)
+
+Resources:
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # Managed policy — everything the running app needs
+  # Attach to: EC2 instance role AND app-user
+  # ══════════════════════════════════════════════════════════════════════════
+  AppPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub "api-portal-${EnvironmentName}-app-policy"
+      Description: All AWS permissions required by the API Portal application at runtime
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+
+          # ── Cognito: admin auth flows (login, register, forgot/reset password) ──
+          - Sid: CognitoAdminAuth
+            Effect: Allow
+            Action:
+              - cognito-idp:InitiateAuth
+              - cognito-idp:AdminCreateUser
+              - cognito-idp:AdminSetUserPassword
+              - cognito-idp:ForgotPassword
+              - cognito-idp:ConfirmForgotPassword
+            Resource: !Ref CognitoUserPoolArn
+
+          # ── Cognito: M2M app client lifecycle (per-consumer provisioning) ──
+          - Sid: CognitoAppClients
+            Effect: Allow
+            Action:
+              - cognito-idp:CreateUserPoolClient
+              - cognito-idp:DeleteUserPoolClient
+              - cognito-idp:DescribeUserPoolClient
+              - cognito-idp:DescribeUserPool
+              - cognito-idp:CreateResourceServer
+              - cognito-idp:DescribeResourceServer
+            Resource: !Ref CognitoUserPoolArn
+
+          # ── API Gateway: REST API CRUD ──────────────────────────────────────
+          # API Gateway uses HTTP-verb IAM actions scoped by resource path.
+          # Covers: REST APIs, deployments, stages, API keys, usage plans,
+          #         usage plan keys, and custom domain names.
+          - Sid: ApiGatewayRestApis
+            Effect: Allow
+            Action:
+              - apigateway:GET
+              - apigateway:POST
+              - apigateway:PUT
+              - apigateway:PATCH
+              - apigateway:DELETE
+            Resource:
+              # REST APIs and all their sub-resources (deployments, stages, resources, etc.)
+              - !Sub "arn:aws:apigateway:${AWS::Region}::/restapis"
+              - !Sub "arn:aws:apigateway:${AWS::Region}::/restapis/*"
+              # API Keys
+              - !Sub "arn:aws:apigateway:${AWS::Region}::/apikeys"
+              - !Sub "arn:aws:apigateway:${AWS::Region}::/apikeys/*"
+              # Usage Plans and usage plan keys
+              - !Sub "arn:aws:apigateway:${AWS::Region}::/usageplans"
+              - !Sub "arn:aws:apigateway:${AWS::Region}::/usageplans/*"
+              # Custom domain names and base path mappings
+              - !Sub "arn:aws:apigateway:${AWS::Region}::/domainnames"
+              - !Sub "arn:aws:apigateway:${AWS::Region}::/domainnames/*"
+
+          # ── ACM: list issued certificates ──────────────────────────────────
+          # App lists certs in both the app region AND us-east-1 (for EDGE endpoints).
+          # acm:ListCertificates has no resource-level restriction — must be *.
+          - Sid: AcmListCertificates
+            Effect: Allow
+            Action:
+              - acm:ListCertificates
+            Resource: "*"
+
+          # ── SSM Parameter Store: read app env vars at runtime ───────────────
+          # Deploy script and app read /api-portal/env and /api-portal/<env>/db-password
+          - Sid: SSMReadAppParams
+            Effect: Allow
+            Action:
+              - ssm:GetParameter
+              - ssm:GetParameters
+              - ssm:GetParametersByPath
+            Resource:
+              - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/api-portal/*"
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # app-user — credentials go into SSM Parameter Store (/api-portal/env)
+  # ══════════════════════════════════════════════════════════════════════════
+  AppUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub "api-portal-${EnvironmentName}-app"
+      ManagedPolicyArns:
+        - !Ref AppPolicy
+      Tags:
+        - Key: Purpose
+          Value: "API Portal runtime credentials (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)"
+
+  AppUserAccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref AppUser
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # cicd-user — credentials go into GitHub Actions secrets
+  # ══════════════════════════════════════════════════════════════════════════
+  CICDPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub "api-portal-${EnvironmentName}-cicd-policy"
+      Description: Permissions for GitHub Actions CI/CD pipeline
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+
+          # ── S3: upload artifacts and sync static assets ─────────────────────
+          - Sid: S3Artifacts
+            Effect: Allow
+            Action:
+              - s3:PutObject
+              - s3:GetObject
+              - s3:DeleteObject
+              - s3:ListBucket
+            Resource:
+              - !Sub "arn:aws:s3:::${ArtifactBucketName}"
+              - !Sub "arn:aws:s3:::${ArtifactBucketName}/*"
+              - !Sub "arn:aws:s3:::${AssetsBucketName}"
+              - !Sub "arn:aws:s3:::${AssetsBucketName}/*"
+
+          # ── CloudFront: invalidate after asset upload ───────────────────────
+          - Sid: CloudFrontInvalidation
+            Effect: Allow
+            Action:
+              - cloudfront:CreateInvalidation
+            Resource: "*"
+
+          # ── SSM: trigger deploy script on EC2 ──────────────────────────────
+          - Sid: SSMSendCommand
+            Effect: Allow
+            Action:
+              - ssm:SendCommand
+              - ssm:GetCommandInvocation
+              - ssm:ListCommandInvocations
+            Resource:
+              - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"
+              - !Sub "arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript"
+
+          # EC2 describe is required for SSM to resolve instance IDs
+          - Sid: EC2DescribeForSSM
+            Effect: Allow
+            Action:
+              - ec2:DescribeInstances
+              - ec2:DescribeInstanceStatus
+            Resource: "*"
+
+  CICDUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub "api-portal-${EnvironmentName}-cicd"
+      ManagedPolicyArns:
+        - !Ref CICDPolicy
+      Tags:
+        - Key: Purpose
+          Value: "GitHub Actions CI/CD — secrets: AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY"
+
+  CICDUserAccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref CICDUser
+
+Outputs:
+
+  AppPolicyArn:
+    Value: !Ref AppPolicy
+    Description: Attach to the EC2 instance role (stack 3-compute) for default-chain Cognito access
+    Export:
+      Name: !Sub "api-portal-${EnvironmentName}-app-policy-arn"
+
+  # ── App user credentials ────────────────────────────────────────────────────
+  # IAM access keys are stored in CloudFormation state (encrypted at rest).
+  # Restrict cloudformation:DescribeStacks on this stack to ops accounts only.
+  # After noting these values, store them in SSM Parameter Store:
+  #   aws ssm put-parameter --name /api-portal/<env>/app-user-credentials \
+  #     --type SecureString \
+  #     --value '{"AWS_ACCESS_KEY_ID":"<id>","AWS_SECRET_ACCESS_KEY":"<secret>"}'
+  AppUserKeyId:
+    Value: !Ref AppUserAccessKey
+    Description: AWS_ACCESS_KEY_ID for the app IAM user — add to /api-portal/env SSM parameter
+
+  AppUserSecretKey:
+    Value: !GetAtt AppUserAccessKey.SecretAccessKey
+    Description: AWS_SECRET_ACCESS_KEY for the app IAM user — add to /api-portal/env SSM parameter
+
+  # ── CI/CD user credentials ─────────────────────────────────────────────────
+  # Add these directly to GitHub Actions repository secrets.
+  CICDUserKeyId:
+    Value: !Ref CICDUserAccessKey
+    Description: AWS_ACCESS_KEY_ID — add to GitHub Actions secrets
+
+  CICDUserSecretKey:
+    Value: !GetAtt CICDUserAccessKey.SecretAccessKey
+    Description: AWS_SECRET_ACCESS_KEY — add to GitHub Actions secrets
