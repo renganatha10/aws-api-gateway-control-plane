@@ -3,13 +3,13 @@ Description: >
   IAM managed policies and users for the API Portal.
 
   Two users are created:
-    1. app-user  — holds credentials that go into AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
+    1. app-user  - holds credentials that go into AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
                    in the SSM Parameter Store SecureString (/api-portal/env).
                    Needs: Cognito (M2M clients, resource servers, auth flows) +
                           API Gateway (full CRUD) +
                           ACM (list certs in ap-south-1 and us-east-1).
 
-    2. cicd-user — credentials that go into GitHub Actions secrets.
+    2. cicd-user - credentials that go into GitHub Actions secrets.
                    Needs: S3 (artifacts + assets), CloudFront (invalidations), SSM (send-command).
 
   The same AppPolicy managed policy is also attached to the EC2 instance role
@@ -37,7 +37,7 @@ Parameters:
 Resources:
 
   # ══════════════════════════════════════════════════════════════════════════
-  # Managed policy — everything the running app needs
+  # Managed policy - everything the running app needs
   # Attach to: EC2 instance role AND app-user
   # ══════════════════════════════════════════════════════════════════════════
   AppPolicy:
@@ -100,7 +100,7 @@ Resources:
 
           # ── ACM: list issued certificates ──────────────────────────────────
           # App lists certs in both the app region AND us-east-1 (for EDGE endpoints).
-          # acm:ListCertificates has no resource-level restriction — must be *.
+          # acm:ListCertificates has no resource-level restriction - must be *.
           - Sid: AcmListCertificates
             Effect: Allow
             Action:
@@ -119,7 +119,7 @@ Resources:
               - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/api-portal/*"
 
   # ══════════════════════════════════════════════════════════════════════════
-  # app-user — credentials go into SSM Parameter Store (/api-portal/env)
+  # app-user - credentials go into SSM Parameter Store (/api-portal/env)
   # ══════════════════════════════════════════════════════════════════════════
   AppUser:
     Type: AWS::IAM::User
@@ -137,7 +137,7 @@ Resources:
       UserName: !Ref AppUser
 
   # ══════════════════════════════════════════════════════════════════════════
-  # cicd-user — credentials go into GitHub Actions secrets
+  # cicd-user - credentials go into GitHub Actions secrets
   # ══════════════════════════════════════════════════════════════════════════
   CICDPolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -204,7 +204,7 @@ Resources:
         - !Ref CICDPolicy
       Tags:
         - Key: Purpose
-          Value: "GitHub Actions CI/CD — secrets: AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY"
+          Value: "GitHub Actions CI/CD - secrets: AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY"
 
   CICDUserAccessKey:
     Type: AWS::IAM::AccessKey
@@ -228,18 +228,18 @@ Outputs:
   #     --value '{"AWS_ACCESS_KEY_ID":"<id>","AWS_SECRET_ACCESS_KEY":"<secret>"}'
   AppUserKeyId:
     Value: !Ref AppUserAccessKey
-    Description: AWS_ACCESS_KEY_ID for the app IAM user — add to /api-portal/env SSM parameter
+    Description: AWS_ACCESS_KEY_ID for the app IAM user - add to /api-portal/env SSM parameter
 
   AppUserSecretKey:
     Value: !GetAtt AppUserAccessKey.SecretAccessKey
-    Description: AWS_SECRET_ACCESS_KEY for the app IAM user — add to /api-portal/env SSM parameter
+    Description: AWS_SECRET_ACCESS_KEY for the app IAM user - add to /api-portal/env SSM parameter
 
   # ── CI/CD user credentials ─────────────────────────────────────────────────
   # Add these directly to GitHub Actions repository secrets.
   CICDUserKeyId:
     Value: !Ref CICDUserAccessKey
-    Description: AWS_ACCESS_KEY_ID — add to GitHub Actions secrets
+    Description: AWS_ACCESS_KEY_ID - add to GitHub Actions secrets
 
   CICDUserSecretKey:
     Value: !GetAtt CICDUserAccessKey.SecretAccessKey
-    Description: AWS_SECRET_ACCESS_KEY — add to GitHub Actions secrets
+    Description: AWS_SECRET_ACCESS_KEY - add to GitHub Actions secrets
