@@ -232,8 +232,8 @@ jobs:
             --output text)
           echo "ALB_DNS=$ALB_DNS" >> $GITHUB_ENV
 
-      # ── Stack 4b — Update CloudFront with real ALB DNS ─────────────────────
-      - name: "Stack 4b | Update CloudFront origin with real ALB DNS"
+      # ── Step 7 — Update CloudFront with real ALB DNS ──────────────────────
+      - name: "Step 7 | Update CloudFront origin with real ALB DNS"
         run: |
           aws cloudformation deploy \
             --stack-name "api-portal-$ENV-storage" \
@@ -243,8 +243,8 @@ jobs:
               AlbDnsName=$ALB_DNS \
             --region us-east-1
 
-      # ── Stack 7 — WAF (us-east-1) ─────────────────────────────────────────
-      - name: "Stack 7 | Deploy WAF (us-east-1, Count mode)"
+      # ── Stack 8 — WAF (us-east-1) ─────────────────────────────────────────
+      - name: "Stack 8 | Deploy WAF (us-east-1, Count mode)"
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           CF_ARN="arn:aws:cloudfront::${ACCOUNT_ID}:distribution/${CF_DIST_ID}"
@@ -258,8 +258,8 @@ jobs:
               RulesMode=Count \
             --region us-east-1
 
-      # ── Step 8 — App env parameter ─────────────────────────────────────────
-      - name: "Step 8 | Write app env to SSM Parameter Store (preserves existing session secret)"
+      # ── Step 9 — App env parameter ─────────────────────────────────────────
+      - name: "Step 9 | Write app env to SSM Parameter Store (preserves existing session secret)"
         run: |
           # Reuse existing session secret to avoid invalidating active sessions
           if aws ssm get-parameter --name "/api-portal/env" --region $REGION &>/dev/null; then
@@ -295,8 +295,8 @@ jobs:
               \"COGNITO_CLIENT_SECRET\": \"${COGNITO_CLIENT_SECRET}\"
             }"
 
-      # ── Step 9 — SNS email subscription ───────────────────────────────────
-      - name: "Step 9 | Subscribe to CloudWatch alarm alerts"
+      # ── Step 10 — SNS email subscription ──────────────────────────────────
+      - name: "Step 10 | Subscribe to CloudWatch alarm alerts"
         run: |
           SNS_ARN=$(aws cloudformation describe-stacks \
             --stack-name "api-portal-$ENV-compute" --region $REGION \
@@ -311,8 +311,8 @@ jobs:
 
           echo "Check ${{ secrets.ALERT_EMAIL }} and confirm the SNS subscription."
 
-      # ── Step 10 — Write deploy secrets to GitHub ───────────────────────────
-      - name: "Step 10 | Write deploy secrets to GitHub Actions"
+      # ── Step 11 — Write deploy secrets to GitHub ──────────────────────────
+      - name: "Step 11 | Write deploy secrets to GitHub Actions"
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
