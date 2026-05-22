@@ -1,0 +1,180 @@
+---
+# SSH-based deploy playbook for local testing.
+# Runs FROM your local machine, connects to EC2 via SSH.
+#
+# Usage (via scripts/deploy-local.sh — preferred):
+#   ./scripts/deploy-local.sh
+#
+# Or directly:
+#   ansible-playbook ansible/deploy-ssh.yml \
+#     -i ansible/inventory.ini \
+#     -e "git_sha=$(git rev-parse --short HEAD) artifact_bucket=<bucket>"
+
+- name: Deploy api-portal (SSH)
+  hosts: ec2
+  gather_facts: false
+
+  vars:
+    app_dir: /opt/api-portal
+    release_dir: "{{ app_dir }}/releases/{{ git_sha }}"
+    current_link: "{{ app_dir }}/current"
+    app_user: ec2-user
+    ssm_param: /api-portal/env
+    aws_region: ap-south-1
+
+  tasks:
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Phase 1 — Download artifact from S3
+    # ══════════════════════════════════════════════════════════════════════
+
+    - name: "1/7 | Create release directory"
+      become: true
+      file:
+        path: "{{ release_dir }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0755"
+
+    - name: "1/7 | Download artifact from S3"
+      become: true
+      become_user: "{{ app_user }}"
+      command: >
+        aws s3 cp s3://{{ artifact_bucket }}/api-portal/{{ git_sha }}/
+        {{ release_dir }}/ --recursive --region {{ aws_region }}
+      changed_when: true
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Phase 2 — Install dependencies
+    # ══════════════════════════════════════════════════════════════════════
+
+    - name: "2/7 | Install production dependencies"
+      become: true
+      become_user: "{{ app_user }}"
+      command: npm ci --omit=dev
+      args:
+        chdir: "{{ release_dir }}"
+      changed_when: true
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Phase 3 — Configure environment
+    # ══════════════════════════════════════════════════════════════════════
+
+    - name: "3/7 | Fetch env vars from SSM Parameter Store"
+      become: true
+      become_user: "{{ app_user }}"
+      command: >
+        aws ssm get-parameter
+        --name {{ ssm_param }}
+        --with-decryption
+        --query Parameter.Value
+        --output text
+        --region {{ aws_region }}
+      register: ssm_env
+      no_log: true
+      changed_when: false
+
+    - name: "3/7 | Write .env file"
+      become: true
+      become_user: "{{ app_user }}"
+      shell: |
+        python3 -c "
+        import json, os
+        data = json.loads('''{{ ssm_env.stdout }}''')
+        with open('{{ release_dir }}/.env', 'w') as f:
+            for k, v in data.items():
+                f.write('{}={}\n'.format(k, str(v).replace('\n', '\\\\n')))
+        os.chmod('{{ release_dir }}/.env', 0o600)
+        "
+      args:
+        executable: /bin/bash
+      no_log: true
+      changed_when: true
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Phase 4 — Database migrations
+    # ══════════════════════════════════════════════════════════════════════
+
+    - name: "4/7 | Run database migrations"
+      become: true
+      become_user: "{{ app_user }}"
+      shell: |
+        set -a && source {{ release_dir }}/.env && set +a
+        npx node-pg-migrate up -m {{ release_dir }}/db/migrations
+      args:
+        executable: /bin/bash
+        chdir: "{{ release_dir }}"
+      no_log: true
+      register: migration_result
+      changed_when: "'No migrations' not in migration_result.stdout"
+
+    - name: "4/7 | Migration output"
+      debug:
+        msg: "{{ migration_result.stdout_lines }}"
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Phase 5 — Release
+    # ══════════════════════════════════════════════════════════════════════
+
+    - name: "5/7 | Switch current symlink to new release"
+      become: true
+      file:
+        src: "{{ release_dir }}"
+        dest: "{{ current_link }}"
+        state: link
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+
+    - name: "5/7 | Reload PM2 (zero-downtime)"
+      become: true
+      become_user: "{{ app_user }}"
+      command: pm2 reload api-portal --update-env
+      register: pm2_reload
+      failed_when: false
+      changed_when: true
+
+    - name: "5/7 | Start PM2 if process was not running"
+      become: true
+      become_user: "{{ app_user }}"
+      command: pm2 start {{ current_link }}/ecosystem.config.cjs --env production
+      when: pm2_reload.rc != 0
+      changed_when: true
+
+    - name: "5/7 | Save PM2 process list"
+      become: true
+      become_user: "{{ app_user }}"
+      command: pm2 save
+      changed_when: true
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Phase 6 — Health check
+    # ══════════════════════════════════════════════════════════════════════
+
+    - name: "6/7 | Wait for /health to return 200 (30 s max)"
+      uri:
+        url: http://localhost:3000/health
+        method: GET
+        status_code: 200
+      register: health_result
+      retries: 10
+      delay: 3
+      until: health_result.status == 200
+
+    - name: "6/7 | Health check passed"
+      debug:
+        msg: "App is up: {{ health_result.json }}"
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Phase 7 — Cleanup
+    # ══════════════════════════════════════════════════════════════════════
+
+    - name: "7/7 | Prune old releases (keep newest 3)"
+      become: true
+      become_user: "{{ app_user }}"
+      shell: >
+        ls -dt {{ app_dir }}/releases/*/
+        2>/dev/null | tail -n +4 | xargs rm -rf || true
+      args:
+        executable: /bin/bash
+      changed_when: false
