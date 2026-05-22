@@ -112,7 +112,3 @@ Outputs:
     Export:
       Name: !Sub "api-portal-${EnvironmentName}-db-port"
 
-  AppEnvSecretArn:
-    Value: !Ref AppEnvSecret
-    Export:
-      Name: !Sub "api-portal-${EnvironmentName}-app-secret-arn"
