@@ -31,10 +31,9 @@ env:
 # ── Job 5 — IAM            (needs: storage, cognito)
 # ── Job 6 — Compute        (needs: vpc, storage)
 # ── Job 7 — CloudFront     (needs: compute, storage)
-# ── Job 8 — WAF            (needs: cloudfront, storage)
-# ── Job 9 — App env SSM    (needs: cognito, database, iam, compute)
-# ── Job 10 — SNS alerts    (needs: compute)
-# ── Job 11 — GH secrets    (needs: iam, compute, storage, cloudfront)
+# ── Job 8 — App env SSM    (needs: cognito, database, iam, compute)
+# ── Job 9 — SNS alerts     (needs: compute)
+# ── Job 10 — GH secrets    (needs: iam, compute, storage, cloudfront)
 
 jobs:
   # ── Job 0 ─────────────────────────────────────────────────────────────────
@@ -180,12 +179,12 @@ jobs:
             --parameter-overrides \
               EnvironmentName=${{ github.event.inputs.environment }} \
               AlbDnsName="placeholder.example.com" \
-            --region us-east-1
+            --region $REGION
       - name: Capture outputs
         id: out
         run: |
           STACK="api-portal-${{ github.event.inputs.environment }}-storage"
-          get() { aws cloudformation describe-stacks --stack-name $STACK --region us-east-1 \
+          get() { aws cloudformation describe-stacks --stack-name $STACK --region $REGION \
             --query "Stacks[0].Outputs[?OutputKey==\`$1\`].OutputValue" --output text; }
 
           echo "artifact_bucket=$(get ArtifactBucketName)" >> $GITHUB_OUTPUT
@@ -298,34 +297,9 @@ jobs:
             --parameter-overrides \
               EnvironmentName=${{ github.event.inputs.environment }} \
               AlbDnsName=${{ needs.deploy-compute.outputs.alb_dns }} \
-            --region us-east-1
+            --region $REGION
 
   # ── Job 8 ─────────────────────────────────────────────────────────────────
-  deploy-waf:
-    name: "Stack 8 | Deploy WAF (us-east-1, Count mode)"
-    needs: [update-cloudfront, deploy-storage]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id:     ${{ secrets.BOOTSTRAP_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-south-1
-      - run: |
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          CF_ARN="arn:aws:cloudfront::${ACCOUNT_ID}:distribution/${{ needs.deploy-storage.outputs.cf_dist_id }}"
-
-          aws cloudformation deploy \
-            --stack-name "api-portal-${{ github.event.inputs.environment }}-waf" \
-            --template-file infra/5-waf.yaml \
-            --parameter-overrides \
-              EnvironmentName=${{ github.event.inputs.environment }} \
-              CloudFrontDistributionArn=$CF_ARN \
-              RulesMode=Count \
-            --region us-east-1
-
-  # ── Job 9 ─────────────────────────────────────────────────────────────────
   write-app-env:
     name: "Step 9 | Write app env to SSM Parameter Store"
     needs: [deploy-cognito, deploy-database, deploy-iam, deploy-compute]

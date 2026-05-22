@@ -1,7 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
   S3 buckets (assets + artifacts) and CloudFront distribution.
-  Must be deployed in us-east-1 so the ACM cert can be attached to CloudFront.
   Stack exports the distribution ID and asset bucket name for the CI workflow.
 
 Parameters:
@@ -13,19 +12,6 @@ Parameters:
   AlbDnsName:
     Type: String
     Description: ALB DNS name (output from stack 3-compute)
-
-  # Optional custom domain. Leave empty to use the CloudFront *.cloudfront.net domain.
-  CustomDomain:
-    Type: String
-    Default: ""
-
-  # ACM cert ARN in us-east-1 (required only if CustomDomain is set)
-  AcmCertificateArn:
-    Type: String
-    Default: ""
-
-Conditions:
-  HasCustomDomain: !Not [!Equals [!Ref CustomDomain, ""]]
 
 Resources:
 
@@ -113,17 +99,8 @@ Resources:
         PriceClass: PriceClass_100
         Comment: !Sub "api-portal-${EnvironmentName}"
 
-        Aliases: !If
-          - HasCustomDomain
-          - [!Ref CustomDomain]
-          - !Ref AWS::NoValue
-
-        ViewerCertificate: !If
-          - HasCustomDomain
-          - AcmCertificateArn: !Ref AcmCertificateArn
-            SslSupportMethod: sni-only
-            MinimumProtocolVersion: TLSv1.2_2021
-          - CloudFrontDefaultCertificate: true
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
 
         Origins:
           # Origin 1 — S3 static assets
