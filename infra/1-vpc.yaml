@@ -157,7 +157,7 @@ Resources:
   SGAlb:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: ALB — accept HTTPS from CloudFront
+      GroupDescription: ALB - accept HTTPS from CloudFront
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -176,7 +176,7 @@ Resources:
   SGEc2:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: EC2 — app traffic from ALB only
+      GroupDescription: EC2 - app traffic from ALB only
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -191,7 +191,7 @@ Resources:
   SGDb:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Aurora — accept Postgres from EC2 only
+      GroupDescription: Aurora - accept Postgres from EC2 only
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
