@@ -78,17 +78,16 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey==\`$1\`].OutputValue" --output text; }
 
           USER_POOL_ID=$(get UserPoolId)
+          USER_POOL_ARN=$(get UserPoolArn)
           CLIENT_ID=$(get AppClientId)
           CLIENT_SECRET=$(get AppClientSecret)
 
-          echo "::add-mask::$USER_POOL_ID"
-          echo "::add-mask::$CLIENT_ID"
-          echo "::add-mask::$CLIENT_SECRET"
-
-          echo "user_pool_id=$USER_POOL_ID"         >> $GITHUB_OUTPUT
-          echo "user_pool_arn=$(get UserPoolArn)"   >> $GITHUB_OUTPUT
-          echo "client_id=$CLIENT_ID"               >> $GITHUB_OUTPUT
-          echo "client_secret=$CLIENT_SECRET"       >> $GITHUB_OUTPUT
+          # Write outputs before masking — masks applied to runner stdout will
+          # redact any subsequent writes that contain the masked values.
+          echo "user_pool_id=$USER_POOL_ID"     >> $GITHUB_OUTPUT
+          echo "user_pool_arn=$USER_POOL_ARN"   >> $GITHUB_OUTPUT
+          echo "client_id=$CLIENT_ID"           >> $GITHUB_OUTPUT
+          echo "client_secret=$CLIENT_SECRET"   >> $GITHUB_OUTPUT
 
   # ── Job 1 ─────────────────────────────────────────────────────────────────
   deploy-vpc:
@@ -255,7 +254,7 @@ jobs:
               EnvironmentName=${{ github.event.inputs.environment }} \
               ArtifactBucketName=${{ needs.deploy-storage.outputs.artifact_bucket }} \
               AssetsBucketName=${{ needs.deploy-storage.outputs.assets_bucket }} \
-              CognitoUserPoolArn=${{ needs.deploy-cognito.outputs.user_pool_arn }} \
+              CognitoUserPoolId=${{ needs.deploy-cognito.outputs.user_pool_id }} \
             --region $REGION \
             --capabilities CAPABILITY_NAMED_IAM
       - name: Show failed events
@@ -277,11 +276,6 @@ jobs:
           APP_SECRET=$(get AppUserSecretKey)
           CICD_KEY_ID=$(get CICDUserKeyId)
           CICD_SECRET=$(get CICDUserSecretKey)
-
-          echo "::add-mask::$APP_KEY_ID"
-          echo "::add-mask::$APP_SECRET"
-          echo "::add-mask::$CICD_KEY_ID"
-          echo "::add-mask::$CICD_SECRET"
 
           echo "app_key_id=$APP_KEY_ID"   >> $GITHUB_OUTPUT
           echo "app_secret=$APP_SECRET"   >> $GITHUB_OUTPUT
@@ -378,15 +372,11 @@ jobs:
       - run: |
           ENV=${{ github.event.inputs.environment }}
 
-          echo "::add-mask::${{ needs.deploy-cognito.outputs.client_id }}"
-          echo "::add-mask::${{ needs.deploy-cognito.outputs.client_secret }}"
-          echo "::add-mask::${{ needs.deploy-iam.outputs.app_key_id }}"
-          echo "::add-mask::${{ needs.deploy-iam.outputs.app_secret }}"
-
+    
           DB_PASSWORD=$(aws ssm get-parameter \
             --name "/api-portal/$ENV/db-password" \
             --with-decryption --query Parameter.Value --output text --region $REGION)
-          echo "::add-mask::$DB_PASSWORD"
+          
 
           # Reuse existing session secret to avoid invalidating active sessions
           if aws ssm get-parameter --name "/api-portal/env" --region $REGION &>/dev/null; then
@@ -399,7 +389,7 @@ jobs:
             SESSION_SECRET=$(openssl rand -base64 32)
             echo "Generated new SESSION_SECRET."
           fi
-          echo "::add-mask::$SESSION_SECRET"
+     
 
           aws ssm put-parameter \
             --name "/api-portal/env" \
@@ -455,9 +445,6 @@ jobs:
       GH_TOKEN: ${{ secrets.GH_PAT }}
     steps:
       - run: |
-          echo "::add-mask::${{ needs.deploy-iam.outputs.cicd_key_id }}"
-          echo "::add-mask::${{ needs.deploy-iam.outputs.cicd_secret }}"
-
           gh secret set AWS_ACCESS_KEY_ID          --body "${{ needs.deploy-iam.outputs.cicd_key_id }}"
           gh secret set AWS_SECRET_ACCESS_KEY      --body "${{ needs.deploy-iam.outputs.cicd_secret }}"
           gh secret set AWS_REGION                 --body "$REGION"
