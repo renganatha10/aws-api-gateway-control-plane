@@ -20,29 +20,40 @@ on:
           - t3.medium
           - t3.large
 
+env:
+  REGION: ap-south-1
+
+# ── Job 0 — Cognito ────────────────────────────────────────────────────────
+# ── Job 1 — VPC          ┐ run in parallel
+# ── Job 2 — DB password  ┘
+# ── Job 3 — Database       (needs: vpc, db-password)
+# ── Job 4 — Storage        (needs: nothing — runs in parallel with 0-2)
+# ── Job 5 — IAM            (needs: storage, cognito)
+# ── Job 6 — Compute        (needs: vpc, storage)
+# ── Job 7 — CloudFront     (needs: compute, storage)
+# ── Job 8 — WAF            (needs: cloudfront, storage)
+# ── Job 9 — App env SSM    (needs: cognito, database, iam, compute)
+# ── Job 10 — SNS alerts    (needs: compute)
+# ── Job 11 — GH secrets    (needs: iam, compute, storage, cloudfront)
+
 jobs:
-  deploy-infra:
-    name: Deploy All Infrastructure Stacks
+  # ── Job 0 ─────────────────────────────────────────────────────────────────
+  deploy-cognito:
+    name: "Stack 0 | Deploy Cognito"
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-
-    env:
-      ENV: ${{ github.event.inputs.environment }}
-      REGION: ap-south-1
-
+    outputs:
+      user_pool_id:  ${{ steps.out.outputs.user_pool_id }}
+      user_pool_arn: ${{ steps.out.outputs.user_pool_arn }}
+      client_id:     ${{ steps.out.outputs.client_id }}
+      client_secret: ${{ steps.out.outputs.client_secret }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.BOOTSTRAP_AWS_ACCESS_KEY_ID }}
+          aws-access-key-id:     ${{ secrets.BOOTSTRAP_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
-
-      # ── Stack 0 — Cognito ──────────────────────────────────────────────────
-      - name: "Stack 0 | Deploy Cognito"
+      - name: Deploy stack
         run: |
           aws cloudformation deploy \
             --stack-name "api-portal-cognito" \
@@ -51,53 +62,57 @@ jobs:
               PoolName=api-gateway-portal \
               DomainPrefix=${{ github.event.inputs.cognito_domain_prefix }} \
             --region $REGION
-
-          COGNITO_USER_POOL_ID=$(aws cloudformation describe-stacks \
-            --stack-name "api-portal-cognito" --region $REGION \
-            --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' \
-            --output text)
-          echo "::add-mask::$COGNITO_USER_POOL_ID"
-          echo "COGNITO_USER_POOL_ID=$COGNITO_USER_POOL_ID" >> $GITHUB_ENV
-
-          COGNITO_USER_POOL_ARN=$(aws cloudformation describe-stacks \
-            --stack-name "api-portal-cognito" --region $REGION \
-            --query 'Stacks[0].Outputs[?OutputKey==`UserPoolArn`].OutputValue' \
-            --output text)
-          echo "COGNITO_USER_POOL_ARN=$COGNITO_USER_POOL_ARN" >> $GITHUB_ENV
-
-          COGNITO_CLIENT_ID=$(aws cloudformation describe-stacks \
-            --stack-name "api-portal-cognito" --region $REGION \
-            --query 'Stacks[0].Outputs[?OutputKey==`AppClientId`].OutputValue' \
-            --output text)
-          echo "::add-mask::$COGNITO_CLIENT_ID"
-          echo "COGNITO_CLIENT_ID=$COGNITO_CLIENT_ID" >> $GITHUB_ENV
-
-          COGNITO_CLIENT_SECRET=$(aws cloudformation describe-stacks \
-            --stack-name "api-portal-cognito" --region $REGION \
-            --query 'Stacks[0].Outputs[?OutputKey==`AppClientSecret`].OutputValue' \
-            --output text)
-          echo "::add-mask::$COGNITO_CLIENT_SECRET"
-          echo "COGNITO_CLIENT_SECRET=$COGNITO_CLIENT_SECRET" >> $GITHUB_ENV
-
-          TOKEN_URL=$(aws cloudformation describe-stacks \
-            --stack-name "api-portal-cognito" --region $REGION \
-            --query 'Stacks[0].Outputs[?OutputKey==`TokenUrl`].OutputValue' \
-            --output text)
-          echo "TOKEN_URL=$TOKEN_URL" >> $GITHUB_ENV
-
-      # ── Stack 1 — VPC ──────────────────────────────────────────────────────
-      - name: "Stack 1 | Deploy VPC"
+      - name: Capture outputs
+        id: out
         run: |
+          STACK="api-portal-cognito"
+          get() { aws cloudformation describe-stacks --stack-name $STACK --region $REGION \
+            --query "Stacks[0].Outputs[?OutputKey==\`$1\`].OutputValue" --output text; }
+
+          USER_POOL_ID=$(get UserPoolId)
+          CLIENT_ID=$(get AppClientId)
+          CLIENT_SECRET=$(get AppClientSecret)
+
+          echo "::add-mask::$USER_POOL_ID"
+          echo "::add-mask::$CLIENT_ID"
+          echo "::add-mask::$CLIENT_SECRET"
+
+          echo "user_pool_id=$USER_POOL_ID"         >> $GITHUB_OUTPUT
+          echo "user_pool_arn=$(get UserPoolArn)"   >> $GITHUB_OUTPUT
+          echo "client_id=$CLIENT_ID"               >> $GITHUB_OUTPUT
+          echo "client_secret=$CLIENT_SECRET"       >> $GITHUB_OUTPUT
+
+  # ── Job 1 ─────────────────────────────────────────────────────────────────
+  deploy-vpc:
+    name: "Stack 1 | Deploy VPC"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.BOOTSTRAP_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+      - run: |
           aws cloudformation deploy \
-            --stack-name "api-portal-$ENV-vpc" \
+            --stack-name "api-portal-${{ github.event.inputs.environment }}-vpc" \
             --template-file infra/1-vpc.yaml \
-            --parameter-overrides EnvironmentName=$ENV \
+            --parameter-overrides EnvironmentName=${{ github.event.inputs.environment }} \
             --region $REGION \
             --capabilities CAPABILITY_NAMED_IAM
 
-      # ── Step 2 — DB password ───────────────────────────────────────────────
-      - name: "Step 2 | Generate DB password and store in SSM (skips if already set)"
-        run: |
+  # ── Job 2 ─────────────────────────────────────────────────────────────────
+  generate-db-password:
+    name: "Step 2 | Generate DB password (idempotent)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.BOOTSTRAP_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+      - run: |
+          ENV=${{ github.event.inputs.environment }}
           if ! aws ssm get-parameter --name "/api-portal/$ENV/db-password" --region $REGION &>/dev/null; then
             DB_PASSWORD=$(openssl rand -base64 32 | tr -d '/+=')
             aws ssm put-parameter \
@@ -107,168 +122,239 @@ jobs:
               --region $REGION
             echo "DB password created."
           else
-            echo "DB password already exists in SSM — skipping generation."
+            echo "DB password already exists in SSM — skipping."
           fi
 
-          # Always read back the stored value so later steps have it
-          DB_PASSWORD=$(aws ssm get-parameter \
-            --name "/api-portal/$ENV/db-password" \
-            --with-decryption \
-            --query Parameter.Value \
-            --output text \
-            --region $REGION)
-          echo "::add-mask::$DB_PASSWORD"
-          echo "DB_PASSWORD=$DB_PASSWORD" >> $GITHUB_ENV
-
-      # ── Stack 3 — Database ─────────────────────────────────────────────────
-      - name: "Stack 3 | Deploy Database (Aurora Serverless v2)"
+  # ── Job 3 ─────────────────────────────────────────────────────────────────
+  deploy-database:
+    name: "Stack 3 | Deploy Database (Aurora Serverless v2)"
+    needs: [deploy-vpc, generate-db-password]
+    runs-on: ubuntu-latest
+    outputs:
+      db_endpoint: ${{ steps.out.outputs.db_endpoint }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.BOOTSTRAP_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+      - name: Deploy stack
         run: |
           aws cloudformation deploy \
-            --stack-name "api-portal-$ENV-database" \
+            --stack-name "api-portal-${{ github.event.inputs.environment }}-database" \
             --template-file infra/2-database.yaml \
-            --parameter-overrides EnvironmentName=$ENV \
+            --parameter-overrides EnvironmentName=${{ github.event.inputs.environment }} \
             --region $REGION \
             --capabilities CAPABILITY_NAMED_IAM
-
+      - name: Capture outputs
+        id: out
+        run: |
           DB_ENDPOINT=$(aws cloudformation describe-stacks \
-            --stack-name "api-portal-$ENV-database" --region $REGION \
+            --stack-name "api-portal-${{ github.event.inputs.environment }}-database" \
+            --region $REGION \
             --query 'Stacks[0].Outputs[?OutputKey==`ClusterEndpoint`].OutputValue' \
             --output text)
-          echo "DB_ENDPOINT=$DB_ENDPOINT" >> $GITHUB_ENV
+          echo "db_endpoint=$DB_ENDPOINT" >> $GITHUB_OUTPUT
 
-      # ── Stack 4 — Storage + CloudFront (us-east-1, placeholder ALB) ───────
-      - name: "Stack 4 | Deploy Storage + CloudFront (us-east-1)"
+  # ── Job 4 ─────────────────────────────────────────────────────────────────
+  deploy-storage:
+    name: "Stack 4 | Deploy Storage + CloudFront (placeholder ALB)"
+    runs-on: ubuntu-latest
+    outputs:
+      artifact_bucket: ${{ steps.out.outputs.artifact_bucket }}
+      assets_bucket:   ${{ steps.out.outputs.assets_bucket }}
+      cf_dist_id:      ${{ steps.out.outputs.cf_dist_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.BOOTSTRAP_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+      - name: Deploy stack
         run: |
           aws cloudformation deploy \
-            --stack-name "api-portal-$ENV-storage" \
+            --stack-name "api-portal-${{ github.event.inputs.environment }}-storage" \
             --template-file infra/4-storage.yaml \
             --parameter-overrides \
-              EnvironmentName=$ENV \
+              EnvironmentName=${{ github.event.inputs.environment }} \
               AlbDnsName="placeholder.example.com" \
             --region us-east-1
+      - name: Capture outputs
+        id: out
+        run: |
+          STACK="api-portal-${{ github.event.inputs.environment }}-storage"
+          get() { aws cloudformation describe-stacks --stack-name $STACK --region us-east-1 \
+            --query "Stacks[0].Outputs[?OutputKey==\`$1\`].OutputValue" --output text; }
 
-          ARTIFACT_BUCKET=$(aws cloudformation describe-stacks \
-            --stack-name "api-portal-$ENV-storage" --region us-east-1 \
-            --query 'Stacks[0].Outputs[?OutputKey==`ArtifactBucketName`].OutputValue' \
-            --output text)
-          echo "ARTIFACT_BUCKET=$ARTIFACT_BUCKET" >> $GITHUB_ENV
+          echo "artifact_bucket=$(get ArtifactBucketName)" >> $GITHUB_OUTPUT
+          echo "assets_bucket=$(get AssetsBucketName)"     >> $GITHUB_OUTPUT
+          echo "cf_dist_id=$(get DistributionId)"          >> $GITHUB_OUTPUT
 
-          ASSETS_BUCKET=$(aws cloudformation describe-stacks \
-            --stack-name "api-portal-$ENV-storage" --region us-east-1 \
-            --query 'Stacks[0].Outputs[?OutputKey==`AssetsBucketName`].OutputValue' \
-            --output text)
-          echo "ASSETS_BUCKET=$ASSETS_BUCKET" >> $GITHUB_ENV
-
-          CF_DIST_ID=$(aws cloudformation describe-stacks \
-            --stack-name "api-portal-$ENV-storage" --region us-east-1 \
-            --query 'Stacks[0].Outputs[?OutputKey==`DistributionId`].OutputValue' \
-            --output text)
-          echo "CF_DIST_ID=$CF_DIST_ID" >> $GITHUB_ENV
-
-      # ── Stack 5 — IAM ──────────────────────────────────────────────────────
-      - name: "Stack 5 | Deploy IAM users + policies"
+  # ── Job 5 ─────────────────────────────────────────────────────────────────
+  deploy-iam:
+    name: "Stack 5 | Deploy IAM users + policies"
+    needs: [deploy-storage, deploy-cognito]
+    runs-on: ubuntu-latest
+    outputs:
+      app_key_id:  ${{ steps.out.outputs.app_key_id }}
+      app_secret:  ${{ steps.out.outputs.app_secret }}
+      cicd_key_id: ${{ steps.out.outputs.cicd_key_id }}
+      cicd_secret: ${{ steps.out.outputs.cicd_secret }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.BOOTSTRAP_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+      - name: Deploy stack
         run: |
           aws cloudformation deploy \
-            --stack-name "api-portal-$ENV-iam" \
+            --stack-name "api-portal-${{ github.event.inputs.environment }}-iam" \
             --template-file infra/6-iam.yaml \
             --parameter-overrides \
-              EnvironmentName=$ENV \
-              ArtifactBucketName=$ARTIFACT_BUCKET \
-              AssetsBucketName=$ASSETS_BUCKET \
-              CognitoUserPoolArn=$COGNITO_USER_POOL_ARN \
+              EnvironmentName=${{ github.event.inputs.environment }} \
+              ArtifactBucketName=${{ needs.deploy-storage.outputs.artifact_bucket }} \
+              AssetsBucketName=${{ needs.deploy-storage.outputs.assets_bucket }} \
+              CognitoUserPoolArn=${{ needs.deploy-cognito.outputs.user_pool_arn }} \
             --region $REGION \
             --capabilities CAPABILITY_NAMED_IAM
+      - name: Capture outputs
+        id: out
+        run: |
+          STACK="api-portal-${{ github.event.inputs.environment }}-iam"
+          get() { aws cloudformation describe-stacks --stack-name $STACK --region $REGION \
+            --query "Stacks[0].Outputs[?OutputKey==\`$1\`].OutputValue" --output text; }
 
-          APP_KEY_ID=$(aws cloudformation describe-stacks \
-            --stack-name "api-portal-$ENV-iam" --region $REGION \
-            --query 'Stacks[0].Outputs[?OutputKey==`AppUserKeyId`].OutputValue' \
-            --output text)
+          APP_KEY_ID=$(get AppUserKeyId)
+          APP_SECRET=$(get AppUserSecretKey)
+          CICD_KEY_ID=$(get CICDUserKeyId)
+          CICD_SECRET=$(get CICDUserSecretKey)
+
           echo "::add-mask::$APP_KEY_ID"
-          echo "APP_KEY_ID=$APP_KEY_ID" >> $GITHUB_ENV
-
-          APP_SECRET=$(aws cloudformation describe-stacks \
-            --stack-name "api-portal-$ENV-iam" --region $REGION \
-            --query 'Stacks[0].Outputs[?OutputKey==`AppUserSecretKey`].OutputValue' \
-            --output text)
           echo "::add-mask::$APP_SECRET"
-          echo "APP_SECRET=$APP_SECRET" >> $GITHUB_ENV
-
-          CICD_KEY_ID=$(aws cloudformation describe-stacks \
-            --stack-name "api-portal-$ENV-iam" --region $REGION \
-            --query 'Stacks[0].Outputs[?OutputKey==`CICDUserKeyId`].OutputValue' \
-            --output text)
           echo "::add-mask::$CICD_KEY_ID"
-          echo "CICD_KEY_ID=$CICD_KEY_ID" >> $GITHUB_ENV
-
-          CICD_SECRET=$(aws cloudformation describe-stacks \
-            --stack-name "api-portal-$ENV-iam" --region $REGION \
-            --query 'Stacks[0].Outputs[?OutputKey==`CICDUserSecretKey`].OutputValue' \
-            --output text)
           echo "::add-mask::$CICD_SECRET"
-          echo "CICD_SECRET=$CICD_SECRET" >> $GITHUB_ENV
 
-      # ── Stack 6 — Compute (EC2 + ALB) ─────────────────────────────────────
-      - name: "Stack 6 | Deploy Compute (EC2 + ALB)"
+          echo "app_key_id=$APP_KEY_ID"   >> $GITHUB_OUTPUT
+          echo "app_secret=$APP_SECRET"   >> $GITHUB_OUTPUT
+          echo "cicd_key_id=$CICD_KEY_ID" >> $GITHUB_OUTPUT
+          echo "cicd_secret=$CICD_SECRET" >> $GITHUB_OUTPUT
+
+  # ── Job 6 ─────────────────────────────────────────────────────────────────
+  deploy-compute:
+    name: "Stack 6 | Deploy Compute (EC2 + ALB)"
+    needs: [deploy-vpc, deploy-storage]
+    runs-on: ubuntu-latest
+    outputs:
+      ec2_instance_id: ${{ steps.out.outputs.ec2_instance_id }}
+      alb_dns:         ${{ steps.out.outputs.alb_dns }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.BOOTSTRAP_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+      - name: Deploy stack
         run: |
           aws cloudformation deploy \
-            --stack-name "api-portal-$ENV-compute" \
+            --stack-name "api-portal-${{ github.event.inputs.environment }}-compute" \
             --template-file infra/3-compute.yaml \
             --parameter-overrides \
-              EnvironmentName=$ENV \
+              EnvironmentName=${{ github.event.inputs.environment }} \
               InstanceType=${{ github.event.inputs.instance_type }} \
-              ArtifactBucketName=$ARTIFACT_BUCKET \
+              ArtifactBucketName=${{ needs.deploy-storage.outputs.artifact_bucket }} \
             --region $REGION \
             --capabilities CAPABILITY_NAMED_IAM
-
-          EC2_INSTANCE_ID=$(aws cloudformation describe-stacks \
-            --stack-name "api-portal-$ENV-compute" --region $REGION \
-            --query 'Stacks[0].Outputs[?OutputKey==`EC2InstanceId`].OutputValue' \
-            --output text)
-          echo "EC2_INSTANCE_ID=$EC2_INSTANCE_ID" >> $GITHUB_ENV
-
-          ALB_DNS=$(aws cloudformation describe-stacks \
-            --stack-name "api-portal-$ENV-compute" --region $REGION \
-            --query 'Stacks[0].Outputs[?OutputKey==`AlbDnsName`].OutputValue' \
-            --output text)
-          echo "ALB_DNS=$ALB_DNS" >> $GITHUB_ENV
-
-      # ── Step 7 — Update CloudFront with real ALB DNS ──────────────────────
-      - name: "Step 7 | Update CloudFront origin with real ALB DNS"
+      - name: Capture outputs
+        id: out
         run: |
+          STACK="api-portal-${{ github.event.inputs.environment }}-compute"
+          get() { aws cloudformation describe-stacks --stack-name $STACK --region $REGION \
+            --query "Stacks[0].Outputs[?OutputKey==\`$1\`].OutputValue" --output text; }
+
+          echo "ec2_instance_id=$(get EC2InstanceId)" >> $GITHUB_OUTPUT
+          echo "alb_dns=$(get AlbDnsName)"            >> $GITHUB_OUTPUT
+
+  # ── Job 7 ─────────────────────────────────────────────────────────────────
+  update-cloudfront:
+    name: "Step 7 | Update CloudFront origin with real ALB DNS"
+    needs: [deploy-compute, deploy-storage]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.BOOTSTRAP_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+      - run: |
           aws cloudformation deploy \
-            --stack-name "api-portal-$ENV-storage" \
+            --stack-name "api-portal-${{ github.event.inputs.environment }}-storage" \
             --template-file infra/4-storage.yaml \
             --parameter-overrides \
-              EnvironmentName=$ENV \
-              AlbDnsName=$ALB_DNS \
+              EnvironmentName=${{ github.event.inputs.environment }} \
+              AlbDnsName=${{ needs.deploy-compute.outputs.alb_dns }} \
             --region us-east-1
 
-      # ── Stack 8 — WAF (us-east-1) ─────────────────────────────────────────
-      - name: "Stack 8 | Deploy WAF (us-east-1, Count mode)"
-        run: |
+  # ── Job 8 ─────────────────────────────────────────────────────────────────
+  deploy-waf:
+    name: "Stack 8 | Deploy WAF (us-east-1, Count mode)"
+    needs: [update-cloudfront, deploy-storage]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.BOOTSTRAP_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+      - run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          CF_ARN="arn:aws:cloudfront::${ACCOUNT_ID}:distribution/${CF_DIST_ID}"
+          CF_ARN="arn:aws:cloudfront::${ACCOUNT_ID}:distribution/${{ needs.deploy-storage.outputs.cf_dist_id }}"
 
           aws cloudformation deploy \
-            --stack-name "api-portal-$ENV-waf" \
+            --stack-name "api-portal-${{ github.event.inputs.environment }}-waf" \
             --template-file infra/5-waf.yaml \
             --parameter-overrides \
-              EnvironmentName=$ENV \
+              EnvironmentName=${{ github.event.inputs.environment }} \
               CloudFrontDistributionArn=$CF_ARN \
               RulesMode=Count \
             --region us-east-1
 
-      # ── Step 9 — App env parameter ─────────────────────────────────────────
-      - name: "Step 9 | Write app env to SSM Parameter Store (preserves existing session secret)"
-        run: |
+  # ── Job 9 ─────────────────────────────────────────────────────────────────
+  write-app-env:
+    name: "Step 9 | Write app env to SSM Parameter Store"
+    needs: [deploy-cognito, deploy-database, deploy-iam, deploy-compute]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.BOOTSTRAP_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+      - run: |
+          ENV=${{ github.event.inputs.environment }}
+
+          echo "::add-mask::${{ needs.deploy-cognito.outputs.client_id }}"
+          echo "::add-mask::${{ needs.deploy-cognito.outputs.client_secret }}"
+          echo "::add-mask::${{ needs.deploy-iam.outputs.app_key_id }}"
+          echo "::add-mask::${{ needs.deploy-iam.outputs.app_secret }}"
+
+          DB_PASSWORD=$(aws ssm get-parameter \
+            --name "/api-portal/$ENV/db-password" \
+            --with-decryption --query Parameter.Value --output text --region $REGION)
+          echo "::add-mask::$DB_PASSWORD"
+
           # Reuse existing session secret to avoid invalidating active sessions
           if aws ssm get-parameter --name "/api-portal/env" --region $REGION &>/dev/null; then
             SESSION_SECRET=$(aws ssm get-parameter \
-              --name "/api-portal/env" \
-              --with-decryption \
-              --query Parameter.Value \
-              --output text \
-              --region $REGION | python3 -c "import json,sys; print(json.load(sys.stdin)['SESSION_SECRET'])")
+              --name "/api-portal/env" --with-decryption \
+              --query Parameter.Value --output text --region $REGION \
+              | python3 -c "import json,sys; print(json.load(sys.stdin)['SESSION_SECRET'])")
             echo "Reusing existing SESSION_SECRET."
           else
             SESSION_SECRET=$(openssl rand -base64 32)
@@ -282,24 +368,34 @@ jobs:
             --overwrite \
             --region $REGION \
             --value "{
-              \"DATABASE_URL\": \"postgresql://apiportal:${DB_PASSWORD}@${DB_ENDPOINT}:5432/apiportal\",
+              \"DATABASE_URL\": \"postgresql://apiportal:${DB_PASSWORD}@${{ needs.deploy-database.outputs.db_endpoint }}:5432/apiportal\",
               \"SESSION_SECRET\": \"${SESSION_SECRET}\",
               \"NODE_ENV\": \"production\",
               \"PORT\": \"3000\",
               \"AWS_REGION\": \"${REGION}\",
-              \"AWS_ACCESS_KEY_ID\": \"${APP_KEY_ID}\",
-              \"AWS_SECRET_ACCESS_KEY\": \"${APP_SECRET}\",
-              \"COGNITO_USER_POOL_ID\": \"${COGNITO_USER_POOL_ID}\",
-              \"COGNITO_USER_POOL_ARN\": \"${COGNITO_USER_POOL_ARN}\",
-              \"COGNITO_CLIENT_ID\": \"${COGNITO_CLIENT_ID}\",
-              \"COGNITO_CLIENT_SECRET\": \"${COGNITO_CLIENT_SECRET}\"
+              \"AWS_ACCESS_KEY_ID\": \"${{ needs.deploy-iam.outputs.app_key_id }}\",
+              \"AWS_SECRET_ACCESS_KEY\": \"${{ needs.deploy-iam.outputs.app_secret }}\",
+              \"COGNITO_USER_POOL_ID\": \"${{ needs.deploy-cognito.outputs.user_pool_id }}\",
+              \"COGNITO_USER_POOL_ARN\": \"${{ needs.deploy-cognito.outputs.user_pool_arn }}\",
+              \"COGNITO_CLIENT_ID\": \"${{ needs.deploy-cognito.outputs.client_id }}\",
+              \"COGNITO_CLIENT_SECRET\": \"${{ needs.deploy-cognito.outputs.client_secret }}\"
             }"
 
-      # ── Step 10 — SNS email subscription ──────────────────────────────────
-      - name: "Step 10 | Subscribe to CloudWatch alarm alerts"
-        run: |
+  # ── Job 10 ────────────────────────────────────────────────────────────────
+  subscribe-alerts:
+    name: "Step 10 | Subscribe to CloudWatch alarm alerts"
+    needs: [deploy-compute]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.BOOTSTRAP_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+      - run: |
           SNS_ARN=$(aws cloudformation describe-stacks \
-            --stack-name "api-portal-$ENV-compute" --region $REGION \
+            --stack-name "api-portal-${{ github.event.inputs.environment }}-compute" \
+            --region $REGION \
             --query 'Stacks[0].Outputs[?OutputKey==`AlarmSNSTopicArn`].OutputValue' \
             --output text)
 
@@ -311,18 +407,25 @@ jobs:
 
           echo "Check ${{ secrets.ALERT_EMAIL }} and confirm the SNS subscription."
 
-      # ── Step 11 — Write deploy secrets to GitHub ──────────────────────────
-      - name: "Step 11 | Write deploy secrets to GitHub Actions"
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-        run: |
-          gh secret set AWS_ACCESS_KEY_ID          --body "$CICD_KEY_ID"
-          gh secret set AWS_SECRET_ACCESS_KEY      --body "$CICD_SECRET"
+  # ── Job 11 ────────────────────────────────────────────────────────────────
+  write-github-secrets:
+    name: "Step 11 | Write deploy secrets to GitHub Actions"
+    needs: [deploy-iam, deploy-compute, deploy-storage, update-cloudfront]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GH_PAT }}
+    steps:
+      - run: |
+          echo "::add-mask::${{ needs.deploy-iam.outputs.cicd_key_id }}"
+          echo "::add-mask::${{ needs.deploy-iam.outputs.cicd_secret }}"
+
+          gh secret set AWS_ACCESS_KEY_ID          --body "${{ needs.deploy-iam.outputs.cicd_key_id }}"
+          gh secret set AWS_SECRET_ACCESS_KEY      --body "${{ needs.deploy-iam.outputs.cicd_secret }}"
           gh secret set AWS_REGION                 --body "$REGION"
-          gh secret set EC2_INSTANCE_ID            --body "$EC2_INSTANCE_ID"
-          gh secret set S3_ARTIFACT_BUCKET         --body "$ARTIFACT_BUCKET"
-          gh secret set S3_ASSETS_BUCKET           --body "$ASSETS_BUCKET"
-          gh secret set CLOUDFRONT_DISTRIBUTION_ID --body "$CF_DIST_ID"
-          gh secret set ALB_HEALTH_URL             --body "http://$ALB_DNS/health"
+          gh secret set EC2_INSTANCE_ID            --body "${{ needs.deploy-compute.outputs.ec2_instance_id }}"
+          gh secret set S3_ARTIFACT_BUCKET         --body "${{ needs.deploy-storage.outputs.artifact_bucket }}"
+          gh secret set S3_ASSETS_BUCKET           --body "${{ needs.deploy-storage.outputs.assets_bucket }}"
+          gh secret set CLOUDFRONT_DISTRIBUTION_ID --body "${{ needs.deploy-storage.outputs.cf_dist_id }}"
+          gh secret set ALB_HEALTH_URL             --body "http://${{ needs.deploy-compute.outputs.alb_dns }}/health"
 
           echo "All 8 deploy secrets written. You can now run the 'Deploy to EC2' workflow."
