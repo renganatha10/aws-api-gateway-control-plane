@@ -110,7 +110,7 @@ Resources:
 
           # ── PM2 ───────────────────────────────────────────────────────────
           npm install -g pm2
-          pm2 startup systemd -u ec2-user --hp /home/ec2-user | tail -1 | bash
+          pm2 startup systemd -u ec2-user --hp /home/ec2-user | tail -1 | sed 's/^\$ //' | bash
 
           # ── Ansible ───────────────────────────────────────────────────────
           pip3 install ansible
