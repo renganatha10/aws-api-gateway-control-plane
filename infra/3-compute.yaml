@@ -113,6 +113,7 @@ Resources:
           pm2 startup systemd -u ec2-user --hp /home/ec2-user | tail -1 | sed 's/^\$ //' | bash
 
           # ── Ansible ───────────────────────────────────────────────────────
+          dnf install -y python3-pip
           pip3 install ansible
 
           # ── CloudWatch Agent ──────────────────────────────────────────────
