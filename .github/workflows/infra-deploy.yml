@@ -20,9 +20,6 @@ on:
           - t3.medium
           - t3.large
 
-permissions:
-  secrets: write
-
 jobs:
   deploy-infra:
     name: Deploy All Infrastructure Stacks
@@ -317,7 +314,7 @@ jobs:
       # ── Step 10 — Write deploy secrets to GitHub ───────────────────────────
       - name: "Step 10 | Write deploy secrets to GitHub Actions"
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           gh secret set AWS_ACCESS_KEY_ID          --body "$CICD_KEY_ID"
           gh secret set AWS_SECRET_ACCESS_KEY      --body "$CICD_SECRET"
