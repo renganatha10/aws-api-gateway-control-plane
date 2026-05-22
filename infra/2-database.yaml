@@ -31,8 +31,8 @@ Resources:
     Properties:
       DBSubnetGroupDescription: Private subnets for Aurora
       SubnetIds:
-        - !ImportValue !Sub "api-portal-${EnvironmentName}-private-subnet-a"
-        - !ImportValue !Sub "api-portal-${EnvironmentName}-private-subnet-b"
+        - Fn::ImportValue: !Sub "api-portal-${EnvironmentName}-private-subnet-a"
+        - Fn::ImportValue: !Sub "api-portal-${EnvironmentName}-private-subnet-b"
 
   # ── Aurora Cluster ─────────────────────────────────────────────────────────
   DBCluster:
@@ -53,7 +53,7 @@ Resources:
         MaxCapacity: !Ref AuroraMaxCapacity
       DBSubnetGroupName: !Ref DBSubnetGroup
       VpcSecurityGroupIds:
-        - !ImportValue !Sub "api-portal-${EnvironmentName}-sg-db"
+        - Fn::ImportValue: !Sub "api-portal-${EnvironmentName}-sg-db"
       StorageEncrypted: true
       EnableCloudwatchLogsExports:
         - postgresql

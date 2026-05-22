@@ -79,9 +79,10 @@ Resources:
       ImageId: !Ref AmiId
       InstanceType: !Ref InstanceType
       IamInstanceProfile: !Ref EC2InstanceProfile
-      SubnetId: !ImportValue !Sub "api-portal-${EnvironmentName}-private-subnet-a"
+      SubnetId:
+        Fn::ImportValue: !Sub "api-portal-${EnvironmentName}-private-subnet-a"
       SecurityGroupIds:
-        - !ImportValue !Sub "api-portal-${EnvironmentName}-sg-ec2"
+        - Fn::ImportValue: !Sub "api-portal-${EnvironmentName}-sg-ec2"
       BlockDeviceMappings:
         - DeviceName: /dev/xvda
           Ebs:
@@ -183,10 +184,10 @@ Resources:
       Scheme: internet-facing
       Type: application
       Subnets:
-        - !ImportValue !Sub "api-portal-${EnvironmentName}-public-subnet-a"
-        - !ImportValue !Sub "api-portal-${EnvironmentName}-public-subnet-b"
+        - Fn::ImportValue: !Sub "api-portal-${EnvironmentName}-public-subnet-a"
+        - Fn::ImportValue: !Sub "api-portal-${EnvironmentName}-public-subnet-b"
       SecurityGroups:
-        - !ImportValue !Sub "api-portal-${EnvironmentName}-sg-alb"
+        - Fn::ImportValue: !Sub "api-portal-${EnvironmentName}-sg-alb"
 
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -194,7 +195,8 @@ Resources:
       Name: !Sub "api-portal-${EnvironmentName}-tg"
       Protocol: HTTP
       Port: 3000
-      VpcId: !ImportValue !Sub "api-portal-${EnvironmentName}-vpc-id"
+      VpcId:
+        Fn::ImportValue: !Sub "api-portal-${EnvironmentName}-vpc-id"
       TargetType: instance
       HealthCheckPath: /health
       HealthCheckIntervalSeconds: 30
