@@ -20,6 +20,15 @@
 
   tasks:
 
+    - name: "0/7 | Log deployment context"
+      command: whoami
+      register: _whoami
+      changed_when: false
+
+    - name: "0/7 | Deployment context"
+      debug:
+        msg: "ansible user={{ _whoami.stdout }} | app_user={{ app_user }} | sha={{ git_sha }}"
+
     # ══════════════════════════════════════════════════════════════════════
     # Phase 1 — Download
     # ══════════════════════════════════════════════════════════════════════
@@ -84,12 +93,14 @@
     - name: "3/7 | Convert JSON to .env file"
       shell: |
         python3 -c "
-        import json, os
+        import json, os, pwd
         with open('/tmp/.deploy-env-{{ git_sha }}.json') as f:
             data = json.load(f)
         with open('{{ release_dir }}/.env', 'w') as out:
             for k, v in data.items():
                 out.write('{}={}\n'.format(k, str(v).replace('\n', '\\\\n')))
+        pw = pwd.getpwnam('{{ app_user }}')
+        os.chown('{{ release_dir }}/.env', pw.pw_uid, pw.pw_gid)
         os.chmod('{{ release_dir }}/.env', 0o600)
         os.remove('/tmp/.deploy-env-{{ git_sha }}.json')
         "
@@ -111,7 +122,6 @@
         chdir: "{{ release_dir }}"
       become: true
       become_user: "{{ app_user }}"
-      no_log: true
       register: migration_result
       # node-pg-migrate exits 0 whether or not migrations ran
       changed_when: "'No migrations' not in migration_result.stdout"
