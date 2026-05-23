@@ -152,6 +152,14 @@ Resources:
             CachedMethods: [GET, HEAD]
             Compress: true
 
+          - PathPattern: "/server-error.svg"
+            TargetOriginId: s3-assets
+            ViewerProtocolPolicy: redirect-to-https
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+
         Logging:
           Bucket: !GetAtt ArtifactBucket.DomainName  # reuse artifact bucket for CF logs
           Prefix: cloudfront-logs/

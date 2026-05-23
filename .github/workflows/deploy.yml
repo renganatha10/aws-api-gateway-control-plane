@@ -90,6 +90,7 @@ jobs:
           echo "Uploading artifact to $PREFIX"
 
           aws s3 cp build/server/       "$PREFIX/build/server/"    --recursive
+          aws s3 cp build/client/       "$PREFIX/build/client/"    --recursive
           aws s3 cp db/migrations/      "$PREFIX/db/migrations/"   --recursive
           aws s3 cp ansible/deploy.yml  "$PREFIX/ansible/deploy.yml"
           aws s3 cp package.json        "$PREFIX/package.json"
