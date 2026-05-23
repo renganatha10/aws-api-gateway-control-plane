@@ -28,18 +28,18 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export async function action({ request }: Route.ActionArgs) {
-  const formData = await request.formData()
-  const mode = formData.get("mode") as string
-  const email = (formData.get("email") as string)?.trim()
-  const password = formData.get("password") as string
-  const firstName = (formData.get("firstName") as string | null)?.trim() ?? ""
-  const lastName = (formData.get("lastName") as string | null)?.trim() ?? ""
-
-  if (!email || !password) {
-    return data({ error: "Email and password are required", mode }, { status: 400 })
-  }
-
   try {
+    const formData = await request.formData()
+    const mode = formData.get("mode") as string
+    const email = (formData.get("email") as string)?.trim()
+    const password = formData.get("password") as string
+    const firstName = (formData.get("firstName") as string | null)?.trim() ?? ""
+    const lastName = (formData.get("lastName") as string | null)?.trim() ?? ""
+
+    if (!email || !password) {
+      return data({ error: "Email and password are required", mode }, { status: 400 })
+    }
+
     if (mode === "signup") {
       await registerUser({ email, password, firstName, lastName })
       const tokens = await loginWithCredentials(email, password)
@@ -61,7 +61,7 @@ export async function action({ request }: Route.ActionArgs) {
   } catch (err) {
     console.error("[login] action failed", err)
     const message = err instanceof Error ? err.message : "Something went wrong. Please try again."
-    return data({ error: message, mode }, { status: 400 })
+    return data({ error: message, mode: "login" }, { status: 400 })
   }
 }
 
