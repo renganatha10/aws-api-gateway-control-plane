@@ -82,12 +82,18 @@ jobs:
           CLIENT_ID=$(get AppClientId)
           CLIENT_SECRET=$(get AppClientSecret)
 
-          # Write outputs before masking — masks applied to runner stdout will
-          # redact any subsequent writes that contain the masked values.
+          # Write to GITHUB_OUTPUT BEFORE masking — add-mask redacts the value
+          # from all subsequent log lines including file writes via echo redirection,
+          # so outputs written after add-mask would be stored as "***" and arrive
+          # empty in downstream jobs. user_pool_id/arn are not masked intentionally
+          # so they flow cleanly to the IAM and app-env jobs.
           echo "user_pool_id=$USER_POOL_ID"     >> $GITHUB_OUTPUT
           echo "user_pool_arn=$USER_POOL_ARN"   >> $GITHUB_OUTPUT
           echo "client_id=$CLIENT_ID"           >> $GITHUB_OUTPUT
           echo "client_secret=$CLIENT_SECRET"   >> $GITHUB_OUTPUT
+
+          echo "::add-mask::$CLIENT_ID"
+          echo "::add-mask::$CLIENT_SECRET"
 
   # ── Job 1 ─────────────────────────────────────────────────────────────────
   deploy-vpc:
@@ -132,6 +138,7 @@ jobs:
           ENV=${{ github.event.inputs.environment }}
           if ! aws ssm get-parameter --name "/api-portal/$ENV/db-password" --region $REGION &>/dev/null; then
             DB_PASSWORD=$(openssl rand -base64 32 | tr -d '/+=')
+            echo "::add-mask::$DB_PASSWORD"
             aws ssm put-parameter \
               --name "/api-portal/$ENV/db-password" \
               --type SecureString \
@@ -282,6 +289,11 @@ jobs:
           echo "cicd_key_id=$CICD_KEY_ID" >> $GITHUB_OUTPUT
           echo "cicd_secret=$CICD_SECRET" >> $GITHUB_OUTPUT
 
+          echo "::add-mask::$APP_KEY_ID"
+          echo "::add-mask::$APP_SECRET"
+          echo "::add-mask::$CICD_KEY_ID"
+          echo "::add-mask::$CICD_SECRET"
+
   # ── Job 6 ─────────────────────────────────────────────────────────────────
   deploy-compute:
     name: "Stack 6 | Deploy Compute (EC2 + ALB)"
@@ -369,14 +381,21 @@ jobs:
           aws-access-key-id:     ${{ secrets.BOOTSTRAP_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
-      - run: |
+      - name: Write app env to SSM
+        env:
+          DB_ENDPOINT:           ${{ needs.deploy-database.outputs.db_endpoint }}
+          APP_KEY_ID:            ${{ needs.deploy-iam.outputs.app_key_id }}
+          APP_SECRET:            ${{ needs.deploy-iam.outputs.app_secret }}
+          COGNITO_POOL_ID:       ${{ needs.deploy-cognito.outputs.user_pool_id }}
+          COGNITO_POOL_ARN:      ${{ needs.deploy-cognito.outputs.user_pool_arn }}
+          COGNITO_CLIENT_ID:     ${{ needs.deploy-cognito.outputs.client_id }}
+          COGNITO_CLIENT_SECRET: ${{ needs.deploy-cognito.outputs.client_secret }}
+        run: |
           ENV=${{ github.event.inputs.environment }}
 
-    
           DB_PASSWORD=$(aws ssm get-parameter \
             --name "/api-portal/$ENV/db-password" \
             --with-decryption --query Parameter.Value --output text --region $REGION)
-          
 
           # Reuse existing session secret to avoid invalidating active sessions
           if aws ssm get-parameter --name "/api-portal/env" --region $REGION &>/dev/null; then
@@ -389,7 +408,13 @@ jobs:
             SESSION_SECRET=$(openssl rand -base64 32)
             echo "Generated new SESSION_SECRET."
           fi
-     
+
+          echo "::add-mask::$DB_PASSWORD"
+          echo "::add-mask::$SESSION_SECRET"
+          echo "::add-mask::$APP_KEY_ID"
+          echo "::add-mask::$APP_SECRET"
+          echo "::add-mask::$COGNITO_CLIENT_ID"
+          echo "::add-mask::$COGNITO_CLIENT_SECRET"
 
           aws ssm put-parameter \
             --name "/api-portal/env" \
@@ -397,17 +422,17 @@ jobs:
             --overwrite \
             --region $REGION \
             --value "{
-              \"DATABASE_URL\": \"postgresql://apiportal:${DB_PASSWORD}@${{ needs.deploy-database.outputs.db_endpoint }}:5432/apiportal\",
+              \"DATABASE_URL\": \"postgresql://apiportal:${DB_PASSWORD}@${DB_ENDPOINT}:5432/apiportal\",
               \"SESSION_SECRET\": \"${SESSION_SECRET}\",
               \"NODE_ENV\": \"production\",
               \"PORT\": \"3000\",
               \"AWS_REGION\": \"${REGION}\",
-              \"AWS_ACCESS_KEY_ID\": \"${{ needs.deploy-iam.outputs.app_key_id }}\",
-              \"AWS_SECRET_ACCESS_KEY\": \"${{ needs.deploy-iam.outputs.app_secret }}\",
-              \"COGNITO_USER_POOL_ID\": \"${{ needs.deploy-cognito.outputs.user_pool_id }}\",
-              \"COGNITO_USER_POOL_ARN\": \"${{ needs.deploy-cognito.outputs.user_pool_arn }}\",
-              \"COGNITO_CLIENT_ID\": \"${{ needs.deploy-cognito.outputs.client_id }}\",
-              \"COGNITO_CLIENT_SECRET\": \"${{ needs.deploy-cognito.outputs.client_secret }}\"
+              \"AWS_ACCESS_KEY_ID\": \"${APP_KEY_ID}\",
+              \"AWS_SECRET_ACCESS_KEY\": \"${APP_SECRET}\",
+              \"COGNITO_USER_POOL_ID\": \"${COGNITO_POOL_ID}\",
+              \"COGNITO_USER_POOL_ARN\": \"${COGNITO_POOL_ARN}\",
+              \"COGNITO_CLIENT_ID\": \"${COGNITO_CLIENT_ID}\",
+              \"COGNITO_CLIENT_SECRET\": \"${COGNITO_CLIENT_SECRET}\"
             }"
 
   # ── Job 10 ────────────────────────────────────────────────────────────────
@@ -445,14 +470,25 @@ jobs:
       GH_TOKEN: ${{ secrets.GH_PAT }}
     steps:
       - uses: actions/checkout@v4
-      - run: |
-          gh secret set AWS_ACCESS_KEY_ID          --body "${{ needs.deploy-iam.outputs.cicd_key_id }}"
-          gh secret set AWS_SECRET_ACCESS_KEY      --body "${{ needs.deploy-iam.outputs.cicd_secret }}"
+      - env:
+          CICD_KEY_ID:   ${{ needs.deploy-iam.outputs.cicd_key_id }}
+          CICD_SECRET:   ${{ needs.deploy-iam.outputs.cicd_secret }}
+          EC2_INSTANCE:  ${{ needs.deploy-compute.outputs.ec2_instance_id }}
+          ARTIFACT_BUCKET: ${{ needs.deploy-storage.outputs.artifact_bucket }}
+          ASSETS_BUCKET:   ${{ needs.deploy-storage.outputs.assets_bucket }}
+          CF_DIST_ID:    ${{ needs.deploy-storage.outputs.cf_dist_id }}
+          ALB_DNS:       ${{ needs.deploy-compute.outputs.alb_dns }}
+        run: |
+          echo "::add-mask::$CICD_KEY_ID"
+          echo "::add-mask::$CICD_SECRET"
+
+          gh secret set AWS_ACCESS_KEY_ID          --body "$CICD_KEY_ID"
+          gh secret set AWS_SECRET_ACCESS_KEY      --body "$CICD_SECRET"
           gh secret set AWS_REGION                 --body "$REGION"
-          gh secret set EC2_INSTANCE_ID            --body "${{ needs.deploy-compute.outputs.ec2_instance_id }}"
-          gh secret set S3_ARTIFACT_BUCKET         --body "${{ needs.deploy-storage.outputs.artifact_bucket }}"
-          gh secret set S3_ASSETS_BUCKET           --body "${{ needs.deploy-storage.outputs.assets_bucket }}"
-          gh secret set CLOUDFRONT_DISTRIBUTION_ID --body "${{ needs.deploy-storage.outputs.cf_dist_id }}"
-          gh secret set ALB_HEALTH_URL             --body "http://${{ needs.deploy-compute.outputs.alb_dns }}/health"
+          gh secret set EC2_INSTANCE_ID            --body "$EC2_INSTANCE"
+          gh secret set S3_ARTIFACT_BUCKET         --body "$ARTIFACT_BUCKET"
+          gh secret set S3_ASSETS_BUCKET           --body "$ASSETS_BUCKET"
+          gh secret set CLOUDFRONT_DISTRIBUTION_ID --body "$CF_DIST_ID"
+          gh secret set ALB_HEALTH_URL             --body "http://$ALB_DNS/health"
 
           echo "All 8 deploy secrets written. You can now run the 'Deploy to EC2' workflow."
