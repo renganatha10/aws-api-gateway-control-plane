@@ -46,7 +46,6 @@ export async function action({ request }: Route.ActionArgs) {
       return createUserSession({
         request,
         accessToken: tokens.access_token,
-
         userId: extractUserId(tokens.access_token),
         redirectTo: "/",
       })
@@ -55,13 +54,13 @@ export async function action({ request }: Route.ActionArgs) {
       return createUserSession({
         request,
         accessToken: tokens.access_token,
-
         userId: extractUserId(tokens.access_token),
         redirectTo: "/",
       })
     }
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Something went wrong"
+    console.error("[login] action failed", err)
+    const message = err instanceof Error ? err.message : "Something went wrong. Please try again."
     return data({ error: message, mode }, { status: 400 })
   }
 }
