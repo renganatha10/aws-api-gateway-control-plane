@@ -18,7 +18,8 @@ Resources:
   # ── S3: static assets (CloudFront origin) ─────────────────────────────────
   AssetsBucket:
     Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       BucketName: !Sub "api-portal-${EnvironmentName}-assets-${AWS::Region}-${AWS::AccountId}"
       VersioningConfiguration:
@@ -41,7 +42,8 @@ Resources:
   # ── S3: deployment artifacts ───────────────────────────────────────────────
   ArtifactBucket:
     Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       BucketName: !Sub "api-portal-${EnvironmentName}-artifacts-${AWS::Region}-${AWS::AccountId}"
       OwnershipControls:

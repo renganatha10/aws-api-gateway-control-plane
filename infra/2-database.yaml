@@ -2,7 +2,6 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: >
   Aurora Serverless v2 (PostgreSQL-compatible) in private subnets.
   All app secrets stored in a single SSM Parameter Store SecureString: /api-portal/env.
-  DeletionPolicy: Retain — this stack must never be deleted carelessly.
 
 Parameters:
   EnvironmentName:
@@ -37,8 +36,6 @@ Resources:
   # ── Aurora Cluster ─────────────────────────────────────────────────────────
   DBCluster:
     Type: AWS::RDS::DBCluster
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
     Properties:
       Engine: aurora-postgresql
       EngineMode: provisioned
@@ -66,8 +63,6 @@ Resources:
 
   DBInstance:
     Type: AWS::RDS::DBInstance
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
     Properties:
       DBClusterIdentifier: !Ref DBCluster
       DBInstanceClass: db.serverless

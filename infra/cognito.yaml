@@ -51,8 +51,6 @@ Resources:
 
   UserPool:
     Type: AWS::Cognito::UserPool
-    DeletionPolicy: Retain       # never auto-delete user data
-    UpdateReplacePolicy: Retain
     Properties:
       UserPoolName: !Ref PoolName
 
