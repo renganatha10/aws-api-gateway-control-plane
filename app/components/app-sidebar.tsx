@@ -2,7 +2,7 @@ import { Globe, LayoutList, Link2, Package, Users, Zap } from "lucide-react"
 import { Link, useLocation } from "react-router"
 
 import type { UserProfile } from "~/lib/cognito.server"
-import type { Gateway } from "~/lib/schema"
+import type { Organisation } from "~/lib/schema"
 import { Avatar, AvatarFallback } from "~/components/ui/avatar"
 import {
   Sidebar,
@@ -16,7 +16,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "~/components/ui/sidebar"
-import { ApiSwitcher } from "~/components/api-switcher"
+import { OrgSwitcher } from "~/components/org-switcher"
 
 const navItems = [
   { title: "Products",     url: "/products",     icon: Package    },
@@ -33,15 +33,15 @@ function getInitials(given: string, family: string): string {
 
 export function AppSidebar({
   user,
-  gateways,
-  activeGatewayId,
+  organisations,
+  activeOrganisationId,
 }: {
   user: UserProfile
-  gateways: Gateway[]
-  activeGatewayId: number | null
+  organisations: Organisation[]
+  activeOrganisationId: number | null
 }) {
   const location = useLocation()
-  const activeId = activeGatewayId ?? gateways[0]?.id
+  const activeId = activeOrganisationId ?? organisations[0]?.id
 
   return (
     <Sidebar collapsible="icon">
@@ -59,8 +59,8 @@ export function AppSidebar({
           </SidebarMenuItem>
         </SidebarMenu>
 
-        <ApiSwitcher
-          gateways={gateways}
+        <OrgSwitcher
+          organisations={organisations}
           activeId={activeId}
         />
       </SidebarHeader>

@@ -16,7 +16,7 @@ export async function removeApiFromProduct(productId: number, apiId: number) {
 export async function syncApiAssociations(
   productId: number,
   newApiIds: number[],
-  gatewayId: number,
+  organisationId: number,
   createdBy: string,
 ) {
   const existing = await db
@@ -34,7 +34,7 @@ export async function syncApiAssociations(
   }
   for (const apiId of newApiIds) {
     if (!existingIds.includes(apiId)) {
-      await db.insert(apiAssociations).values({ productId, apiId, gatewayId, createdBy })
+      await db.insert(apiAssociations).values({ productId, apiId, organisationId, createdBy })
     }
   }
 }
@@ -63,14 +63,14 @@ export async function listApiScopesForProduct(productId: number) {
 export async function listApisByProduct(productId: number) {
   return db
     .select({
-      id:          apis.id,
-      name:        apis.name,
-      displayName: apis.displayName,
-      basePath:    apis.basePath,
-      specType:    apis.specType,
-      awsApiId:    apis.awsApiId,
-      gatewayId:   apis.gatewayId,
-      createdAt:   apis.createdAt,
+      id:             apis.id,
+      name:           apis.name,
+      displayName:    apis.displayName,
+      basePath:       apis.basePath,
+      specType:       apis.specType,
+      awsApiId:       apis.awsApiId,
+      organisationId: apis.organisationId,
+      createdAt:      apis.createdAt,
     })
     .from(apiAssociations)
     .innerJoin(apis, eq(apiAssociations.apiId, apis.id))

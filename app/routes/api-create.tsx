@@ -2,9 +2,9 @@
 import * as yaml from "js-yaml"
 import { Form, redirect, useActionData, useNavigate, useNavigation } from "react-router"
 
-import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
+import { getActiveOrganisationId, requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/cognito.server"
-import { createApi, findApiByGatewayAndBasePath } from "~/repositories/api.repository.server"
+import { createApi, findApiByOrganisationAndBasePath } from "~/repositories/api.repository.server"
 import { buildAwsSpec, extractBasePath } from "~/aws/build-aws-spec.server"
 import { importApiSpec } from "~/aws/import-api.server"
 import { Button } from "~/components/ui/button"
@@ -25,7 +25,7 @@ export async function action({ request }: Route.ActionArgs) {
   const { accessToken } = await requireAuth(request)
   const createdBy = getUserProfile(accessToken).email
 
-  const gatewayId = await getActiveGatewayId(request)
+  const organisationId = await getActiveOrganisationId(request)
 
   const formData    = await request.formData()
   const displayName = (formData.get("name") as string)?.trim()
@@ -34,7 +34,7 @@ export async function action({ request }: Route.ActionArgs) {
   const scope       = (formData.get("scope") as string)?.trim() || null
 
   if (!displayName) return { error: "API name is required." }
-  const name = gatewayId ? `${displayName}-${gatewayId}` : displayName
+  const name = organisationId ? `${displayName}-${organisationId}` : displayName
   if (!specType) return { error: "Please select an API type." }
   if (!yamlStr) return { error: "YAML definition is required." }
 
@@ -49,9 +49,9 @@ export async function action({ request }: Route.ActionArgs) {
 
   const basePath = extractBasePath(spec as Record<string, unknown>)
 
-  if (gatewayId) {
-    const conflict = await findApiByGatewayAndBasePath(gatewayId, basePath)
-    if (conflict) return { error: `Base path "${basePath}" is already in use by another API in this gateway.` }
+  if (organisationId) {
+    const conflict = await findApiByOrganisationAndBasePath(organisationId, basePath)
+    if (conflict) return { error: `Base path "${basePath}" is already in use by another API in this organisation.` }
   }
 
   let awsApiId: string
@@ -66,7 +66,7 @@ export async function action({ request }: Route.ActionArgs) {
 
   const now = new Date()
   try {
-    await createApi({ name, displayName, scope, specType, spec, basePath, gatewayId, createdBy, updatedBy: createdBy, awsApiId, updatedAt: now })
+    await createApi({ name, displayName, scope, specType, spec, basePath, organisationId, createdBy, updatedBy: createdBy, awsApiId, updatedAt: now })
   } catch (err) {
     console.error("[api-create] DB insert failed", err)
     return { error: "Something went wrong while saving. Please try again." }

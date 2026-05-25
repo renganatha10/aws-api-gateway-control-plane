@@ -1,1 +1,0 @@
-ALTER TABLE apis ADD COLUMN aws_api_id VARCHAR(100);

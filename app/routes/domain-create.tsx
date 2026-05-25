@@ -2,9 +2,9 @@ import { useState } from "react"
 import { Form, redirect, useActionData, useLoaderData, useNavigate, useNavigation } from "react-router"
 import { Plus, X } from "lucide-react"
 
-import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
+import { getActiveOrganisationId, requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/cognito.server"
-import { listApisByGateway } from "~/repositories/api.repository.server"
+import { listApisByOrganisation } from "~/repositories/api.repository.server"
 import { createDomain } from "~/repositories/domain.repository.server"
 import { replaceMappings } from "~/repositories/domain-route-mapping.repository.server"
 import { createCustomDomain, createBasePathMapping } from "~/aws/custom-domain.server"
@@ -30,23 +30,23 @@ export function meta({}: Route.MetaArgs) {
 
 export async function loader({ request }: Route.LoaderArgs) {
   await requireAuth(request)
-  const gatewayId = await getActiveGatewayId(request)
+  const organisationId = await getActiveOrganisationId(request)
 
   const [allApis, certs] = await Promise.all([
-    gatewayId ? listApisByGateway(gatewayId) : [],
+    organisationId ? listApisByOrganisation(organisationId) : [],
     listIssuedCertificates().catch(() => []),
   ])
 
   const apis = allApis.filter((a) => !!a.awsApiId)
-  return { apis, certs, gatewayId }
+  return { apis, certs, organisationId }
 }
 
 export async function action({ request }: Route.ActionArgs) {
   const { accessToken } = await requireAuth(request)
   const createdBy       = getUserProfile(accessToken).email
-  const gatewayId       = await getActiveGatewayId(request)
+  const organisationId       = await getActiveOrganisationId(request)
 
-  if (!gatewayId) return { error: "No active gateway selected." }
+  if (!organisationId) return { error: "No active organisation selected." }
 
   const formData       = await request.formData()
   const domainName     = (formData.get("domainName") as string)?.trim().toLowerCase()
@@ -72,7 +72,7 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   // Load APIs to resolve awsApiId
-  const allApis = await listApisByGateway(gatewayId)
+  const allApis = await listApisByOrganisation(organisationId)
   const apiMap  = new Map(allApis.map((a) => [String(a.id), a]))
 
   for (const m of mappings) {
@@ -117,7 +117,7 @@ export async function action({ request }: Route.ActionArgs) {
   try {
     const now    = new Date()
     const domain = await createDomain({
-      gatewayId,
+      organisationId,
       domainName,
       certificateArn,
       awsDomainName,
@@ -380,7 +380,7 @@ export default function DomainCreatePage() {
               </div>
             </RadioGroup>
             <p className="text-xs text-muted-foreground">
-              Regional: cert must be in the same region as your gateway. Edge: cert must be in us-east-1.
+              Regional: cert must be in the same region as your organisation. Edge: cert must be in us-east-1.
             </p>
           </div>
 

@@ -2,16 +2,16 @@
 import { Form, Link, redirect, useFetcher, useLoaderData, useNavigation } from "react-router"
 import { Rocket } from "lucide-react"
 
-import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
+import { getActiveOrganisationId, requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/cognito.server"
 import { findProductById, updateProduct, deleteProduct } from "~/repositories/product.repository.server"
 import { listConsumersByProduct } from "~/repositories/consumer.repository.server"
 import { listApisByProduct, syncApiAssociations } from "~/repositories/api-association.repository.server"
 import { listPlansByProduct, syncPlanAssociations } from "~/repositories/plan-association.repository.server"
-import { listApisByGateway, findApiById } from "~/repositories/api.repository.server"
-import { listPlansByGateway } from "~/repositories/plan.repository.server"
+import { listApisByOrganisation, findApiById } from "~/repositories/api.repository.server"
+import { listPlansByOrganisation } from "~/repositories/plan.repository.server"
 import { listDeploymentsByProduct, upsertProductDeployment } from "~/repositories/product-deployment.repository.server"
-import { listEnvironmentsByGateway, findEnvironmentById } from "~/repositories/environment.repository.server"
+import { listEnvironmentsByOrganisation, findEnvironmentById } from "~/repositories/environment.repository.server"
 import { publishProductToEnvironment } from "~/aws/publish-product.server"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
@@ -52,7 +52,7 @@ export function meta({ data }: Route.MetaArgs) {
 export async function loader({ request, params }: Route.LoaderArgs) {
   const { accessToken } = await requireAuth(request)
   const { email }       = getUserProfile(accessToken)
-  const gatewayId       = await getActiveGatewayId(request)
+  const organisationId       = await getActiveOrganisationId(request)
   const id              = Number(params.id)
 
   const product = await findProductById(id)
@@ -61,19 +61,19 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const [associatedApis, associatedPlans, allApis, allPlans, deployments, allEnvironments] = await Promise.all([
     listApisByProduct(id),
     listPlansByProduct(id),
-    gatewayId ? listApisByGateway(gatewayId) : [],
-    gatewayId ? listPlansByGateway(gatewayId) : [],
+    organisationId ? listApisByOrganisation(organisationId) : [],
+    organisationId ? listPlansByOrganisation(organisationId) : [],
     listDeploymentsByProduct(id),
-    gatewayId ? listEnvironmentsByGateway(gatewayId) : [],
+    organisationId ? listEnvironmentsByOrganisation(organisationId) : [],
   ])
 
-  return { product, associatedApis, associatedPlans, allApis, allPlans, email, gatewayId, deployments, allEnvironments }
+  return { product, associatedApis, associatedPlans, allApis, allPlans, email, organisationId, deployments, allEnvironments }
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
   const { accessToken } = await requireAuth(request)
   const createdBy = getUserProfile(accessToken).email
-  const gatewayId = await getActiveGatewayId(request)
+  const organisationId = await getActiveOrganisationId(request)
   const id        = Number(params.id)
 
   const formData = await request.formData()
@@ -90,9 +90,9 @@ export async function action({ request, params }: Route.ActionArgs) {
 
     try {
       await updateProduct(id, { displayName, description, visibility, updatedBy: createdBy, updatedAt: new Date() })
-      if (gatewayId) {
-        await syncApiAssociations(id, apiIds, gatewayId, createdBy)
-        await syncPlanAssociations(id, planIds, gatewayId, createdBy)
+      if (organisationId) {
+        await syncApiAssociations(id, apiIds, organisationId, createdBy)
+        await syncPlanAssociations(id, planIds, organisationId, createdBy)
       }
     } catch (err) {
       console.error("[products.$id] update failed", err)
@@ -126,7 +126,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 
   if (intent === "publish") {
     const envId = Number(formData.get("environmentId"))
-    if (!envId || !gatewayId) return { publishError: "Invalid request." }
+    if (!envId || !organisationId) return { publishError: "Invalid request." }
 
     const [assocApis, environment] = await Promise.all([
       listApisByProduct(id),
@@ -162,7 +162,7 @@ export async function action({ request, params }: Route.ActionArgs) {
       await upsertProductDeployment({
         productId: id,
         environmentId: envId,
-        gatewayId,
+        organisationId,
         status:    "deployed",
         invokeUrl,
         createdBy,

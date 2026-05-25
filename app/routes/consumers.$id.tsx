@@ -2,16 +2,16 @@ import { useState } from "react"
 import { Form, Link, redirect, useActionData, useLoaderData, useNavigation, useFetcher } from "react-router"
 import { Eye, EyeOff, Trash2 } from "lucide-react"
 
-import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
+import { getActiveOrganisationId, requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/cognito.server"
 import {
   findConsumerById,
   updateConsumer,
   deleteConsumer,
 } from "~/repositories/consumer.repository.server"
-import { listProductsByGateway } from "~/repositories/product.repository.server"
-import { listEnvironmentsByGateway } from "~/repositories/environment.repository.server"
-import { listPlansByGateway } from "~/repositories/plan.repository.server"
+import { listProductsByOrganisation } from "~/repositories/product.repository.server"
+import { listEnvironmentsByOrganisation } from "~/repositories/environment.repository.server"
+import { listPlansByOrganisation } from "~/repositories/plan.repository.server"
 import { deleteAppClient } from "~/aws/cognito-app-client.server"
 import { deleteApiKey } from "~/aws/api-key.server"
 import { USER_POOL_ID } from "~/aws/cognito-client.server"
@@ -40,14 +40,14 @@ export function meta({ data }: Route.MetaArgs) {
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   await requireAuth(request)
-  const gatewayId = await getActiveGatewayId(request)
+  const organisationId = await getActiveOrganisationId(request)
   const consumer  = await findConsumerById(Number(params.id))
   if (!consumer) throw new Response("Not found", { status: 404 })
 
   const [products, environments, plans] = await Promise.all([
-    gatewayId ? listProductsByGateway(gatewayId) : [],
-    gatewayId ? listEnvironmentsByGateway(gatewayId) : [],
-    gatewayId ? listPlansByGateway(gatewayId) : [],
+    organisationId ? listProductsByOrganisation(organisationId) : [],
+    organisationId ? listEnvironmentsByOrganisation(organisationId) : [],
+    organisationId ? listPlansByOrganisation(organisationId) : [],
   ])
 
   return { consumer, products, environments, plans }

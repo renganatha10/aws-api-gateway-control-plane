@@ -3,8 +3,8 @@ import { eq } from "drizzle-orm"
 import { db } from "~/lib/db.server"
 import { plans, type Plan, type NewPlan } from "~/lib/schema"
 
-export async function listPlansByGateway(gatewayId: number): Promise<Plan[]> {
-  return db.select().from(plans).where(eq(plans.gatewayId, gatewayId)).orderBy(plans.createdAt)
+export async function listPlansByOrganisation(organisationId: number): Promise<Plan[]> {
+  return db.select().from(plans).where(eq(plans.organisationId, organisationId)).orderBy(plans.createdAt)
 }
 
 export async function findPlanById(id: number): Promise<Plan | undefined> {

@@ -4,7 +4,7 @@ import { toast } from "sonner"
 
 import { requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/cognito.server"
-import { createGateway } from "~/repositories/gateway.repository.server"
+import { createOrganisation } from "~/repositories/organisation.repository.server"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import { Label } from "~/components/ui/label"
@@ -15,10 +15,10 @@ import {
   CardHeader,
   CardTitle,
 } from "~/components/ui/card"
-import type { Route } from "./+types/gateway"
+import type { Route } from "./+types/organisation"
 
 export function meta({}: Route.MetaArgs) {
-  return [{ title: "Create Gateway" }]
+  return [{ title: "Create Organisation" }]
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -34,19 +34,19 @@ export async function action({ request }: Route.ActionArgs) {
   const formData = await request.formData()
   const name = (formData.get("name") as string)?.trim()
 
-  if (!name) return { error: "Gateway name is required." }
+  if (!name) return { error: "Organisation name is required." }
 
   try {
-    await createGateway({ name, createdBy })
+    await createOrganisation({ name, createdBy })
   } catch (err) {
-    console.error("[gateway] create failed", err)
-    return { error: "Failed to create gateway. Please try again." }
+    console.error("[organisation] create failed", err)
+    return { error: "Failed to create organisation. Please try again." }
   }
 
   throw redirect("/")
 }
 
-export default function GatewayCreate() {
+export default function OrganisationCreate() {
   const actionData = useActionData<typeof action>()
   const navigate = useNavigate()
 
@@ -60,27 +60,27 @@ export default function GatewayCreate() {
     <div className="flex min-h-full items-start justify-center px-4 py-12">
       <Card className="w-full max-w-lg shadow-sm">
         <CardHeader>
-          <CardTitle className="text-xl">Create a Gateway</CardTitle>
+          <CardTitle className="text-xl">Create an Organisation</CardTitle>
           <CardDescription>
-            Give your gateway a name. You can add environments after it's created.
+            Give your organisation a name. You can add environments after it's created.
           </CardDescription>
         </CardHeader>
 
         <CardContent>
           <Form method="post" className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="name">Gateway name</Label>
+              <Label htmlFor="name">Organisation name</Label>
               <Input
                 id="name"
                 name="name"
-                placeholder="e.g. payments-gateway"
+                placeholder="e.g. my-organisation"
                 required
               />
             </div>
 
             <div className="flex gap-3">
               <Button type="submit" className="flex-1" size="lg">
-                Create Gateway
+                Create Organisation
               </Button>
               <Button
                 type="button"

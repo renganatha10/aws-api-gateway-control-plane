@@ -4,7 +4,7 @@ export default [
   route("health", "routes/health.ts"),
   route("login", "routes/login.tsx"),
   route("logout", "routes/logout.tsx"),
-  route("api/gateway-switch", "routes/api.gateway-switch.ts"),
+  route("api/organisation-switch", "routes/api.organisation-switch.ts"),
   route("api/consumer-secret/:id", "routes/api.consumer-secret.$id.ts"),
   route("api/consumer-apikey/:id", "routes/api.consumer-apikey.$id.ts"),
   route("api/consumer-token/:id", "routes/api.consumer-token.$id.ts"),
@@ -13,7 +13,7 @@ export default [
   route("reset-password", "routes/reset-password.tsx"),
   layout("routes/layout.tsx", [
     index("routes/home.tsx"),
-    route("gateway", "routes/gateway.tsx"),
+    route("organisation", "routes/organisation.tsx"),
     route("apis", "routes/apis.tsx"),
     route("apis/new", "routes/api-create.tsx"),
     route("apis/:id", "routes/apis.$id.tsx"),

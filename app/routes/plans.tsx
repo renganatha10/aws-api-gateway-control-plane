@@ -2,13 +2,13 @@
 import { useFetcher } from "react-router"
 import { Zap } from "lucide-react"
 
-import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
+import { getActiveOrganisationId, requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/cognito.server"
 import {
   createPlan,
   deletePlan,
   findPlanById,
-  listPlansByGateway,
+  listPlansByOrganisation,
   updatePlan,
 } from "~/repositories/plan.repository.server"
 import { listProductsByPlan } from "~/repositories/plan-association.repository.server"
@@ -45,9 +45,9 @@ export function meta({}: Route.MetaArgs) {
 export async function loader({ request }: Route.LoaderArgs) {
   const { accessToken } = await requireAuth(request)
   const { email }       = getUserProfile(accessToken)
-  const gatewayId       = await getActiveGatewayId(request)
-  const plans           = gatewayId ? await listPlansByGateway(gatewayId) : []
-  return { plans, gatewayId, email }
+  const organisationId       = await getActiveOrganisationId(request)
+  const plans           = organisationId ? await listPlansByOrganisation(organisationId) : []
+  return { plans, organisationId, email }
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -57,11 +57,11 @@ export async function action({ request }: Route.ActionArgs) {
   const intent          = formData.get("_intent") as string
 
   if (intent === "create") {
-    const gatewayId   = Number(formData.get("gatewayId"))
-    if (!gatewayId) return { error: "No gateway" }
+    const organisationId   = Number(formData.get("organisationId"))
+    if (!organisationId) return { error: "No organisation" }
 
     const name        = String(formData.get("name")).trim()
-    const displayName = `${name}-${gatewayId}`
+    const displayName = `${name}-${organisationId}`
     const params = {
       name,
       displayName,
@@ -80,7 +80,7 @@ export async function action({ request }: Route.ActionArgs) {
     }
 
     try {
-      await createPlan({ ...params, gatewayId, createdBy: email, awsUsagePlanId })
+      await createPlan({ ...params, organisationId, createdBy: email, awsUsagePlanId })
     } catch (err) {
       console.error("[plans] createPlan DB failed", err)
       return { error: "Something went wrong while saving. Please try again." }
@@ -96,7 +96,7 @@ export async function action({ request }: Route.ActionArgs) {
     if (!existing) return { error: "Plan not found" }
 
     const name        = String(formData.get("name")).trim()
-    const displayName = `${name}-${existing.gatewayId}`
+    const displayName = `${name}-${existing.organisationId}`
     const params = {
       name,
       displayName,
@@ -202,7 +202,7 @@ function formFromPlan(p: Plan): PlanForm {
 }
 
 export default function PlansPage({ loaderData }: Route.ComponentProps) {
-  const { plans, gatewayId } = loaderData
+  const { plans, organisationId } = loaderData
   const fetcher       = useFetcher<typeof action>()
   const deleteFetcher = useFetcher<typeof action>()
 
@@ -248,7 +248,7 @@ export default function PlansPage({ loaderData }: Route.ComponentProps) {
     if (editingPlan) {
       fetcher.submit({ _intent: "update", id: String(editingPlan.id), ...base }, { method: "post" })
     } else {
-      fetcher.submit({ _intent: "create", gatewayId: String(gatewayId), ...base }, { method: "post" })
+      fetcher.submit({ _intent: "create", organisationId: String(organisationId), ...base }, { method: "post" })
     }
     setDialogOpen(false)
   }
@@ -264,21 +264,21 @@ export default function PlansPage({ loaderData }: Route.ComponentProps) {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
         <h1 className="text-3xl font-normal text-gray-900">Plans</h1>
-        <Button size="sm" disabled={!gatewayId} onClick={openCreate}>
+        <Button size="sm" disabled={!organisationId} onClick={openCreate}>
           Add
         </Button>
       </div>
 
-      {/* No gateway */}
-      {!gatewayId && (
+      {/* No organisation */}
+      {!organisationId && (
         <div className="flex flex-col items-center justify-center flex-1 py-24 text-center gap-3">
           <Zap className="size-10 text-gray-300" />
-          <p className="text-gray-500 text-sm">Select a gateway from the sidebar to view its plans.</p>
+          <p className="text-gray-500 text-sm">Select an Organisation from the sidebar to view its plans.</p>
         </div>
       )}
 
       {/* Empty state */}
-      {gatewayId && plans.length === 0 && (
+      {organisationId && plans.length === 0 && (
         <div className="flex flex-col items-center justify-center gap-3 mx-6 mt-6 rounded-lg border-2 border-dashed border-gray-200 py-16 text-center">
           <svg className="size-10 text-gray-300" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
             <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
@@ -300,7 +300,7 @@ export default function PlansPage({ loaderData }: Route.ComponentProps) {
       )}
 
       {/* Card grid */}
-      {gatewayId && plans.length > 0 && (
+      {organisationId && plans.length > 0 && (
         <div className="px-6 py-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {plans.map((plan) => (

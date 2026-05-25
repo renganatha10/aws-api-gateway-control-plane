@@ -1,8 +1,8 @@
 import { Link, useNavigate, useNavigation } from "react-router"
 import { Zap } from "lucide-react"
 
-import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
-import { listApisByGateway } from "~/repositories/api.repository.server"
+import { getActiveOrganisationId, requireAuth } from "~/lib/session.server"
+import { listApisByOrganisation } from "~/repositories/api.repository.server"
 import { Button } from "~/components/ui/button"
 import {
   Table,
@@ -20,13 +20,13 @@ export function meta({}: Route.MetaArgs) {
 
 export async function loader({ request }: Route.LoaderArgs) {
   await requireAuth(request)
-  const gatewayId = await getActiveGatewayId(request)
+  const organisationId = await getActiveOrganisationId(request)
   try {
-    const apis = gatewayId ? await listApisByGateway(gatewayId) : []
-    return { apis, gatewayId }
+    const apis = organisationId ? await listApisByOrganisation(organisationId) : []
+    return { apis, organisationId }
   } catch (err) {
     console.error("[apis] loader failed", err)
-    return { apis: [], gatewayId }
+    return { apis: [], organisationId }
   }
 }
 
@@ -36,7 +36,7 @@ const SPEC_TYPE_LABEL: Record<string, string> = {
 }
 
 export default function ApisPage({ loaderData }: Route.ComponentProps) {
-  const { apis, gatewayId } = loaderData
+  const { apis, organisationId } = loaderData
   const navigate   = useNavigate()
   const navigation = useNavigation()
 
@@ -62,16 +62,16 @@ export default function ApisPage({ loaderData }: Route.ComponentProps) {
         </div>
       )}
 
-      {/* No gateway selected */}
-      {!isLoading && !gatewayId && (
+      {/* No organisation selected */}
+      {!isLoading && !organisationId && (
         <div className="flex flex-col items-center justify-center flex-1 py-24 text-center gap-3">
           <Zap className="size-10 text-gray-300" />
-          <p className="text-gray-500 text-sm">Select a gateway from the sidebar to view its APIs.</p>
+          <p className="text-gray-500 text-sm">Select an Organisation from the sidebar to view its APIs.</p>
         </div>
       )}
 
       {/* Empty state */}
-      {!isLoading && gatewayId && apis.length === 0 && (
+      {!isLoading && organisationId && apis.length === 0 && (
         <div className="flex flex-col items-center justify-center gap-3 mx-6 mt-6 rounded-lg border-2 border-dashed border-gray-200 py-16 text-center">
           <Zap className="size-10 text-gray-300" />
           <div>
@@ -84,7 +84,7 @@ export default function ApisPage({ loaderData }: Route.ComponentProps) {
       )}
 
       {/* Table */}
-      {!isLoading && gatewayId && apis.length > 0 && (
+      {!isLoading && organisationId && apis.length > 0 && (
         <Table>
           <TableHeader>
             <TableRow className="bg-gray-100 hover:bg-gray-100">

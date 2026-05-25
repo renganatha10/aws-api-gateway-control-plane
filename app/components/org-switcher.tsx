@@ -1,7 +1,7 @@
 import { Check, ChevronsUpDown, Plus } from "lucide-react"
 import { useFetcher, useNavigate } from "react-router"
 
-import type { Gateway } from "~/lib/schema"
+import type { Organisation } from "~/lib/schema"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,21 +16,21 @@ import {
   useSidebar,
 } from "~/components/ui/sidebar"
 
-interface ApiSwitcherProps {
-  gateways: Gateway[]
+interface OrgSwitcherProps {
+  organisations: Organisation[]
   activeId: number | undefined
 }
 
-export function ApiSwitcher({ gateways, activeId }: ApiSwitcherProps) {
+export function OrgSwitcher({ organisations, activeId }: OrgSwitcherProps) {
   const { isMobile } = useSidebar()
   const navigate  = useNavigate()
   const fetcher   = useFetcher()
-  const active    = gateways.find((g) => g.id === activeId) ?? gateways[0]
+  const active    = organisations.find((o) => o.id === activeId) ?? organisations[0]
 
-  function handleSelect(gw: Gateway) {
+  function handleSelect(org: Organisation) {
     fetcher.submit(
-      { gatewayId: String(gw.id) },
-      { method: "post", action: "/api/gateway-switch" },
+      { organisationId: String(org.id) },
+      { method: "post", action: "/api/organisation-switch" },
     )
   }
 
@@ -43,7 +43,7 @@ export function ApiSwitcher({ gateways, activeId }: ApiSwitcherProps) {
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <span className="truncate font-medium">{active?.name ?? "Select Gateway"}</span>
+              <span className="truncate font-medium">{active?.name ?? "Select Organisation"}</span>
               <ChevronsUpDown className="ml-auto size-4 shrink-0 opacity-50" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
@@ -54,14 +54,14 @@ export function ApiSwitcher({ gateways, activeId }: ApiSwitcherProps) {
             side={isMobile ? "bottom" : "right"}
             sideOffset={4}
           >
-            {gateways.map((gw) => (
+            {organisations.map((org) => (
               <DropdownMenuItem
-                key={gw.id}
-                onSelect={() => handleSelect(gw)}
+                key={org.id}
+                onSelect={() => handleSelect(org)}
                 className="gap-2"
               >
-                <span className="flex-1 truncate">{gw.name}</span>
-                {gw.id === activeId && <Check className="size-4 shrink-0" />}
+                <span className="flex-1 truncate">{org.name}</span>
+                {org.id === activeId && <Check className="size-4 shrink-0" />}
               </DropdownMenuItem>
             ))}
 
@@ -69,10 +69,10 @@ export function ApiSwitcher({ gateways, activeId }: ApiSwitcherProps) {
 
             <DropdownMenuItem
               className="gap-2 text-primary font-medium"
-              onSelect={() => navigate("/gateway")}
+              onSelect={() => navigate("/organisation")}
             >
               <Plus className="size-4 shrink-0" />
-              Create Gateway
+              Create Organisation
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

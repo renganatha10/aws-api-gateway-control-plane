@@ -7,8 +7,8 @@ export async function createProduct(data: NewProduct) {
   return created
 }
 
-export async function listProductsByGateway(gatewayId: number) {
-  return db.select().from(products).where(eq(products.gatewayId, gatewayId))
+export async function listProductsByOrganisation(organisationId: number) {
+  return db.select().from(products).where(eq(products.organisationId, organisationId))
 }
 
 export async function findProductById(id: number) {

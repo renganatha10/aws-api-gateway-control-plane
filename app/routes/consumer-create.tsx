@@ -1,13 +1,13 @@
 import { useState } from "react"
 import { Form, redirect, useActionData, useLoaderData, useNavigate, useNavigation } from "react-router"
 
-import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
+import { getActiveOrganisationId, requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/cognito.server"
 import { createConsumer } from "~/repositories/consumer.repository.server"
-import { listProductsByGateway } from "~/repositories/product.repository.server"
-import { listEnvironmentsByGateway, findEnvironmentById } from "~/repositories/environment.repository.server"
-import { listPlansByGateway, findPlanById } from "~/repositories/plan.repository.server"
-import { listDeploymentsByGateway } from "~/repositories/product-deployment.repository.server"
+import { listProductsByOrganisation } from "~/repositories/product.repository.server"
+import { listEnvironmentsByOrganisation, findEnvironmentById } from "~/repositories/environment.repository.server"
+import { listPlansByOrganisation, findPlanById } from "~/repositories/plan.repository.server"
+import { listDeploymentsByOrganisation } from "~/repositories/product-deployment.repository.server"
 import { listApiScopesForProduct } from "~/repositories/api-association.repository.server"
 import { ensureResourceServer } from "~/aws/cognito-resource-server.server"
 import { createMachineClient, getTokenUrl } from "~/aws/cognito-app-client.server"
@@ -31,27 +31,27 @@ export function meta({}: Route.MetaArgs) {
 
 export async function loader({ request }: Route.LoaderArgs) {
   await requireAuth(request)
-  const gatewayId = await getActiveGatewayId(request)
+  const organisationId = await getActiveOrganisationId(request)
 
   const [allProducts, allEnvironments, plans, deployments] = await Promise.all([
-    gatewayId ? listProductsByGateway(gatewayId) : [],
-    gatewayId ? listEnvironmentsByGateway(gatewayId) : [],
-    gatewayId ? listPlansByGateway(gatewayId) : [],
-    gatewayId ? listDeploymentsByGateway(gatewayId) : [],
+    organisationId ? listProductsByOrganisation(organisationId) : [],
+    organisationId ? listEnvironmentsByOrganisation(organisationId) : [],
+    organisationId ? listPlansByOrganisation(organisationId) : [],
+    organisationId ? listDeploymentsByOrganisation(organisationId) : [],
   ])
 
   const deployedProductIds = new Set(deployments.map((d) => d.productId))
   const products = allProducts.filter((p) => deployedProductIds.has(p.id))
 
-  return { products, allEnvironments, plans, deployments, gatewayId }
+  return { products, allEnvironments, plans, deployments, organisationId }
 }
 
 export async function action({ request }: Route.ActionArgs) {
   const { accessToken } = await requireAuth(request)
   const createdBy       = getUserProfile(accessToken).email
-  const gatewayId       = await getActiveGatewayId(request)
+  const organisationId       = await getActiveOrganisationId(request)
 
-  if (!gatewayId) return { error: "No active gateway selected." }
+  if (!organisationId) return { error: "No active organisation selected." }
 
   const formData      = await request.formData()
   const name          = (formData.get("name") as string)?.trim()
@@ -88,7 +88,7 @@ export async function action({ request }: Route.ActionArgs) {
     const fullScopes = apis.map((api) => `${api.name}/${api.scope}`)
 
     // 3. Create Cognito machine client + resolve token URL
-    const awsResourceName = `${name}-${gatewayId}`
+    const awsResourceName = `${name}-${organisationId}`
     const [machineClient, resolvedTokenUrl] = await Promise.all([
       createMachineClient(USER_POOL_ID, awsResourceName, fullScopes),
       getTokenUrl(USER_POOL_ID),
@@ -119,7 +119,7 @@ export async function action({ request }: Route.ActionArgs) {
       productId,
       environmentId,
       planId,
-      gatewayId,
+      organisationId,
       clientId,
       awsApiKeyId,
       tokenUrl,

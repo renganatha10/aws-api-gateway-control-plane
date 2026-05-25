@@ -5,7 +5,7 @@ import { toast } from "sonner"
 
 import { requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/cognito.server"
-import { deleteApi, findApiById, findApiByGatewayAndBasePath, updateApi } from "~/repositories/api.repository.server"
+import { deleteApi, findApiById, findApiByOrganisationAndBasePath, updateApi } from "~/repositories/api.repository.server"
 import { listProductsByApi } from "~/repositories/api-association.repository.server"
 import { buildAwsSpec, extractBasePath } from "~/aws/build-aws-spec.server"
 import { importApiSpec, putApiSpec } from "~/aws/import-api.server"
@@ -346,9 +346,9 @@ export async function action({ request, params }: Route.ActionArgs) {
   const basePath = extractBasePath(spec as Record<string, unknown>)
 
   const existing = await findApiById(id)
-  if (existing?.gatewayId) {
-    const conflict = await findApiByGatewayAndBasePath(existing.gatewayId, basePath, id)
-    if (conflict) return { error: `Base path "${basePath}" is already in use by another API in this gateway.` }
+  if (existing?.organisationId) {
+    const conflict = await findApiByOrganisationAndBasePath(existing.organisationId, basePath, id)
+    if (conflict) return { error: `Base path "${basePath}" is already in use by another API in this organisation.` }
   }
 
   let awsApiId = existing?.awsApiId ?? null

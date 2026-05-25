@@ -2,7 +2,7 @@ import { useState } from "react"
 import { Form, Link, redirect, useFetcher, useLoaderData, useNavigation } from "react-router"
 import { Plus, X } from "lucide-react"
 
-import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
+import { getActiveOrganisationId, requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/cognito.server"
 import { findDomainById, deleteDomain } from "~/repositories/domain.repository.server"
 import {
@@ -10,7 +10,7 @@ import {
   listMappingsWithApiByDomain,
   replaceMappings,
 } from "~/repositories/domain-route-mapping.repository.server"
-import { listApisByGateway } from "~/repositories/api.repository.server"
+import { listApisByOrganisation } from "~/repositories/api.repository.server"
 import {
   createBasePathMapping,
   deleteBasePathMapping,
@@ -38,7 +38,7 @@ export function meta({ data }: Route.MetaArgs) {
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   await requireAuth(request)
-  const gatewayId = await getActiveGatewayId(request)
+  const organisationId = await getActiveOrganisationId(request)
   const id        = Number(params.id)
 
   const domain = await findDomainById(id)
@@ -46,7 +46,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
   const [mappings, allApis] = await Promise.all([
     listMappingsWithApiByDomain(id),
-    gatewayId ? listApisByGateway(gatewayId) : [],
+    organisationId ? listApisByOrganisation(organisationId) : [],
   ])
 
   const syncedApis = allApis.filter((a) => !!a.awsApiId)
@@ -82,7 +82,7 @@ export async function action({ request, params }: Route.ActionArgs) {
     // Load old mappings (with awsApiId) and all APIs for awsApiId lookup on new mappings
     const [oldMappings, allApis] = await Promise.all([
       listMappingsWithApiByDomain(id),
-      listApisByGateway(domain.gatewayId),
+      listApisByOrganisation(domain.organisationId),
     ])
 
     const apiMap = new Map(allApis.map((a) => [String(a.id), a]))

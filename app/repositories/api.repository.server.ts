@@ -8,8 +8,8 @@ export async function createApi(api: NewApi): Promise<Api> {
   return created
 }
 
-export async function listApisByGateway(gatewayId: number): Promise<Api[]> {
-  return db.select().from(apis).where(eq(apis.gatewayId, gatewayId)).orderBy(apis.createdAt)
+export async function listApisByOrganisation(organisationId: number): Promise<Api[]> {
+  return db.select().from(apis).where(eq(apis.organisationId, organisationId)).orderBy(apis.createdAt)
 }
 
 export async function findApiById(id: number): Promise<Api | undefined> {
@@ -17,12 +17,12 @@ export async function findApiById(id: number): Promise<Api | undefined> {
   return row
 }
 
-export async function findApiByGatewayAndBasePath(
-  gatewayId: number,
+export async function findApiByOrganisationAndBasePath(
+  organisationId: number,
   basePath: string,
   excludeId?: number,
 ): Promise<Api | undefined> {
-  const conditions = [eq(apis.gatewayId, gatewayId), eq(apis.basePath, basePath)]
+  const conditions = [eq(apis.organisationId, organisationId), eq(apis.basePath, basePath)]
   if (excludeId !== undefined) conditions.push(ne(apis.id, excludeId))
   const [row] = await db.select().from(apis).where(and(...conditions))
   return row

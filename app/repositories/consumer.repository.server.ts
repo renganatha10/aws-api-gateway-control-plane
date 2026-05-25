@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm"
 import { db } from "~/lib/db.server"
 import { consumers, products, environments, plans, type Consumer, type NewConsumer } from "~/lib/schema"
 
-export async function listConsumersByGateway(gatewayId: number) {
+export async function listConsumersByOrganisation(organisationId: number) {
   return db
     .select({
       id:              consumers.id,
@@ -11,7 +11,7 @@ export async function listConsumersByGateway(gatewayId: number) {
       productId:       consumers.productId,
       environmentId:   consumers.environmentId,
       planId:          consumers.planId,
-      gatewayId:       consumers.gatewayId,
+      organisationId:  consumers.organisationId,
       createdBy:       consumers.createdBy,
       updatedBy:       consumers.updatedBy,
       createdAt:       consumers.createdAt,
@@ -27,9 +27,8 @@ export async function listConsumersByGateway(gatewayId: number) {
     .innerJoin(products,     eq(consumers.productId,     products.id))
     .innerJoin(environments, eq(consumers.environmentId, environments.id))
     .innerJoin(plans,        eq(consumers.planId,        plans.id))
-    .where(eq(consumers.gatewayId, gatewayId))
+    .where(eq(consumers.organisationId, organisationId))
     .orderBy(consumers.createdAt)
-
 }
 
 export async function findConsumerById(id: number): Promise<Consumer | undefined> {
@@ -45,7 +44,7 @@ export async function findConsumerWithDetailById(id: number) {
       productId:       consumers.productId,
       environmentId:   consumers.environmentId,
       planId:          consumers.planId,
-      gatewayId:       consumers.gatewayId,
+      organisationId:  consumers.organisationId,
       clientId:        consumers.clientId,
       awsApiKeyId:     consumers.awsApiKeyId,
       tokenUrl:        consumers.tokenUrl,

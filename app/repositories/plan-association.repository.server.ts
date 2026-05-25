@@ -16,7 +16,7 @@ export async function removePlanFromProduct(productId: number, planId: number) {
 export async function syncPlanAssociations(
   productId: number,
   newPlanIds: number[],
-  gatewayId: number,
+  organisationId: number,
   createdBy: string,
 ) {
   const existing = await db
@@ -34,7 +34,7 @@ export async function syncPlanAssociations(
   }
   for (const planId of newPlanIds) {
     if (!existingIds.includes(planId)) {
-      await db.insert(planAssociations).values({ productId, planId, gatewayId, createdBy })
+      await db.insert(planAssociations).values({ productId, planId, organisationId, createdBy })
     }
   }
 }
@@ -50,15 +50,15 @@ export async function listProductsByPlan(planId: number) {
 export async function listPlansByProduct(productId: number) {
   return db
     .select({
-      id:          plans.id,
-      name:        plans.name,
-      displayName: plans.displayName,
-      throttle:    plans.throttle,
-      burst:       plans.burst,
-      quotaLimit:  plans.quotaLimit,
-      quotaPeriod: plans.quotaPeriod,
-      gatewayId:   plans.gatewayId,
-      createdAt:   plans.createdAt,
+      id:             plans.id,
+      name:           plans.name,
+      displayName:    plans.displayName,
+      throttle:       plans.throttle,
+      burst:          plans.burst,
+      quotaLimit:     plans.quotaLimit,
+      quotaPeriod:    plans.quotaPeriod,
+      organisationId: plans.organisationId,
+      createdAt:      plans.createdAt,
     })
     .from(planAssociations)
     .innerJoin(plans, eq(planAssociations.planId, plans.id))

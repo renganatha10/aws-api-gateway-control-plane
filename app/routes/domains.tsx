@@ -1,7 +1,7 @@
 import { Link, useLoaderData, useNavigate } from "react-router"
 
-import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
-import { listDomainsByGateway } from "~/repositories/domain.repository.server"
+import { getActiveOrganisationId, requireAuth } from "~/lib/session.server"
+import { listDomainsByOrganisation } from "~/repositories/domain.repository.server"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import {
@@ -20,9 +20,9 @@ export function meta({}: Route.MetaArgs) {
 
 export async function loader({ request }: Route.LoaderArgs) {
   await requireAuth(request)
-  const gatewayId  = await getActiveGatewayId(request)
-  const domainList = gatewayId ? await listDomainsByGateway(gatewayId) : []
-  return { domains: domainList, gatewayId }
+  const organisationId  = await getActiveOrganisationId(request)
+  const domainList = organisationId ? await listDomainsByOrganisation(organisationId) : []
+  return { domains: domainList, organisationId }
 }
 
 const ENDPOINT_BADGE: Record<string, { label: string; className: string }> = {

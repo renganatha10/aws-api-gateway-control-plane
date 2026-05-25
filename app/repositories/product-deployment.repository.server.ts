@@ -19,11 +19,11 @@ export async function upsertProductDeployment(data: NewProductDeployment) {
   return row
 }
 
-export async function listDeploymentsByGateway(gatewayId: number) {
+export async function listDeploymentsByOrganisation(organisationId: number) {
   return db
     .select()
     .from(productDeployments)
-    .where(eq(productDeployments.gatewayId, gatewayId))
+    .where(eq(productDeployments.organisationId, organisationId))
 }
 
 export async function listDeploymentsByProduct(productId: number) {

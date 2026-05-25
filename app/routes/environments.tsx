@@ -2,11 +2,11 @@
 import { Link, useFetcher } from "react-router"
 import { Zap } from "lucide-react"
 
-import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
+import { getActiveOrganisationId, requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/cognito.server"
 import {
   createEnvironment,
-  listEnvironmentsByGateway,
+  listEnvironmentsByOrganisation,
 } from "~/repositories/environment.repository.server"
 import { Button } from "~/components/ui/button"
 import {
@@ -37,9 +37,9 @@ export function meta({}: Route.MetaArgs) {
 export async function loader({ request }: Route.LoaderArgs) {
   const { accessToken } = await requireAuth(request)
   const { email }       = getUserProfile(accessToken)
-  const gatewayId       = await getActiveGatewayId(request)
-  const environments    = gatewayId ? await listEnvironmentsByGateway(gatewayId) : []
-  return { environments, gatewayId, email }
+  const organisationId       = await getActiveOrganisationId(request)
+  const environments    = organisationId ? await listEnvironmentsByOrganisation(organisationId) : []
+  return { environments, organisationId, email }
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -50,10 +50,10 @@ export async function action({ request }: Route.ActionArgs) {
 
   if (intent === "create") {
     const name      = String(formData.get("name") ?? "").trim()
-    const gatewayId = Number(formData.get("gatewayId"))
-    if (!name || !gatewayId) return { error: "Invalid data" }
+    const organisationId = Number(formData.get("organisationId"))
+    if (!name || !organisationId) return { error: "Invalid data" }
     try {
-      await createEnvironment({ name, gatewayId, createdBy: email })
+      await createEnvironment({ name, organisationId, createdBy: email })
     } catch (err) {
       console.error("[environments] createEnvironment failed", err)
       return { error: "Something went wrong while creating the environment. Please try again." }
@@ -66,7 +66,7 @@ export async function action({ request }: Route.ActionArgs) {
 
 
 export default function EnvironmentsPage({ loaderData }: Route.ComponentProps) {
-  const { environments, gatewayId } = loaderData
+  const { environments, organisationId } = loaderData
   const fetcher  = useFetcher()
   const [open, setOpen]         = useState(false)
   const [name, setName]         = useState("")
@@ -76,9 +76,9 @@ export default function EnvironmentsPage({ loaderData }: Route.ComponentProps) {
 
   function handleCreate() {
     if (!name.trim()) { setNameError("Name is required"); return }
-    if (!gatewayId)   { setNameError("No gateway selected"); return }
+    if (!organisationId)   { setNameError("No organisation selected"); return }
     fetcher.submit(
-      { _intent: "create", name: name.trim(), gatewayId: String(gatewayId) },
+      { _intent: "create", name: name.trim(), organisationId: String(organisationId) },
       { method: "post" },
     )
     setName("")
@@ -99,7 +99,7 @@ export default function EnvironmentsPage({ loaderData }: Route.ComponentProps) {
 
         <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>
-            <Button size="sm" disabled={!gatewayId}>
+            <Button size="sm" disabled={!organisationId}>
               Add
             </Button>
           </DialogTrigger>
@@ -130,16 +130,16 @@ export default function EnvironmentsPage({ loaderData }: Route.ComponentProps) {
         </Dialog>
       </div>
 
-      {/* No gateway selected */}
-      {!gatewayId && (
+      {/* No organisation selected */}
+      {!organisationId && (
         <div className="flex flex-col items-center justify-center flex-1 py-24 text-center gap-3">
           <Zap className="size-10 text-gray-300" />
-          <p className="text-gray-500 text-sm">Select a gateway from the sidebar to view its environments.</p>
+          <p className="text-gray-500 text-sm">Select an Organisation from the sidebar to view its environments.</p>
         </div>
       )}
 
       {/* Empty state */}
-      {gatewayId && environments.length === 0 && (
+      {organisationId && environments.length === 0 && (
         <div className="flex flex-col items-center justify-center gap-3 mx-6 mt-6 rounded-lg border-2 border-dashed border-gray-200 py-16 text-center">
           <Zap className="size-10 text-gray-300" />
           <div>
@@ -157,7 +157,7 @@ export default function EnvironmentsPage({ loaderData }: Route.ComponentProps) {
       )}
 
       {/* Table */}
-      {gatewayId && environments.length > 0 && (
+      {organisationId && environments.length > 0 && (
         <Table>
           <TableHeader>
             <TableRow className="bg-gray-100 hover:bg-gray-100">

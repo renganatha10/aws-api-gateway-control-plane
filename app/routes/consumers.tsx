@@ -1,7 +1,7 @@
 import { Link, useLoaderData, useNavigate } from "react-router"
 
-import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
-import { listConsumersByGateway } from "~/repositories/consumer.repository.server"
+import { getActiveOrganisationId, requireAuth } from "~/lib/session.server"
+import { listConsumersByOrganisation } from "~/repositories/consumer.repository.server"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import {
@@ -20,9 +20,9 @@ export function meta({}: Route.MetaArgs) {
 
 export async function loader({ request }: Route.LoaderArgs) {
   await requireAuth(request)
-  const gatewayId = await getActiveGatewayId(request)
-  const consumers = gatewayId ? await listConsumersByGateway(gatewayId) : []
-  return { consumers, gatewayId }
+  const organisationId = await getActiveOrganisationId(request)
+  const consumers = organisationId ? await listConsumersByOrganisation(organisationId) : []
+  return { consumers, organisationId }
 }
 
 export default function ConsumersPage() {

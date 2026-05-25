@@ -1,6 +1,6 @@
 ﻿import { Form, Link, redirect, useActionData, useNavigation } from "react-router"
 
-import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
+import { getActiveOrganisationId, requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/cognito.server"
 import { createProduct } from "~/repositories/product.repository.server"
 import { Button } from "~/components/ui/button"
@@ -29,7 +29,7 @@ export async function action({ request }: Route.ActionArgs) {
   const { accessToken } = await requireAuth(request)
   const createdBy = getUserProfile(accessToken).email
 
-  const gatewayId = await getActiveGatewayId(request)
+  const organisationId = await getActiveOrganisationId(request)
 
   const formData    = await request.formData()
   const displayName = (formData.get("displayName") as string)?.trim()
@@ -37,9 +37,9 @@ export async function action({ request }: Route.ActionArgs) {
   const visibility  = (formData.get("visibility") as string) || "authenticated"
 
   if (!displayName) return { error: "Display name is required." }
-  if (!gatewayId)   return { error: "No active gateway selected." }
+  if (!organisationId)   return { error: "No active organisation selected." }
 
-  const name = `${gatewayId}-${displayName}`
+  const name = `${organisationId}-${displayName}`
 
   try {
     const created = await createProduct({
@@ -47,7 +47,7 @@ export async function action({ request }: Route.ActionArgs) {
       displayName,
       description,
       visibility,
-      gatewayId,
+      organisationId,
       createdBy,
     })
     return redirect(`/products/${created.id}`)

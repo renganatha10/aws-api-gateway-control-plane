@@ -1,9 +1,9 @@
 import { Link, useLoaderData, useNavigate } from "react-router"
 import { Rocket } from "lucide-react"
 
-import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
-import { listProductsByGateway } from "~/repositories/product.repository.server"
-import { listDeploymentsByGateway } from "~/repositories/product-deployment.repository.server"
+import { getActiveOrganisationId, requireAuth } from "~/lib/session.server"
+import { listProductsByOrganisation } from "~/repositories/product.repository.server"
+import { listDeploymentsByOrganisation } from "~/repositories/product-deployment.repository.server"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import {
@@ -22,14 +22,14 @@ export function meta({}: Route.MetaArgs) {
 
 export async function loader({ request }: Route.LoaderArgs) {
   await requireAuth(request)
-  const gatewayId = await getActiveGatewayId(request)
+  const organisationId = await getActiveOrganisationId(request)
 
   const [products, deployments] = await Promise.all([
-    gatewayId ? listProductsByGateway(gatewayId) : [],
-    gatewayId ? listDeploymentsByGateway(gatewayId) : [],
+    organisationId ? listProductsByOrganisation(organisationId) : [],
+    organisationId ? listDeploymentsByOrganisation(organisationId) : [],
   ])
 
-  return { products, deployments, gatewayId }
+  return { products, deployments, organisationId }
 }
 
 const VISIBILITY_BADGE: Record<string, { label: string; className: string }> = {

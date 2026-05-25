@@ -13,7 +13,7 @@ import {
   Trash2,
 } from "lucide-react"
 
-import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
+import { getActiveOrganisationId, requireAuth } from "~/lib/session.server"
 import { findConsumerWithDetailById } from "~/repositories/consumer.repository.server"
 import { listApisWithSpecByProduct } from "~/repositories/api-association.repository.server"
 import { listDeploymentsByProduct } from "~/repositories/product-deployment.repository.server"
@@ -38,7 +38,7 @@ export function meta({ data }: Route.MetaArgs) {
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   await requireAuth(request)
-  await getActiveGatewayId(request)
+  await getActiveOrganisationId(request)
 
   const consumer = await findConsumerWithDetailById(Number(params.id))
   if (!consumer) throw new Response("Not found", { status: 404 })

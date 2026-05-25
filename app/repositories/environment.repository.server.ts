@@ -8,8 +8,8 @@ export async function createEnvironment(data: NewEnvironment): Promise<Environme
   return created
 }
 
-export async function listEnvironmentsByGateway(gatewayId: number): Promise<Environment[]> {
-  return db.select().from(environments).where(eq(environments.gatewayId, gatewayId))
+export async function listEnvironmentsByOrganisation(organisationId: number): Promise<Environment[]> {
+  return db.select().from(environments).where(eq(environments.organisationId, organisationId))
 }
 
 export async function findEnvironmentById(id: number): Promise<Environment | null> {

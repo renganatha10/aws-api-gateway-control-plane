@@ -13,11 +13,11 @@ export async function findDomainById(id: number): Promise<Domain | undefined> {
   return row
 }
 
-export async function listDomainsByGateway(gatewayId: number) {
+export async function listDomainsByOrganisation(organisationId: number) {
   return db
     .select({
       id:             domains.id,
-      gatewayId:      domains.gatewayId,
+      organisationId: domains.organisationId,
       domainName:     domains.domainName,
       certificateArn: domains.certificateArn,
       awsDomainName:  domains.awsDomainName,
@@ -29,7 +29,7 @@ export async function listDomainsByGateway(gatewayId: number) {
     })
     .from(domains)
     .leftJoin(domainRouteMappings, eq(domainRouteMappings.domainId, domains.id))
-    .where(eq(domains.gatewayId, gatewayId))
+    .where(eq(domains.organisationId, organisationId))
     .groupBy(domains.id)
     .orderBy(domains.createdAt)
 }
