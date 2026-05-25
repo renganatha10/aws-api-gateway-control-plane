@@ -33,11 +33,15 @@ npm run test:e2e:ui      # run Playwright e2e tests (interactive UI)
 ```
 app/
   aws/               # AWS API Gateway + Cognito helpers (one concern per file)
-  components/ui/     # shadcn components
+  components/
+    ui/              # shadcn components
+    apis/            # components for the API detail page
+    consumers/       # components for the consumer detail + tryout pages
+    products/        # components for the product detail page
   hooks/             # shared React hooks
   lib/               # db client, schema, session, cognito
   repositories/      # DB access layer (one file per entity)
-  routes/            # React Router route modules
+  routes/            # React Router route modules (loader + action + thin default export only)
 db/migrations/       # numbered SQL migrations (node-pg-migrate format)
 tests/e2e/           # Playwright end-to-end tests
 ```
@@ -136,6 +140,29 @@ const deleteError = deleteFetcher.data && "deleteError" in deleteFetcher.data
 ```
 
 ### Patterns to follow
+
+**Component organisation** — one component per file, one responsibility per component:
+
+- Route files (`app/routes/`) export only `meta`, `loader`, `action`, and a thin default export that calls `useLoaderData` and renders the page component. No JSX beyond that single return.
+- All UI lives in `app/components/<entity>/`. Each file exports exactly one component or one utility (hook, parser, constants).
+- Name files after what they render: `product-header.tsx`, `delete-product-dialog.tsx`, `apis-section.tsx`.
+- Shared types and constants go in `types.ts` / `constants.ts` within the same directory. Pure parsing/utility functions go in their own file (e.g. `parse-spec.ts`).
+- Multi-intent actions: extract each intent as a private `handle*` function above the exported `action`, which becomes a clean dispatcher:
+
+```ts
+// route file — action only dispatches
+export async function action({ request, params }) {
+  const intent = formData.get("_intent")
+  if (intent === "delete")  return handleDelete(id)
+  if (intent === "publish") return handlePublish(id, formData, organisationId, createdBy)
+  return handleUpdate(id, formData, organisationId, createdBy)
+}
+```
+
+- Delete dialogs own their `useFetcher` internally — no need to lift the fetcher to the page.
+- State orchestration belongs in the `*-detail-page.tsx` component; section/panel components receive only the props they need.
+
+See `app/components/products/` as the canonical example — `product-detail-page.tsx` owns state, `product-header.tsx` / `apis-section.tsx` / `plans-section.tsx` etc. are pure presentational components that receive props and callbacks.
 
 **Loaders/actions** — always call `requireAuth(request)` first, then `getActiveGatewayId(request)`. Multi-intent actions use `formData.get("_intent")`.
 
