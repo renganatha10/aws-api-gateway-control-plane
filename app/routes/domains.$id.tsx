@@ -467,7 +467,7 @@ export default function DomainDetailPage() {
               <Button
                 type="submit"
                 disabled={saveBusy}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-black hover:bg-gray-900 text-white"
               >
                 {saveBusy ? "Saving…" : "Save Mappings"}
               </Button>

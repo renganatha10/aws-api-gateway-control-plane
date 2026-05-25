@@ -164,7 +164,7 @@ export default function ConsumerCreate() {
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-200 shrink-0">
           <h1 className="text-2xl font-normal text-gray-900">New Consumer</h1>
           <div className="flex gap-2">
-            <Button type="submit" disabled={submitting} className="bg-blue-600 hover:bg-blue-700 text-white px-6">
+            <Button type="submit" disabled={submitting} className="bg-black hover:bg-gray-900 text-white px-6">
               {submitting ? "Creating…" : "Save Consumer"}
             </Button>
             <Button type="button" variant="outline" disabled={submitting} onClick={() => navigate(-1)}>

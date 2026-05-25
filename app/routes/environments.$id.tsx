@@ -92,7 +92,7 @@ export default function EnvironmentDetailPage() {
       <div className="flex items-center justify-between px-6 pt-1 pb-0">
         <h1 className="text-3xl font-normal text-gray-900">{name}</h1>
         <div className="flex items-center gap-1">
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-sm px-6">
+          <Button className="bg-black hover:bg-gray-900 text-white rounded-sm px-6">
             Add
           </Button>
           <Button variant="ghost" size="icon" className="text-gray-600">

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { Link, useFetcher, useLoaderData } from "react-router"
 import {
-  ArrowLeft,
   Check,
   ChevronDown,
   ChevronRight,
@@ -402,18 +401,17 @@ export default function ConsumerTryout() {
 
   return (
     <div className="flex flex-col min-h-full bg-white">
+      {/* Breadcrumb */}
+      <div className="px-6 pt-4 text-sm text-muted-foreground shrink-0">
+        <Link to="/consumers" className="hover:underline">Consumers</Link>
+        {" /"}
+      </div>
+
       {/* Header */}
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-200 shrink-0">
-        <Link
-          to="/consumers"
-          className="text-gray-400 hover:text-gray-700 transition-colors"
-          title="Back to Consumers"
-        >
-          <ArrowLeft className="size-5" />
-        </Link>
-        <FlaskConical className="size-5 text-blue-600" />
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-semibold text-gray-900 truncate">Try Out — {consumer.name}</h1>
+      <div className="flex items-center justify-between px-6 pt-1 pb-3 border-b border-gray-200 shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <FlaskConical className="size-5 text-blue-600 shrink-0" />
+          <h1 className="text-2xl font-semibold text-gray-900 truncate">{consumer.name}</h1>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
@@ -426,6 +424,19 @@ export default function ConsumerTryout() {
             {consumer.planName}
           </Badge>
         </div>
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex border-b border-gray-200 px-6 shrink-0">
+        <Link
+          to={`/consumers/${consumer.id}`}
+          className="border-b-2 border-transparent text-gray-500 hover:text-gray-900 px-4 pb-2 pt-2 text-sm font-medium transition-colors"
+        >
+          Details
+        </Link>
+        <span className="border-b-2 border-gray-900 text-gray-900 px-4 pb-2 pt-2 text-sm font-medium">
+          Try Out
+        </span>
       </div>
 
       <div className="flex-1 overflow-auto">
@@ -651,7 +662,7 @@ export default function ConsumerTryout() {
                 <Button
                   onClick={handleSend}
                   disabled={!canSend || isSending}
-                  className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                  className="gap-2 bg-black hover:bg-gray-900 text-white"
                 >
                   <Send className="size-4" />
                   {isSending ? "Sending…" : "Send Request"}

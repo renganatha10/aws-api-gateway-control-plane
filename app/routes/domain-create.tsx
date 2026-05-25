@@ -271,7 +271,7 @@ export default function DomainCreatePage() {
             <Button
               type="submit"
               disabled={submitting}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6"
+              className="bg-black hover:bg-gray-900 text-white px-6"
             >
               {submitting ? "Creating…" : "Save Domain"}
             </Button>

@@ -1,17 +1,28 @@
 import { useState } from "react"
-import { Form, redirect, useActionData, useLoaderData, useNavigate, useNavigation, useFetcher } from "react-router"
-import { Eye, EyeOff } from "lucide-react"
+import { Form, Link, redirect, useActionData, useLoaderData, useNavigation, useFetcher } from "react-router"
+import { Eye, EyeOff, Trash2 } from "lucide-react"
 
 import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/cognito.server"
 import {
   findConsumerById,
   updateConsumer,
+  deleteConsumer,
 } from "~/repositories/consumer.repository.server"
 import { listProductsByGateway } from "~/repositories/product.repository.server"
 import { listEnvironmentsByGateway } from "~/repositories/environment.repository.server"
 import { listPlansByGateway } from "~/repositories/plan.repository.server"
+import { deleteAppClient } from "~/aws/cognito-app-client.server"
+import { deleteApiKey } from "~/aws/api-key.server"
+import { USER_POOL_ID } from "~/aws/cognito-client.server"
 import { Button } from "~/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog"
 import { Input } from "~/components/ui/input"
 import { Label } from "~/components/ui/label"
 import {
@@ -24,7 +35,7 @@ import {
 import type { Route } from "./+types/consumers.$id"
 
 export function meta({ data }: Route.MetaArgs) {
-  return [{ title: (data as { consumer?: { name?: string } })?.consumer?.name ?? "Edit Consumer" }]
+  return [{ title: (data as { consumer?: { name?: string } })?.consumer?.name ?? "Consumer" }]
 }
 
 export async function loader({ request, params }: Route.LoaderArgs) {
@@ -46,8 +57,47 @@ export async function action({ request, params }: Route.ActionArgs) {
   const { accessToken } = await requireAuth(request)
   const updatedBy       = getUserProfile(accessToken).email
   const id              = Number(params.id)
+  const formData        = await request.formData()
+  const intent          = formData.get("_intent") as string
 
-  const formData      = await request.formData()
+  if (intent === "delete") {
+    let consumer: Awaited<ReturnType<typeof findConsumerById>>
+    try {
+      consumer = await findConsumerById(id)
+    } catch (err) {
+      console.error("[consumers.$id] findConsumerById failed", err)
+      return { deleteError: "Something went wrong. Please try again." }
+    }
+    if (!consumer) return { deleteError: "Consumer not found." }
+
+    if (consumer.clientId) {
+      try {
+        await deleteAppClient(USER_POOL_ID, consumer.clientId)
+      } catch (err) {
+        console.error("[consumers.$id] deleteAppClient failed", { clientId: consumer.clientId, err })
+        return { deleteError: "Failed to remove the Cognito app client. Please try again." }
+      }
+    }
+
+    if (consumer.awsApiKeyId) {
+      try {
+        await deleteApiKey(consumer.awsApiKeyId)
+      } catch (err) {
+        console.error("[consumers.$id] deleteApiKey failed", { awsApiKeyId: consumer.awsApiKeyId, err })
+        return { deleteError: "Failed to remove the API key. Please try again." }
+      }
+    }
+
+    try {
+      await deleteConsumer(id)
+    } catch (err) {
+      console.error("[consumers.$id] deleteConsumer DB failed", err)
+      return { deleteError: "AWS resources removed but failed to delete the record. Please try again." }
+    }
+    throw redirect("/consumers")
+  }
+
+  // update
   const name          = (formData.get("name") as string)?.trim()
   const productId     = Number(formData.get("productId"))
   const environmentId = Number(formData.get("environmentId"))
@@ -64,7 +114,7 @@ export async function action({ request, params }: Route.ActionArgs) {
     console.error("[consumers.$id] updateConsumer failed", err)
     return { error: "Something went wrong while saving. Please try again." }
   }
-  throw redirect("/consumers")
+  return { ok: true }
 }
 
 function RevealSecret({ consumerId }: { consumerId: number }) {
@@ -105,34 +155,75 @@ function RevealSecret({ consumerId }: { consumerId: number }) {
   )
 }
 
-export default function ConsumerEdit() {
+export default function ConsumerDetail() {
   const { consumer, products, environments, plans } = useLoaderData<typeof loader>()
-  const actionData  = useActionData<typeof action>()
-  const navigate    = useNavigate()
-  const navigation  = useNavigation()
-  const submitting  = navigation.state === "submitting"
+  const actionData   = useActionData<typeof action>()
+  const navigation   = useNavigation()
+  const deleteFetcher = useFetcher<typeof action>()
+  const submitting   = navigation.state === "submitting" && navigation.formData?.get("_intent") !== "delete"
+  const saved        = actionData && "ok" in actionData && actionData.ok
+
+  const deleteError = deleteFetcher.data && "deleteError" in deleteFetcher.data
+    ? (deleteFetcher.data as { deleteError: string }).deleteError
+    : null
+
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
   return (
     <div className="flex flex-col h-full bg-white">
-      <Form method="post" className="flex flex-col flex-1 min-h-0">
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-200 shrink-0">
-          <h1 className="text-2xl font-normal text-gray-900">Edit Consumer</h1>
-          <div className="flex gap-2">
-            <Button type="submit" disabled={submitting} className="bg-blue-600 hover:bg-blue-700 text-white px-6">
-              {submitting ? "Saving…" : "Save Changes"}
-            </Button>
-            <Button type="button" variant="outline" disabled={submitting} onClick={() => navigate(-1)}>
-              Cancel
-            </Button>
-          </div>
-        </div>
+      {/* Breadcrumb */}
+      <div className="px-6 pt-4 text-sm text-muted-foreground">
+        <Link to="/consumers" className="hover:underline">Consumers</Link>
+        {" /"}
+      </div>
 
-        <div className="flex flex-col gap-6 px-6 py-6 max-w-lg">
-          {actionData?.error && (
-            <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {actionData.error}
-            </p>
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 pt-1 pb-3 border-b border-gray-200">
+        <h1 className="text-2xl font-semibold text-gray-900 truncate">{consumer.name}</h1>
+        <div className="flex items-center gap-2">
+          {saved && (
+            <span className="text-xs text-green-600">Saved</span>
           )}
+          {actionData && "error" in actionData && actionData.error && (
+            <span className="text-xs text-destructive">{actionData.error}</span>
+          )}
+          <Button
+            type="submit"
+            form="consumer-form"
+            disabled={submitting}
+            className="bg-black hover:bg-gray-900 text-white px-6"
+          >
+            {submitting ? "Saving…" : "Save"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="text-red-600 border-red-200 hover:bg-red-50"
+            onClick={() => setShowDeleteDialog(true)}
+          >
+            <Trash2 className="size-4 mr-1.5" />
+            Delete
+          </Button>
+        </div>
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex border-b border-gray-200 px-6">
+        <span className="border-b-2 border-gray-900 text-gray-900 px-4 pb-2 pt-2 text-sm font-medium">
+          Details
+        </span>
+        <Link
+          to={`/consumers/${consumer.id}/tryout`}
+          className="border-b-2 border-transparent text-gray-500 hover:text-gray-900 px-4 pb-2 pt-2 text-sm font-medium transition-colors"
+        >
+          Try Out
+        </Link>
+      </div>
+
+      {/* Form */}
+      <Form method="post" id="consumer-form" className="flex flex-col flex-1 min-h-0 overflow-auto">
+        <input type="hidden" name="_intent" value="update" />
+        <div className="flex flex-col gap-6 px-6 py-6 max-w-lg">
 
           <div className="space-y-2">
             <Label htmlFor="name">Consumer Name</Label>
@@ -223,6 +314,33 @@ export default function ConsumerEdit() {
           </div>
         </div>
       </Form>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Consumer</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to delete <span className="font-semibold text-gray-900">{consumer.name}</span>?
+            This will remove the Cognito app client and API key and cannot be undone.
+          </p>
+          {deleteError && (
+            <p className="text-xs text-destructive">{deleteError}</p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={deleteFetcher.state !== "idle"}>
+              Cancel
+            </Button>
+            <deleteFetcher.Form method="post">
+              <input type="hidden" name="_intent" value="delete" />
+              <Button type="submit" variant="destructive" disabled={deleteFetcher.state !== "idle"}>
+                {deleteFetcher.state !== "idle" ? "Deleting…" : "Delete"}
+              </Button>
+            </deleteFetcher.Form>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

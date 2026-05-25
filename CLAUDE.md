@@ -60,7 +60,8 @@ layout.tsx  (SidebarProvider + AppSidebar + Outlet)
   /plans               plans.tsx
   /consumers           consumers.tsx
   /consumers/new       consumer-create.tsx
-  /consumers/:id       consumers.$id.tsx
+  /consumers/:id       consumers.$id.tsx           (Details tab)
+  /consumers/:id/tryout consumers.$id.tryout.tsx   (Try Out tab)
 ```
 
 ### Data model
@@ -76,6 +77,62 @@ gateways
        └─ product_deployments (product_id, environment_id, gateway_id, invoke_url)
   └─ consumers         (product_id, environment_id, plan_id, gateway_id,
                          client_id, aws_api_key_id, token_url)
+```
+
+## UI/UX conventions
+
+**List pages** (`apis.tsx`, `products.tsx`, `consumers.tsx`) — read-only browse views:
+- No search bar.
+- No per-row action buttons or dropdowns.
+- Entire table row is clickable and navigates to the detail page (`*.id` route).
+- Only one action allowed on the list page: the "New / Add" creation button in the top-right header.
+- Environments and Plans are exempt — they keep their existing layout.
+
+**Detail pages** (`apis.$id.tsx`, `products.$id.tsx`, `consumers.$id.tsx`) — all mutations live here:
+- Header: breadcrumb (`← EntityList / Entity name`) + action buttons (Save, Publish, Delete) in the top-right.
+- All destructive actions (Delete) must open a shadcn `<Dialog>` for confirmation — never use inline confirm/cancel text in the table row or header.
+- Separate `useFetcher` for each independent mutation (save vs. delete vs. publish) so loading states don't interfere.
+- Use `deleteError` / `publishError` keys (not `error`) when returning action errors for non-save intents, so the UI can route them to the right place.
+
+**Consumer detail** (`consumers.$id.tsx` + `consumers.$id.tryout.tsx`) — horizontal tabs:
+- Two tabs: **Details** (form + Save + Delete) and **Try Out** (API sandbox).
+- Tabs are URL-based: Details = `/consumers/:id`, Try Out = `/consumers/:id/tryout`.
+- Both pages render the same breadcrumb and tab bar so the active tab is always clear.
+
+**Button colors** — all primary action buttons (Save, Create, Publish, Submit, Send, etc.) use black, never blue:
+```tsx
+<Button className="bg-black hover:bg-gray-900 text-white px-6">Save</Button>
+```
+Destructive buttons (Delete, Remove) keep `variant="destructive"` — do not change those to black.
+
+**Delete pattern** — consistent across all detail pages:
+```tsx
+// Action returns a typed error key, not generic "error"
+return { deleteError: "Friendly message." }
+
+// Component wires a dedicated fetcher
+const deleteFetcher = useFetcher<typeof action>()
+const deleteError = deleteFetcher.data && "deleteError" in deleteFetcher.data
+  ? (deleteFetcher.data as { deleteError: string }).deleteError
+  : null
+
+// Dialog holds the fetcher.Form
+<Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+  <DialogContent>
+    <DialogHeader><DialogTitle>Delete …</DialogTitle></DialogHeader>
+    <p>Confirmation copy…</p>
+    {deleteError && <p className="text-xs text-destructive">{deleteError}</p>}
+    <DialogFooter>
+      <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>Cancel</Button>
+      <deleteFetcher.Form method="post">
+        <input type="hidden" name="_intent" value="delete" />
+        <Button type="submit" variant="destructive" disabled={deleteFetcher.state !== "idle"}>
+          {deleteFetcher.state !== "idle" ? "Deleting…" : "Delete"}
+        </Button>
+      </deleteFetcher.Form>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
 ```
 
 ### Patterns to follow
