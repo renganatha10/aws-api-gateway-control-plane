@@ -1,5 +1,4 @@
-import { useState } from "react"
-import { Form, redirect, useActionData, useLoaderData, useNavigate, useNavigation } from "react-router"
+import { redirect, useActionData, useLoaderData, useNavigation } from "react-router"
 
 import { getActiveOrganisationId, requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/cognito.server"
@@ -13,16 +12,7 @@ import { ensureResourceServer } from "~/aws/cognito-resource-server.server"
 import { createMachineClient, getTokenUrl } from "~/aws/cognito-app-client.server"
 import { createApiKey, provisionConsumerKey } from "~/aws/api-key.server"
 import { USER_POOL_ID } from "~/aws/cognito-client.server"
-import { Button } from "~/components/ui/button"
-import { Input } from "~/components/ui/input"
-import { Label } from "~/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select"
+import { ConsumerCreatePage } from "~/components/consumers/consumer-create-page"
 import type { Route } from "./+types/consumer-create"
 
 export function meta({}: Route.MetaArgs) {
@@ -49,7 +39,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 export async function action({ request }: Route.ActionArgs) {
   const { accessToken } = await requireAuth(request)
   const createdBy       = getUserProfile(accessToken).email
-  const organisationId       = await getActiveOrganisationId(request)
+  const organisationId  = await getActiveOrganisationId(request)
 
   if (!organisationId) return { error: "No active organisation selected." }
 
@@ -79,15 +69,11 @@ export async function action({ request }: Route.ActionArgs) {
   let awsApiKeyId: string
 
   try {
-    // 1. Ensure a Cognito resource server exists for each API
     for (const api of apis) {
       await ensureResourceServer(USER_POOL_ID, api.name, api.displayName, [api.scope!])
     }
 
-    // 2. Build full OAuth scopes: "{api.name}/{api.scope}"
-    const fullScopes = apis.map((api) => `${api.name}/${api.scope}`)
-
-    // 3. Create Cognito machine client + resolve token URL
+    const fullScopes      = apis.map((api) => `${api.name}/${api.scope}`)
     const awsResourceName = `${name}-${organisationId}`
     const [machineClient, resolvedTokenUrl] = await Promise.all([
       createMachineClient(USER_POOL_ID, awsResourceName, fullScopes),
@@ -96,11 +82,9 @@ export async function action({ request }: Route.ActionArgs) {
     clientId = machineClient.clientId
     tokenUrl = resolvedTokenUrl
 
-    // 4. Create AWS API key pinned to the Cognito clientId as its value
     const apiKey = await createApiKey(awsResourceName, clientId)
-    awsApiKeyId = apiKey.id
+    awsApiKeyId  = apiKey.id
 
-    // 5. Associate API key with usage plan + add API stages
     await provisionConsumerKey(
       plan.awsUsagePlanId,
       awsApiKeyId,
@@ -111,7 +95,6 @@ export async function action({ request }: Route.ActionArgs) {
     return { error: "Failed to provision consumer in AWS. Please try again." }
   }
 
-  // 6. Persist consumer
   try {
     const now = new Date()
     await createConsumer({
@@ -138,129 +121,16 @@ export async function action({ request }: Route.ActionArgs) {
 
 export default function ConsumerCreate() {
   const { products, allEnvironments, plans, deployments } = useLoaderData<typeof loader>()
-  const actionData  = useActionData<typeof action>()
-  const navigate    = useNavigate()
-  const navigation  = useNavigation()
-  const submitting  = navigation.state === "submitting"
-
-  const [selectedProductId,     setSelectedProductId]     = useState("")
-  const [selectedEnvironmentId, setSelectedEnvironmentId] = useState("")
-
-  const deployedEnvIds = new Set(
-    deployments
-      .filter((d) => d.productId === Number(selectedProductId))
-      .map((d) => d.environmentId),
-  )
-  const availableEnvironments = allEnvironments.filter((e) => deployedEnvIds.has(e.id))
-
-  function handleProductChange(val: string) {
-    setSelectedProductId(val)
-    setSelectedEnvironmentId("")
-  }
-
+  const actionData = useActionData<typeof action>()
+  const navigation = useNavigation()
   return (
-    <div className="flex flex-col h-full bg-white">
-      <Form method="post" className="flex flex-col flex-1 min-h-0">
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-200 shrink-0">
-          <h1 className="text-2xl font-normal text-gray-900">New Consumer</h1>
-          <div className="flex gap-2">
-            <Button type="submit" disabled={submitting} className="bg-black hover:bg-gray-900 text-white px-6">
-              {submitting ? "Creating…" : "Save Consumer"}
-            </Button>
-            <Button type="button" variant="outline" disabled={submitting} onClick={() => navigate(-1)}>
-              Cancel
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-6 px-6 py-6 max-w-lg">
-          {actionData?.error && (
-            <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {actionData.error}
-            </p>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="name">Consumer Name</Label>
-            <Input
-              id="name"
-              name="name"
-              placeholder="e.g. ACME Corp"
-              required
-              className="max-w-sm"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="productId">Product</Label>
-            <Select
-              name="productId"
-              required
-              value={selectedProductId}
-              onValueChange={handleProductChange}
-            >
-              <SelectTrigger className="max-w-sm" id="productId">
-                <SelectValue placeholder="Select a product…" />
-              </SelectTrigger>
-              <SelectContent>
-                {products.length === 0 ? (
-                  <SelectItem value="_none" disabled>No deployed products — publish a product first</SelectItem>
-                ) : (
-                  products.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>{p.displayName}</SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="environmentId">Stage</Label>
-            <Select
-              name="environmentId"
-              required
-              value={selectedEnvironmentId}
-              onValueChange={setSelectedEnvironmentId}
-              disabled={!selectedProductId}
-            >
-              <SelectTrigger className="max-w-sm" id="environmentId">
-                <SelectValue placeholder={!selectedProductId ? "Select a product first…" : "Select a stage…"} />
-              </SelectTrigger>
-              <SelectContent>
-                {availableEnvironments.length === 0 ? (
-                  <SelectItem value="_none" disabled>No deployed stages for this product</SelectItem>
-                ) : (
-                  availableEnvironments.map((e) => (
-                    <SelectItem key={e.id} value={String(e.id)}>{e.name}</SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="planId">Plan</Label>
-            <Select name="planId" required>
-              <SelectTrigger className="max-w-sm" id="planId">
-                <SelectValue placeholder="Select a plan…" />
-              </SelectTrigger>
-              <SelectContent>
-                {plans.length === 0 ? (
-                  <SelectItem value="_none" disabled>No plans available</SelectItem>
-                ) : (
-                  plans.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>{p.displayName}</SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <p className="text-xs text-muted-foreground max-w-sm">
-            Saving will provision a Cognito app client, resource servers for each API in the product, and an AWS API key associated with the selected plan.
-          </p>
-        </div>
-      </Form>
-    </div>
+    <ConsumerCreatePage
+      products={products}
+      allEnvironments={allEnvironments}
+      plans={plans}
+      deployments={deployments}
+      actionError={actionData?.error}
+      submitting={navigation.state === "submitting"}
+    />
   )
 }
