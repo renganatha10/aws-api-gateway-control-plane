@@ -28,6 +28,13 @@ Parameters:
     Type: String
     Default: "22"
 
+  OtelCollectorVersion:
+    Type: String
+    Default: "0.115.0"
+    Description: >
+      OTel Collector Contrib version to install (x86_64 RPM).
+      Check github.com/open-telemetry/opentelemetry-collector-releases/releases for latest.
+
 Resources:
 
   # ── IAM Instance Profile ───────────────────────────────────────────────────
@@ -132,18 +139,6 @@ Resources:
                 "files": {
                   "collect_list": [
                     {
-                      "file_path": "/var/log/api-portal/out.log",
-                      "log_group_name": "/app/ec2/application",
-                      "log_stream_name": "{instance_id}/stdout",
-                      "timestamp_format": "%Y-%m-%d %H:%M:%S"
-                    },
-                    {
-                      "file_path": "/var/log/api-portal/error.log",
-                      "log_group_name": "/app/ec2/application",
-                      "log_stream_name": "{instance_id}/stderr",
-                      "timestamp_format": "%Y-%m-%d %H:%M:%S"
-                    },
-                    {
                       "file_path": "/var/log/api-portal/deploy-*.log",
                       "log_group_name": "/app/ec2/deploys",
                       "log_stream_name": "{instance_id}/ansible",
@@ -173,6 +168,62 @@ Resources:
             -m ec2 \
             -s \
             -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+
+          # ── OTel Collector Contrib ────────────────────────────────────────────
+          # Handles: app logs (filelog → CloudWatch) + app metrics (OTLP → Prometheus endpoint).
+          # app/out.log and app/error.log are owned by this collector; CW agent no longer tails them.
+          # Prometheus scrapes :8889/metrics — open that port in the EC2 SG if Prometheus is external.
+          wget -q "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OtelCollectorVersion}/otelcol-contrib_${OtelCollectorVersion}_linux_amd64.rpm" \
+            -O /tmp/otelcol-contrib.rpm
+          rpm -ivh /tmp/otelcol-contrib.rpm
+          rm -f /tmp/otelcol-contrib.rpm
+
+          cat > /etc/otelcol-contrib/config.yaml << 'OTELCFG'
+          receivers:
+            filelog:
+              include:
+                - /var/log/api-portal/out.log
+                - /var/log/api-portal/error.log
+              start_at: end
+              operators:
+                - type: json_parser
+                  timestamp:
+                    parse_from: attributes.time
+                    layout_type: gotime
+                    layout: "2006-01-02T15:04:05.999Z07:00"
+
+            otlp:
+              protocols:
+                grpc:
+                  endpoint: localhost:4317
+
+          processors:
+            batch:
+              timeout: 5s
+
+          exporters:
+            awscloudwatchlogs:
+              log_group_name: /app/ec2/application
+              log_stream_name: portal
+              region: ${AWS::Region}
+
+            prometheus:
+              endpoint: "0.0.0.0:8889"
+
+          service:
+            pipelines:
+              logs:
+                receivers: [filelog]
+                processors: [batch]
+                exporters: [awscloudwatchlogs]
+              metrics:
+                receivers: [otlp]
+                processors: [batch]
+                exporters: [prometheus]
+          OTELCFG
+
+          systemctl enable otelcol-contrib
+          systemctl start otelcol-contrib
 
           echo "=== UserData: bootstrap complete ==="
 
@@ -228,6 +279,12 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /app/ec2/system
+      RetentionInDays: 14
+
+  DeployLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /app/ec2/deploys
       RetentionInDays: 14
 
   # ── CloudWatch Alarms ──────────────────────────────────────────────────────
