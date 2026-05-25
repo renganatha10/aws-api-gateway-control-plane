@@ -21,7 +21,6 @@ export default [
     route("products/new", "routes/product-create.tsx"),
     route("products/:id", "routes/products.$id.tsx"),
     route("environments", "routes/environments.tsx"),
-    route("environments/:id", "routes/environments.$id.tsx"),
     route("plans", "routes/plans.tsx"),
     route("consumers", "routes/consumers.tsx"),
     route("consumers/new", "routes/consumer-create.tsx"),
