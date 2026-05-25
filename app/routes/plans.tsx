@@ -35,7 +35,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select"
-import { Separator } from "~/components/ui/separator"
 import type { Plan } from "~/lib/schema"
 import type { Route } from "./+types/plans"
 
@@ -263,18 +262,12 @@ export default function PlansPage({ loaderData }: Route.ComponentProps) {
   return (
     <div className="flex flex-col min-h-full bg-white">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 pt-6 pb-4">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
         <h1 className="text-3xl font-normal text-gray-900">Plans</h1>
-        <Button
-          className="bg-blue-600 hover:bg-blue-700 text-white rounded-sm px-6"
-          disabled={!gatewayId}
-          onClick={openCreate}
-        >
+        <Button size="sm" disabled={!gatewayId} onClick={openCreate}>
           Add
         </Button>
       </div>
-
-      <Separator />
 
       {/* No gateway */}
       {!gatewayId && (
@@ -286,17 +279,23 @@ export default function PlansPage({ loaderData }: Route.ComponentProps) {
 
       {/* Empty state */}
       {gatewayId && plans.length === 0 && (
-        <div className="flex flex-col items-center justify-center flex-1 py-24 text-center gap-3">
+        <div className="flex flex-col items-center justify-center gap-3 mx-6 mt-6 rounded-lg border-2 border-dashed border-gray-200 py-16 text-center">
           <svg className="size-10 text-gray-300" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
             <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
             <rect x="9" y="3" width="6" height="4" rx="1"/>
             <path d="M9 12h6M9 16h4"/>
           </svg>
-          <p className="text-gray-700 font-medium">No plans yet</p>
-          <p className="text-gray-500 text-sm">Create your first plan to get started.</p>
-          <Button size="sm" className="mt-2 bg-blue-600 hover:bg-blue-700 text-white" onClick={openCreate}>
-            Create Plan
-          </Button>
+          <div>
+            <p className="text-sm font-medium text-gray-600">No plans yet</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              <button
+                onClick={openCreate}
+                className="underline underline-offset-2 hover:text-gray-700"
+              >
+                Create your first plan
+              </button>
+            </p>
+          </div>
         </div>
       )}
 

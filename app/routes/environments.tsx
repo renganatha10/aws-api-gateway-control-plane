@@ -20,7 +20,6 @@ import {
 } from "~/components/ui/dialog"
 import { Input } from "~/components/ui/input"
 import { Label } from "~/components/ui/label"
-import { Separator } from "~/components/ui/separator"
 import {
   Table,
   TableBody,
@@ -95,15 +94,12 @@ export default function EnvironmentsPage({ loaderData }: Route.ComponentProps) {
   return (
     <div className="flex flex-col min-h-full bg-white">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 pt-6 pb-4">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
         <h1 className="text-3xl font-normal text-gray-900">Environments</h1>
 
         <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>
-            <Button
-              className="bg-blue-600 hover:bg-blue-700 text-white rounded-sm px-6"
-              disabled={!gatewayId}
-            >
+            <Button size="sm" disabled={!gatewayId}>
               Add
             </Button>
           </DialogTrigger>
@@ -134,8 +130,6 @@ export default function EnvironmentsPage({ loaderData }: Route.ComponentProps) {
         </Dialog>
       </div>
 
-      <Separator />
-
       {/* No gateway selected */}
       {!gatewayId && (
         <div className="flex flex-col items-center justify-center flex-1 py-24 text-center gap-3">
@@ -146,17 +140,19 @@ export default function EnvironmentsPage({ loaderData }: Route.ComponentProps) {
 
       {/* Empty state */}
       {gatewayId && environments.length === 0 && (
-        <div className="flex flex-col items-center justify-center flex-1 py-24 text-center gap-3">
+        <div className="flex flex-col items-center justify-center gap-3 mx-6 mt-6 rounded-lg border-2 border-dashed border-gray-200 py-16 text-center">
           <Zap className="size-10 text-gray-300" />
-          <p className="text-gray-700 font-medium">No environments yet</p>
-          <p className="text-gray-500 text-sm">Create your first environment to get started.</p>
-          <Button
-            size="sm"
-            className="mt-2 bg-blue-600 hover:bg-blue-700 text-white"
-            onClick={() => setOpen(true)}
-          >
-            Create Environment
-          </Button>
+          <div>
+            <p className="text-sm font-medium text-gray-600">No environments yet</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              <button
+                onClick={() => setOpen(true)}
+                className="underline underline-offset-2 hover:text-gray-700"
+              >
+                Create your first environment
+              </button>
+            </p>
+          </div>
         </div>
       )}
 

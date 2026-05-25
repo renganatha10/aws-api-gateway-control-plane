@@ -1,21 +1,9 @@
-import { useState } from "react"
-import { Link, useFetcher, useLoaderData } from "react-router"
-import { Eye, EyeOff, FlaskConical, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { Link, useLoaderData, useNavigate } from "react-router"
 
 import { getActiveGatewayId, requireAuth } from "~/lib/session.server"
-import { deleteConsumer, findConsumerById, listConsumersByGateway } from "~/repositories/consumer.repository.server"
-import { deleteAppClient } from "~/aws/cognito-app-client.server"
-import { deleteApiKey } from "~/aws/api-key.server"
-import { USER_POOL_ID } from "~/aws/cognito-client.server"
+import { listConsumersByGateway } from "~/repositories/consumer.repository.server"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu"
-import { Input } from "~/components/ui/input"
 import {
   Table,
   TableBody,
@@ -37,196 +25,9 @@ export async function loader({ request }: Route.LoaderArgs) {
   return { consumers, gatewayId }
 }
 
-export async function action({ request }: Route.ActionArgs) {
-  await requireAuth(request)
-  const formData = await request.formData()
-  const intent   = formData.get("_intent") as string
-
-  if (intent === "delete") {
-    const id = Number(formData.get("id"))
-    if (!id) return { error: "Missing id" }
-
-    let consumer: Awaited<ReturnType<typeof findConsumerById>>
-    try {
-      consumer = await findConsumerById(id)
-    } catch (err) {
-      console.error("[consumers] findConsumerById failed", err)
-      return { error: "Something went wrong. Please try again." }
-    }
-    if (!consumer) return { error: "Consumer not found." }
-
-    // Remove Cognito app client
-    if (consumer.clientId) {
-      try {
-        await deleteAppClient(USER_POOL_ID, consumer.clientId)
-      } catch (err) {
-        console.error("[consumers] deleteAppClient failed", { clientId: consumer.clientId, err })
-        return { error: "Failed to remove the Cognito app client. Please try again." }
-      }
-    }
-
-    // Remove API Gateway key
-    if (consumer.awsApiKeyId) {
-      try {
-        await deleteApiKey(consumer.awsApiKeyId)
-      } catch (err) {
-        console.error("[consumers] deleteApiKey failed", { awsApiKeyId: consumer.awsApiKeyId, err })
-        return { error: "Failed to remove the API key. Please try again." }
-      }
-    }
-
-    // Delete DB record last — AWS is already cleaned up at this point
-    try {
-      await deleteConsumer(id)
-    } catch (err) {
-      console.error("[consumers] deleteConsumer DB failed", err)
-      return { error: "AWS resources removed but failed to delete the record. Please try again." }
-    }
-
-    return { ok: true }
-  }
-
-  return { error: "Unknown intent." }
-}
-
-type ConsumerRow = Awaited<ReturnType<typeof listConsumersByGateway>>[number]
-
-// ── Reveal Secret ─────────────────────────────────────────────────────────────
-
-function RevealSecret({ consumerId }: { consumerId: number }) {
-  const fetcher  = useFetcher<{ secret?: string; error?: string }>()
-  const [visible, setVisible] = useState(false)
-  const secret   = fetcher.data?.secret
-  const fetchErr = fetcher.data?.error
-
-  if (fetchErr) {
-    return <span className="text-xs text-destructive">{fetchErr}</span>
-  }
-
-  if (!secret) {
-    return (
-      <button
-        onClick={() => fetcher.load(`/api/consumer-secret/${consumerId}`)}
-        disabled={fetcher.state === "loading"}
-        className="text-xs text-blue-600 hover:underline disabled:opacity-50"
-      >
-        {fetcher.state === "loading" ? "Loading…" : "Show secret"}
-      </button>
-    )
-  }
-
-  return (
-    <span className="flex items-center gap-1.5">
-      <span className="font-mono text-xs text-gray-800 select-all">
-        {visible ? secret : "••••••••••••••••"}
-      </span>
-      <button
-        onClick={() => setVisible((v) => !v)}
-        className="text-gray-400 hover:text-gray-700"
-        title={visible ? "Hide" : "Show"}
-      >
-        {visible ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-      </button>
-    </span>
-  )
-}
-
-// ── Row Actions ───────────────────────────────────────────────────────────────
-
-function ConsumerActions({ consumer }: { consumer: ConsumerRow }) {
-  const fetcher = useFetcher<typeof action>()
-  const [confirm, setConfirm] = useState(false)
-
-  const deleting = fetcher.state !== "idle"
-  const deleteError = fetcher.data && "error" in fetcher.data ? fetcher.data.error : null
-
-  if (deleting) {
-    return (
-      <div className="flex items-center justify-end pr-1">
-        <svg className="size-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-        </svg>
-      </div>
-    )
-  }
-
-  if (deleteError) {
-    return (
-      <div className="flex items-center gap-1 justify-end">
-        <span className="text-xs text-destructive max-w-[160px] text-right leading-tight">{deleteError}</span>
-        <button
-          onClick={() => fetcher.submit({ _intent: "delete", id: String(consumer.id) }, { method: "post" })}
-          className="text-xs text-red-600 font-medium hover:underline shrink-0"
-        >
-          Retry
-        </button>
-      </div>
-    )
-  }
-
-  if (confirm) {
-    return (
-      <div className="flex items-center gap-1 justify-end">
-        <button
-          onClick={() => {
-            fetcher.submit({ _intent: "delete", id: String(consumer.id) }, { method: "post" })
-            setConfirm(false)
-          }}
-          className="text-xs text-red-600 font-medium hover:underline"
-        >
-          Delete
-        </button>
-        <span className="text-gray-300">|</span>
-        <button onClick={() => setConfirm(false)} className="text-xs text-gray-500 hover:underline">
-          Cancel
-        </button>
-      </div>
-    )
-  }
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
-          <MoreHorizontal className="size-4" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem asChild>
-          <Link to={`/consumers/${consumer.id}/tryout`}>
-            <FlaskConical className="size-4 mr-2 text-blue-500" />
-            Try Out
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link to={`/consumers/${consumer.id}`}>
-            <Pencil className="size-4 mr-2 text-gray-500" />
-            Edit
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => setConfirm(true)}
-          className="text-red-600 focus:text-red-600"
-        >
-          <Trash2 className="size-4 mr-2" />
-          Delete
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
-
-// ── Page ──────────────────────────────────────────────────────────────────────
-
 export default function ConsumersPage() {
   const { consumers } = useLoaderData<typeof loader>()
-  const [search, setSearch] = useState("")
-
-  const filtered = consumers.filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.productName.toLowerCase().includes(search.toLowerCase()),
-  )
+  const navigate = useNavigate()
 
   return (
     <div className="flex flex-col min-h-full bg-white">
@@ -240,29 +41,16 @@ export default function ConsumersPage() {
         </Button>
       </div>
 
-      <div className="px-6 py-4">
-        <Input
-          placeholder="Search consumers…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-xs h-9"
-        />
-      </div>
-
-      {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 mx-6 rounded-lg border-2 border-dashed border-gray-200 py-16 text-center">
+      {consumers.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-3 mx-6 mt-6 rounded-lg border-2 border-dashed border-gray-200 py-16 text-center">
           <svg className="size-10 text-gray-300" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
           </svg>
           <div>
-            <p className="text-sm font-medium text-gray-600">
-              {consumers.length === 0 ? "No consumers yet" : "No consumers match your search"}
+            <p className="text-sm font-medium text-gray-600">No consumers yet</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              <Link to="/consumers/new" className="underline underline-offset-2">Add your first consumer</Link>
             </p>
-            {consumers.length === 0 && (
-              <p className="text-xs text-muted-foreground mt-0.5">
-                <Link to="/consumers/new" className="underline underline-offset-2">Add your first consumer</Link>
-              </p>
-            )}
           </div>
         </div>
       ) : (
@@ -274,15 +62,16 @@ export default function ConsumersPage() {
                 <TableHead className="font-semibold text-gray-700">Product</TableHead>
                 <TableHead className="font-semibold text-gray-700">Stage</TableHead>
                 <TableHead className="font-semibold text-gray-700">Plan</TableHead>
-                <TableHead className="font-semibold text-gray-700">Client ID</TableHead>
-                <TableHead className="font-semibold text-gray-700">Client Secret</TableHead>
                 <TableHead className="font-semibold text-gray-700">Created</TableHead>
-                <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((consumer) => (
-                <TableRow key={consumer.id}>
+              {consumers.map((consumer) => (
+                <TableRow
+                  key={consumer.id}
+                  className="cursor-pointer hover:bg-gray-50"
+                  onClick={() => navigate(`/consumers/${consumer.id}`)}
+                >
                   <TableCell className="font-medium text-gray-900">{consumer.name}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
@@ -299,25 +88,8 @@ export default function ConsumersPage() {
                       {consumer.planName}
                     </Badge>
                   </TableCell>
-                  <TableCell>
-                    {consumer.clientId ? (
-                      <span className="font-mono text-xs text-gray-700 select-all">{consumer.clientId}</span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {consumer.clientId ? (
-                      <RevealSecret consumerId={consumer.id} />
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {new Date(consumer.createdAt).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <ConsumerActions consumer={consumer} />
                   </TableCell>
                 </TableRow>
               ))}

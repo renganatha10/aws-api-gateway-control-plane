@@ -1,13 +1,23 @@
 ﻿import * as React from "react"
 import * as yaml from "js-yaml"
-import { Form, Link, useActionData, useNavigation } from "react-router"
+import { Form, Link, redirect, useActionData, useNavigation, useFetcher } from "react-router"
 import { toast } from "sonner"
 
 import { requireAuth } from "~/lib/session.server"
 import { getUserProfile } from "~/lib/cognito.server"
-import { findApiById, findApiByGatewayAndBasePath, updateApi } from "~/repositories/api.repository.server"
+import { deleteApi, findApiById, findApiByGatewayAndBasePath, updateApi } from "~/repositories/api.repository.server"
+import { listProductsByApi } from "~/repositories/api-association.repository.server"
 import { buildAwsSpec, extractBasePath } from "~/aws/build-aws-spec.server"
 import { importApiSpec, putApiSpec } from "~/aws/import-api.server"
+import { deleteRestApi } from "~/aws/rest-api.server"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog"
+import { Button } from "~/components/ui/button"
 import type { Route } from "./+types/apis.$id"
 
 // ─── raw spec types (Swagger 2.0 / OAS 3) ────────────────────────────────────
@@ -290,8 +300,43 @@ export async function action({ request, params }: Route.ActionArgs) {
   const updatedBy = getUserProfile(accessToken).email
   const id        = Number(params.id)
   const formData  = await request.formData()
-  const yamlStr   = (formData.get("yaml") as string)?.trim()
-  const scope     = (formData.get("scope") as string)?.trim() || null
+  const intent    = formData.get("_intent") as string | null
+
+  if (intent === "delete") {
+    let linkedProducts: { id: number; displayName: string }[]
+    try {
+      linkedProducts = await listProductsByApi(id)
+    } catch (err) {
+      console.error("[apis.$id] listProductsByApi failed", err)
+      return { deleteError: "Something went wrong. Please try again." }
+    }
+    if (linkedProducts.length > 0) {
+      return {
+        deleteError: `This API is used by ${linkedProducts.length} product${linkedProducts.length === 1 ? "" : "s"}. Remove it from all products first.`,
+      }
+    }
+
+    const api = await findApiById(id)
+    if (api?.awsApiId) {
+      try {
+        await deleteRestApi(api.awsApiId)
+      } catch (err) {
+        console.error("[apis.$id] deleteRestApi failed", { awsApiId: api.awsApiId, err })
+        return { deleteError: "Failed to delete from AWS. Please try again." }
+      }
+    }
+
+    try {
+      await deleteApi(id)
+    } catch (err) {
+      console.error("[apis.$id] deleteApi failed", err)
+      return { deleteError: "Something went wrong while deleting. Please try again." }
+    }
+    throw redirect("/apis")
+  }
+
+  const yamlStr = (formData.get("yaml") as string)?.trim()
+  const scope   = (formData.get("scope") as string)?.trim() || null
 
   if (!yamlStr) return { error: "YAML cannot be empty." }
   let spec: unknown
@@ -628,11 +673,16 @@ function UiTab({ yamlValue }: { yamlValue: string }) {
 
 export default function ApiDetailPage({ loaderData }: Route.ComponentProps) {
   const { api, yamlStr: initialYaml } = loaderData
-  const actionData = useActionData<typeof action>()
-  const navigation = useNavigation()
-  const saving     = navigation.state === "submitting"
+  const actionData    = useActionData<typeof action>()
+  const navigation    = useNavigation()
+  const deleteFetcher = useFetcher<typeof action>()
+  const saving        = navigation.state === "submitting" && !navigation.formData?.get("_intent")
+  const deleteError   = deleteFetcher.data && "deleteError" in deleteFetcher.data
+    ? (deleteFetcher.data as { deleteError: string }).deleteError
+    : null
 
-  const [activeTab, setActiveTab] = React.useState<"source" | "ui">("source")
+  const [activeTab,        setActiveTab]        = React.useState<"source" | "ui">("source")
+  const [showDeleteDialog, setShowDeleteDialog] = React.useState(false)
   const [yamlValue, setYamlValue] = React.useState(initialYaml)
   const [scope,     setScope]     = React.useState(api.scope ?? "")
   const [editScope, setEditScope] = React.useState(false)
@@ -706,6 +756,15 @@ export default function ApiDetailPage({ loaderData }: Route.ComponentProps) {
             </div>
           )}
 
+          {/* delete */}
+          <button
+            type="button"
+            onClick={() => setShowDeleteDialog(true)}
+            className="shrink-0 rounded border border-red-800/40 text-red-400 text-xs px-3 py-1.5 hover:bg-red-950/40 hover:border-red-700 transition-colors"
+          >
+            Delete
+          </button>
+
           {/* save */}
           <button
             type="submit"
@@ -716,6 +775,33 @@ export default function ApiDetailPage({ loaderData }: Route.ComponentProps) {
           </button>
         </div>
       </Form>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete API</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to delete <span className="font-semibold text-gray-900">{api.displayName}</span>?
+            This will also remove it from AWS and cannot be undone.
+          </p>
+          {deleteError && (
+            <p className="text-xs text-destructive">{deleteError}</p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={deleteFetcher.state !== "idle"}>
+              Cancel
+            </Button>
+            <deleteFetcher.Form method="post">
+              <input type="hidden" name="_intent" value="delete" />
+              <Button type="submit" variant="destructive" disabled={deleteFetcher.state !== "idle"}>
+                {deleteFetcher.state !== "idle" ? "Deleting…" : "Delete"}
+              </Button>
+            </deleteFetcher.Form>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── tabs ───────────────────────────────────────────────────────────── */}
       <div className="flex border-b border-white/10 px-5 bg-zinc-950 shrink-0">
