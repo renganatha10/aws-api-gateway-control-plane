@@ -96,7 +96,7 @@ DB_ENDPOINT=$(aws cloudformation describe-stacks \
 
 ### 4 — Storage / CloudFront (`4-storage.yaml`)
 
-**Must be deployed in us-east-1** (CloudFront requirement):
+**Must be deployed in ap-south-1** (CloudFront requirement):
 
 ```bash
 aws cloudformation deploy \
@@ -105,15 +105,15 @@ aws cloudformation deploy \
   --parameter-overrides \
     EnvironmentName=$ENV \
     AlbDnsName="placeholder.example.com" \
-  --region us-east-1
+  --region ap-south-1
 
 ARTIFACT_BUCKET=$(aws cloudformation describe-stacks \
-  --stack-name "api-portal-$ENV-storage" --region us-east-1 \
+  --stack-name "api-portal-$ENV-storage" --region ap-south-1 \
   --query 'Stacks[0].Outputs[?OutputKey==`ArtifactBucketName`].OutputValue' \
   --output text)
 
 ASSETS_BUCKET=$(aws cloudformation describe-stacks \
-  --stack-name "api-portal-$ENV-storage" --region us-east-1 \
+  --stack-name "api-portal-$ENV-storage" --region ap-south-1 \
   --query 'Stacks[0].Outputs[?OutputKey==`AssetsBucketName`].OutputValue' \
   --output text)
 ```
@@ -199,16 +199,16 @@ aws cloudformation deploy \
   --stack-name "api-portal-$ENV-storage" \
   --template-file infra/4-storage.yaml \
   --parameter-overrides EnvironmentName=$ENV AlbDnsName=$ALB_DNS \
-  --region us-east-1
+  --region ap-south-1
 ```
 
 ### 7 — WAF (`5-waf.yaml`)
 
-**Must be deployed in us-east-1**. Start in Count mode; switch to Block after tuning:
+**Must be deployed in ap-south-1**. Start in Count mode; switch to Block after tuning:
 
 ```bash
 CF_DIST_ID=$(aws cloudformation describe-stacks \
-  --stack-name "api-portal-$ENV-storage" --region us-east-1 \
+  --stack-name "api-portal-$ENV-storage" --region ap-south-1 \
   --query 'Stacks[0].Outputs[?OutputKey==`DistributionId`].OutputValue' \
   --output text)
 
@@ -221,7 +221,7 @@ aws cloudformation deploy \
     EnvironmentName=$ENV \
     CloudFrontDistributionArn=$CF_ARN \
     RulesMode=Count \
-  --region us-east-1
+  --region ap-south-1
 
 # After 1-2 weeks of reviewing sampled requests, switch to Block:
 # aws cloudformation deploy ... --parameter-overrides ... RulesMode=Block ...

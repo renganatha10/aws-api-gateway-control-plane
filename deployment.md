@@ -86,13 +86,13 @@ Run once to provision all infrastructure. Split into logical stacks or one neste
   - **Cache behaviors**:
     - S3 origin: long TTL (1 year) with cache-busting via hashed filenames
     - ALB origin: short TTL or no cache (SSR pages) — forward cookies/auth headers
-  - **HTTPS only**, TLS 1.2+, custom domain + ACM certificate (must be in `us-east-1` for CloudFront)
+  - **HTTPS only**, TLS 1.2+, custom domain + ACM certificate (must be in `ap-south-1` for CloudFront)
   - **Compress objects automatically**: yes
   - **Price class**: PriceClass_100 (US/EU) or All to start
 
 ### Stack 5 — WAF
 
-- **WebACL** attached to **CloudFront** (must be in `us-east-1`)
+- **WebACL** attached to **CloudFront** (must be in `ap-south-1`)
   - All rules below apply at the edge, before traffic hits your origin
 - See WAF rules section below
 

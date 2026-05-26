@@ -52,7 +52,7 @@ Edit `.env`:
 SESSION_SECRET=<random-string>
 DATABASE_URL=postgresql://app:app_password@localhost:5432/app
 
-COGNITO_USER_POOL_ID=us-east-1_xxxxxxx
+COGNITO_USER_POOL_ID=ap-south-1_xxxxxxx
 COGNITO_CLIENT_ID=your-app-client-id
 COGNITO_CLIENT_SECRET=your-app-client-secret
 

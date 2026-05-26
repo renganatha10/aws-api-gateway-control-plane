@@ -7,7 +7,7 @@ Description: >
                    in the SSM Parameter Store SecureString (/api-portal/env).
                    Needs: Cognito (M2M clients, resource servers, auth flows) +
                           API Gateway (full CRUD) +
-                          ACM (list certs in ap-south-1 and us-east-1).
+                          ACM (list certs in ap-south-1 and ap-south-1).
 
     2. cicd-user - credentials that go into GitHub Actions secrets.
                    Needs: S3 (artifacts + assets), CloudFront (invalidations), SSM (send-command).
@@ -99,7 +99,7 @@ Resources:
               - !Sub "arn:aws:apigateway:${AWS::Region}::/domainnames/*"
 
           # ── ACM: list issued certificates ──────────────────────────────────
-          # App lists certs in both the app region AND us-east-1 (for EDGE endpoints).
+          # App lists certs in both the app region AND ap-south-1 (for EDGE endpoints).
           # acm:ListCertificates has no resource-level restriction - must be *.
           - Sid: AcmListCertificates
             Effect: Allow

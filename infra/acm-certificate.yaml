@@ -16,8 +16,8 @@ Description: >
   Region requirements:
     - REGIONAL endpoint: deploy this stack in the SAME region as your API Gateway.
         aws cloudformation deploy --region ap-south-1 ...
-    - EDGE endpoint (CloudFront): deploy this stack in us-east-1.
-        aws cloudformation deploy --region us-east-1 ...
+    - EDGE endpoint (CloudFront): deploy this stack in ap-south-1.
+        aws cloudformation deploy --region ap-south-1 ...
 
   Deployment example:
     aws cloudformation deploy \
@@ -50,7 +50,7 @@ Parameters:
       Must match the endpoint type you will select in the API Gateway portal when creating
       the custom domain.
       REGIONAL: deploy this stack in the same region as your API Gateway.
-      EDGE: deploy this stack in us-east-1 regardless of gateway region.
+      EDGE: deploy this stack in ap-south-1 regardless of gateway region.
 
 # ── Resources ─────────────────────────────────────────────────────────────────
 
