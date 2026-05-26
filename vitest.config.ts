@@ -8,6 +8,17 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./tests/setup.ts"],
     include: ["app/**/*.test.{ts,tsx}"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html"],
+      reportsDirectory: "coverage",
+      thresholds: {
+        lines: 10,
+        functions: 10,
+        branches: 10,
+        statements: 10,
+      },
+    },
     env: {
       DATABASE_URL: "postgresql://test:test@localhost/testdb",
       SESSION_SECRET: "test-secret-key-for-unit-tests-only",
