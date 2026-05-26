@@ -1,15 +1,15 @@
-import { PRODUCT_SECTIONS, type ProductSection } from "./types"
+import { PRODUCT_SECTIONS, type ProductSection } from "./types";
 
 interface ProductLeftNavProps {
-  activeSection: ProductSection
-  onSectionChange: (section: ProductSection) => void
+  activeSection: ProductSection;
+  onSectionChange: (section: ProductSection) => void;
 }
 
 export function ProductLeftNav({ activeSection, onSectionChange }: ProductLeftNavProps) {
   return (
     <aside className="w-56 shrink-0 border-r border-gray-200 pt-1">
       {PRODUCT_SECTIONS.map((section) => {
-        const active = activeSection === section
+        const active = activeSection === section;
         return (
           <button
             key={section}
@@ -23,8 +23,8 @@ export function ProductLeftNav({ activeSection, onSectionChange }: ProductLeftNa
           >
             {section}
           </button>
-        )
+        );
       })}
     </aside>
-  )
+  );
 }

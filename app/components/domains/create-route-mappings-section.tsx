@@ -1,16 +1,16 @@
-import { Plus } from "lucide-react"
+import { Plus } from "lucide-react";
 
-import { Button } from "~/components/ui/button"
-import { Label } from "~/components/ui/label"
-import { MappingRow } from "./mapping-row"
-import type { MappingEntry, SyncedApi } from "./types"
+import { Button } from "~/components/ui/button";
+import { Label } from "~/components/ui/label";
+import { MappingRow } from "./mapping-row";
+import type { MappingEntry, SyncedApi } from "./types";
 
 interface CreateRouteMappingsSectionProps {
-  entries: MappingEntry[]
-  apis: SyncedApi[]
-  onAdd: () => void
-  onUpdate: (key: number, field: keyof Omit<MappingEntry, "key">, value: string) => void
-  onRemove: (key: number) => void
+  entries: MappingEntry[];
+  apis: SyncedApi[];
+  onAdd: () => void;
+  onUpdate: (key: number, field: keyof Omit<MappingEntry, "key">, value: string) => void;
+  onRemove: (key: number) => void;
 }
 
 export function CreateRouteMappingsSection({
@@ -26,8 +26,7 @@ export function CreateRouteMappingsSection({
         <Label>Route Mappings</Label>
         <p className="text-xs text-muted-foreground mt-0.5">
           Map this domain to an API + stage. Leave base path empty to serve the API at the domain
-          root (stored as{" "}
-          <code className="bg-gray-100 px-1 rounded text-[11px]">(none)</code>).
+          root (stored as <code className="bg-gray-100 px-1 rounded text-[11px]">(none)</code>).
         </p>
       </div>
 
@@ -55,5 +54,5 @@ export function CreateRouteMappingsSection({
         Add Mapping
       </Button>
     </div>
-  )
+  );
 }

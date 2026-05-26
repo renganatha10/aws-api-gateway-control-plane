@@ -1,6 +1,6 @@
-import { useState } from "react"
-import { Zap } from "lucide-react"
-import { Button } from "~/components/ui/button"
+import { Zap } from "lucide-react";
+import { useState } from "react";
+import { Button } from "~/components/ui/button";
 import {
   Table,
   TableBody,
@@ -8,23 +8,23 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "~/components/ui/table"
-import { CreateEnvironmentDialog } from "./create-environment-dialog"
+} from "~/components/ui/table";
+import { CreateEnvironmentDialog } from "./create-environment-dialog";
 
 interface Environment {
-  id: number
-  name: string
-  createdBy: string
-  createdAt: Date | string
+  id: number;
+  name: string;
+  createdBy: string;
+  createdAt: Date | string;
 }
 
 interface EnvironmentsPageProps {
-  environments: Environment[]
-  organisationId: number | null
+  environments: Environment[];
+  organisationId: number | null;
 }
 
 export function EnvironmentsPage({ environments, organisationId }: EnvironmentsPageProps) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="flex flex-col min-h-full bg-white">
@@ -70,7 +70,13 @@ export function EnvironmentsPage({ environments, organisationId }: EnvironmentsP
               <TableHead className="font-semibold text-gray-700">
                 <span className="flex items-center gap-1">
                   Created
-                  <svg className="size-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <svg
+                    className="size-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                  >
                     <path d="M12 5v14M5 12l7 7 7-7" />
                   </svg>
                 </span>
@@ -91,11 +97,7 @@ export function EnvironmentsPage({ environments, organisationId }: EnvironmentsP
         </Table>
       )}
 
-      <CreateEnvironmentDialog
-        open={open}
-        organisationId={organisationId}
-        onOpenChange={setOpen}
-      />
+      <CreateEnvironmentDialog open={open} organisationId={organisationId} onOpenChange={setOpen} />
     </div>
-  )
+  );
 }

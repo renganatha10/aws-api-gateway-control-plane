@@ -1,20 +1,20 @@
-import { useMemo } from "react"
+import { useMemo } from "react";
 
-import { DefinitionsSection } from "./definitions-section"
-import { EndpointCard } from "./endpoint-card"
-import { parseSpec } from "./parse-spec"
+import { DefinitionsSection } from "./definitions-section";
+import { EndpointCard } from "./endpoint-card";
+import { parseSpec } from "./parse-spec";
 
 export function UiTab({ yamlValue }: { yamlValue: string }) {
-  const { groups, spec } = useMemo(() => parseSpec(yamlValue), [yamlValue])
+  const { groups, spec } = useMemo(() => parseSpec(yamlValue), [yamlValue]);
 
-  const definitions = Object.entries(spec.definitions ?? spec.components?.schemas ?? {})
+  const definitions = Object.entries(spec.definitions ?? spec.components?.schemas ?? {});
 
   if (groups.length === 0 && definitions.length === 0) {
     return (
       <div className="flex items-center justify-center flex-1 text-zinc-600 text-sm">
         No endpoints found in spec
       </div>
-    )
+    );
   }
 
   return (
@@ -28,9 +28,7 @@ export function UiTab({ yamlValue }: { yamlValue: string }) {
               {group.endpoints.length} endpoint{group.endpoints.length !== 1 ? "s" : ""}
             </span>
           </div>
-          {group.description && (
-            <p className="text-xs text-zinc-500 mb-3">{group.description}</p>
-          )}
+          {group.description && <p className="text-xs text-zinc-500 mb-3">{group.description}</p>}
           <div className="space-y-2">
             {group.endpoints.map((ep, i) => (
               <EndpointCard key={i} ep={ep} />
@@ -41,5 +39,5 @@ export function UiTab({ yamlValue }: { yamlValue: string }) {
 
       <DefinitionsSection definitions={definitions} spec={spec} />
     </div>
-  )
+  );
 }

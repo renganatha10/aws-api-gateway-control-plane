@@ -1,22 +1,24 @@
-import { eq } from "drizzle-orm"
+import { eq } from "drizzle-orm";
 
-import { db } from "~/lib/db.server"
-import { environments, type Environment, type NewEnvironment } from "~/lib/schema"
+import { db } from "~/lib/db.server";
+import { type Environment, environments, type NewEnvironment } from "~/lib/schema";
 
 export async function createEnvironment(data: NewEnvironment): Promise<Environment> {
-  const [created] = await db.insert(environments).values(data).returning()
-  return created
+  const [created] = await db.insert(environments).values(data).returning();
+  return created;
 }
 
-export async function listEnvironmentsByOrganisation(organisationId: number): Promise<Environment[]> {
-  return db.select().from(environments).where(eq(environments.organisationId, organisationId))
+export async function listEnvironmentsByOrganisation(
+  organisationId: number
+): Promise<Environment[]> {
+  return db.select().from(environments).where(eq(environments.organisationId, organisationId));
 }
 
 export async function findEnvironmentById(id: number): Promise<Environment | null> {
-  const [row] = await db.select().from(environments).where(eq(environments.id, id))
-  return row ?? null
+  const [row] = await db.select().from(environments).where(eq(environments.id, id));
+  return row ?? null;
 }
 
 export async function deleteEnvironment(id: number): Promise<void> {
-  await db.delete(environments).where(eq(environments.id, id))
+  await db.delete(environments).where(eq(environments.id, id));
 }

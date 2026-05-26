@@ -1,21 +1,18 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
 const EMAIL = `smoke+${Date.now()}@mailinator.com`;
 const PASSWORD = "Playwright@2025!";
 
-const PETS_YAML = readFileSync(
-  resolve("tests/e2e/fixtures/pets-api.yaml"),
-  "utf-8",
-);
+const PETS_YAML = readFileSync(resolve("tests/e2e/fixtures/pets-api.yaml"), "utf-8");
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 async function selectOption(
   page: import("@playwright/test").Page,
   placeholder: string,
-  optionText: string | RegExp,
+  optionText: string | RegExp
 ) {
   await page.getByText(placeholder).click();
   await page.getByRole("option", { name: optionText }).click();
@@ -25,7 +22,7 @@ async function createApi(
   page: import("@playwright/test").Page,
   name: string,
   scope: string,
-  yaml: string,
+  yaml: string
 ) {
   await page.goto("/apis/new");
   await page.waitForLoadState("domcontentloaded");
@@ -49,7 +46,7 @@ async function createApi(
 async function createProduct(
   page: import("@playwright/test").Page,
   displayName: string,
-  description: string,
+  description: string
 ) {
   await page.goto("/products/new");
   await page.locator("#displayName").fill(displayName);
@@ -61,7 +58,7 @@ async function createProduct(
 async function configureProduct(
   page: import("@playwright/test").Page,
   apiNames: string[],
-  planPattern: string | RegExp,
+  planPattern: string | RegExp
 ) {
   await page.getByRole("button", { name: "APIs" }).click();
   for (const name of apiNames) {
@@ -79,7 +76,7 @@ async function configureProduct(
 async function deployProduct(
   page: import("@playwright/test").Page,
   displayName: string,
-  envName: string,
+  envName: string
 ) {
   await page.goto("/products");
   await page.waitForLoadState("domcontentloaded");
@@ -97,7 +94,7 @@ async function createConsumer(
   page: import("@playwright/test").Page,
   consumerName: string,
   productName: string | RegExp,
-  planPattern: string | RegExp,
+  planPattern: string | RegExp
 ) {
   await page.goto("/consumers/new");
   await page.waitForLoadState("domcontentloaded");
@@ -202,13 +199,18 @@ test.describe("Smoke — minimal end-to-end flow", () => {
       await page.waitForLoadState("domcontentloaded");
       await page.getByRole("button", { name: "Get Token" }).click();
       await expect(
-        page.locator("section").filter({ hasText: "Credentials" }).locator(".font-mono.text-xs.text-gray-800"),
+        page
+          .locator("section")
+          .filter({ hasText: "Credentials" })
+          .locator(".font-mono.text-xs.text-gray-800")
       ).toBeVisible({ timeout: 30_000 });
 
       // Select the GET /pet/findByStatus endpoint (API is auto-selected — only one).
       await selectOption(page, "Select an endpoint…", /findByStatus/);
       // Fill in the auto-added "status" query param.
-      await expect(page.locator('input[placeholder="value"]').first()).toBeVisible({ timeout: 5_000 });
+      await expect(page.locator('input[placeholder="value"]').first()).toBeVisible({
+        timeout: 5_000,
+      });
       await page.locator('input[placeholder="value"]').first().fill("available");
 
       // Retry send until 200 — AWS API key propagation can take up to 90 s.
@@ -216,7 +218,9 @@ test.describe("Smoke — minimal end-to-end flow", () => {
       while (Date.now() < invokeDeadline) {
         await page.getByRole("button", { name: "Send Request" }).click();
         // Wait for the request to finish (button re-enables when fetcher is idle).
-        await expect(page.getByRole("button", { name: "Send Request" })).toBeVisible({ timeout: 30_000 });
+        await expect(page.getByRole("button", { name: "Send Request" })).toBeVisible({
+          timeout: 30_000,
+        });
 
         const has200 = await page
           .locator("section")
@@ -226,13 +230,19 @@ test.describe("Smoke — minimal end-to-end flow", () => {
           .catch(() => false);
         if (has200) break;
 
-        const statusEl = page.locator("section").filter({ hasText: "Response" }).locator("span.font-semibold").first();
+        const statusEl = page
+          .locator("section")
+          .filter({ hasText: "Response" })
+          .locator("span.font-semibold")
+          .first();
         const statusText = await statusEl.textContent().catch(() => "?");
-        console.log(`── Invoke retry (${statusText?.trim()}) — waiting 10 s for API key propagation…`);
+        console.log(
+          `── Invoke retry (${statusText?.trim()}) — waiting 10 s for API key propagation…`
+        );
         await page.waitForTimeout(10_000);
       }
       await expect(
-        page.locator("section").filter({ hasText: "Response" }).getByText("200", { exact: true }),
+        page.locator("section").filter({ hasText: "Response" }).getByText("200", { exact: true })
       ).toBeVisible({ timeout: 5_000 });
     });
 

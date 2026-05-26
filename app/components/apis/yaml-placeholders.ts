@@ -228,7 +228,7 @@ definitions:
       status:
         type: string
         description: pet status in the store
-        enum: [available, pending, sold]`
+        enum: [available, pending, sold]`;
 
 export const OPENAPI3_PLACEHOLDER = `openapi: "3.0.0"
 info:
@@ -240,4 +240,4 @@ paths:
       summary: Example endpoint
       responses:
         "200":
-          description: OK`
+          description: OK`;

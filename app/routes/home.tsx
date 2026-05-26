@@ -1,29 +1,39 @@
-import { Globe, Package, Zap } from "lucide-react"
-import { Link } from "react-router"
+import { Globe, Package, Zap } from "lucide-react";
+import { Link } from "react-router";
 
-import { Badge } from "~/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card"
-import type { Route } from "./+types/home"
+import { Badge } from "~/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import type { Route } from "./+types/home";
 
 export function meta({}: Route.MetaArgs) {
   return [
     { title: "ApiGateway — Dashboard" },
     { name: "description", content: "API Gateway management dashboard" },
-  ]
+  ];
 }
 
 const stats = [
-  { label: "Total APIs",       value: "128",    delta: "+4 this week"    },
-  { label: "Active Endpoints", value: "2,048",  delta: "+12 today"       },
-  { label: "Avg Latency",      value: "38ms",   delta: "-2ms vs last wk" },
-  { label: "Uptime",           value: "99.98%", delta: "Last 30 days"    },
-]
+  { label: "Total APIs", value: "128", delta: "+4 this week" },
+  { label: "Active Endpoints", value: "2,048", delta: "+12 today" },
+  { label: "Avg Latency", value: "38ms", delta: "-2ms vs last wk" },
+  { label: "Uptime", value: "99.98%", delta: "Last 30 days" },
+];
 
 const quickLinks = [
-  { title: "APIs",         icon: Zap,     description: "View and manage API configurations",     url: "/apis"         },
-  { title: "Environments", icon: Globe,   description: "Staging, production, and dev envs",      url: "/environments" },
-  { title: "Products",     icon: Package, description: "Bundle APIs into product offerings",      url: "/products"     },
-]
+  { title: "APIs", icon: Zap, description: "View and manage API configurations", url: "/apis" },
+  {
+    title: "Environments",
+    icon: Globe,
+    description: "Staging, production, and dev envs",
+    url: "/environments",
+  },
+  {
+    title: "Products",
+    icon: Package,
+    description: "Bundle APIs into product offerings",
+    url: "/products",
+  },
+];
 
 export default function Home() {
   return (
@@ -92,5 +102,5 @@ export default function Home() {
         </div>
       </div>
     </div>
-  )
+  );
 }

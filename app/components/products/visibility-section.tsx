@@ -1,6 +1,6 @@
-import { Label } from "~/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "~/components/ui/radio-group"
-import { Separator } from "~/components/ui/separator"
+import { Label } from "~/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "~/components/ui/radio-group";
+import { Separator } from "~/components/ui/separator";
 
 const VISIBILITY_OPTIONS = [
   {
@@ -21,11 +21,11 @@ const VISIBILITY_OPTIONS = [
     label: "Invisible",
     desc: "Not visible in the Developer Portal.",
   },
-]
+];
 
 interface VisibilitySectionProps {
-  visibility: string
-  onVisibilityChange: (value: string) => void
+  visibility: string;
+  onVisibilityChange: (value: string) => void;
 }
 
 export function VisibilitySection({ visibility, onVisibilityChange }: VisibilitySectionProps) {
@@ -56,7 +56,9 @@ export function VisibilitySection({ visibility, onVisibilityChange }: Visibility
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold text-gray-900">{opt.label}</span>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${opt.badge.className}`}>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${opt.badge.className}`}
+                >
                   {opt.badge.text}
                 </span>
               </div>
@@ -66,5 +68,5 @@ export function VisibilitySection({ visibility, onVisibilityChange }: Visibility
         ))}
       </RadioGroup>
     </div>
-  )
+  );
 }

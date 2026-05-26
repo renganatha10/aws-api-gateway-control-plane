@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
@@ -9,18 +9,9 @@ const EMAIL = `e2e+${Date.now()}@mailinator.com`;
 const PASSWORD = "Playwright@2025!";
 
 // ── YAML specs (securityDefinitions, externalDocs, and per-op security removed) ──
-const PETS_YAML = readFileSync(
-  resolve("tests/e2e/fixtures/pets-api.yaml"),
-  "utf-8",
-);
-const USERS_YAML = readFileSync(
-  resolve("tests/e2e/fixtures/users-api.yaml"),
-  "utf-8",
-);
-const STORES_YAML = readFileSync(
-  resolve("tests/e2e/fixtures/stores-api.yaml"),
-  "utf-8",
-);
+const PETS_YAML = readFileSync(resolve("tests/e2e/fixtures/pets-api.yaml"), "utf-8");
+const USERS_YAML = readFileSync(resolve("tests/e2e/fixtures/users-api.yaml"), "utf-8");
+const STORES_YAML = readFileSync(resolve("tests/e2e/fixtures/stores-api.yaml"), "utf-8");
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -28,7 +19,7 @@ const STORES_YAML = readFileSync(
 async function selectOption(
   page: import("@playwright/test").Page,
   placeholder: string,
-  optionText: string | RegExp,
+  optionText: string | RegExp
 ) {
   await page.getByText(placeholder).click();
   await page.getByRole("option", { name: optionText }).click();
@@ -39,7 +30,7 @@ async function createApi(
   page: import("@playwright/test").Page,
   name: string,
   scope: string,
-  yaml: string,
+  yaml: string
 ) {
   await page.goto("/apis/new");
   await page.waitForLoadState("domcontentloaded");
@@ -56,9 +47,7 @@ async function createApi(
       .locator(".text-destructive")
       .textContent()
       .catch(() => "");
-    throw new Error(
-      `API "${name}" creation failed — server returned: "${errText?.trim()}"`,
-    );
+    throw new Error(`API "${name}" creation failed — server returned: "${errText?.trim()}"`);
   });
   await expect(page.getByText(name)).toBeVisible();
 }
@@ -67,7 +56,7 @@ async function createApi(
 async function createProduct(
   page: import("@playwright/test").Page,
   displayName: string,
-  description: string,
+  description: string
 ) {
   await page.goto("/products/new");
   await page.locator("#displayName").fill(displayName);
@@ -80,36 +69,33 @@ async function createProduct(
 async function deployProduct(
   page: import("@playwright/test").Page,
   displayName: string,
-  envName: string,
+  envName: string
 ) {
-  await page.goto("/products")
-  await page.waitForLoadState("domcontentloaded")
-  const row = page.getByRole("row").filter({ hasText: displayName })
-  await row.getByRole("button").click()
-  await page.getByRole("menuitem", { name: "Publish" }).click()
-  await page.getByRole("dialog").getByText(envName, { exact: true }).click()
-  await page.getByRole("button", { name: "Deploy" }).click()
-  await expect(page.getByText(/Published to/)).toBeVisible({ timeout: 120_000 })
+  await page.goto("/products");
+  await page.waitForLoadState("domcontentloaded");
+  const row = page.getByRole("row").filter({ hasText: displayName });
+  await row.getByRole("button").click();
+  await page.getByRole("menuitem", { name: "Publish" }).click();
+  await page.getByRole("dialog").getByText(envName, { exact: true }).click();
+  await page.getByRole("button", { name: "Deploy" }).click();
+  await expect(page.getByText(/Published to/)).toBeVisible({ timeout: 120_000 });
 }
 
 /** Navigate to the product detail page, open Deployments tab, verify an invoke URL is shown. */
-async function verifyDeployment(
-  page: import("@playwright/test").Page,
-  displayName: string,
-) {
-  await page.goto("/products")
-  await page.waitForLoadState("domcontentloaded")
-  await page.getByRole("link", { name: displayName }).click()
-  await page.waitForURL("**/products/**")
-  await page.getByRole("button", { name: "Deployments" }).click()
-  await expect(page.getByText(/\.execute-api\./)).toBeVisible({ timeout: 10_000 })
+async function verifyDeployment(page: import("@playwright/test").Page, displayName: string) {
+  await page.goto("/products");
+  await page.waitForLoadState("domcontentloaded");
+  await page.getByRole("link", { name: displayName }).click();
+  await page.waitForURL("**/products/**");
+  await page.getByRole("button", { name: "Deployments" }).click();
+  await expect(page.getByText(/\.execute-api\./)).toBeVisible({ timeout: 10_000 });
 }
 
 /** On the product detail page, add APIs and a plan, then save. */
 async function configureProduct(
   page: import("@playwright/test").Page,
   apiNames: string[],
-  planPattern: string | RegExp,
+  planPattern: string | RegExp
 ) {
   // ── APIs section ──
   await page.getByRole("button", { name: "APIs" }).click();
@@ -137,7 +123,7 @@ async function createConsumerForProduct(
   page: import("@playwright/test").Page,
   consumerName: string,
   productName: string | RegExp,
-  planPattern: string | RegExp,
+  planPattern: string | RegExp
 ) {
   await page.goto("/consumers/new");
   await page.waitForLoadState("domcontentloaded");
@@ -160,7 +146,7 @@ async function verifyConsumerUrls(
   page: import("@playwright/test").Page,
   consumerName: string,
   productName: string | RegExp,
-  invokeTestPath: string,
+  invokeTestPath: string
 ) {
   // ── Navigate to consumer detail ──────────────────────────────────────────
   await page.goto("/consumers");
@@ -171,8 +157,8 @@ async function verifyConsumerUrls(
   await page.waitForURL("**/consumers/**");
 
   const consumerId = page.url().split("/").pop()!;
-  const clientId   = (await page.getByTestId("client-id").textContent())!.trim();
-  const tokenUrl   = (await page.getByTestId("token-url").textContent())!.trim();
+  const clientId = (await page.getByTestId("client-id").textContent())!.trim();
+  const tokenUrl = (await page.getByTestId("token-url").textContent())!.trim();
 
   // ── Fetch secret + API key value via internal routes ────────────────────
   const [secretRes, apiKeyRes] = await Promise.all([
@@ -180,7 +166,7 @@ async function verifyConsumerUrls(
     page.request.get(`/api/consumer-apikey/${consumerId}`),
   ]);
   const { secret: clientSecret } = await secretRes.json();
-  const { apiKeyValue }          = await apiKeyRes.json();
+  const { apiKeyValue } = await apiKeyRes.json();
 
   // ── Read invoke URL from product Deployments tab ─────────────────────────
   await page.goto("/products");
@@ -195,8 +181,8 @@ async function verifyConsumerUrls(
   const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
   const tokenRes = await page.request.post(tokenUrl, {
     headers: {
-      "Authorization":  `Basic ${credentials}`,
-      "Content-Type":   "application/x-www-form-urlencoded",
+      Authorization: `Basic ${credentials}`,
+      "Content-Type": "application/x-www-form-urlencoded",
     },
     form: { grant_type: "client_credentials" },
   });
@@ -206,8 +192,8 @@ async function verifyConsumerUrls(
   // ── Verify invoke URL → 200 ──────────────────────────────────────────────
   const invokeRes = await page.request.get(`${invokeUrl}${invokeTestPath}`, {
     headers: {
-      "x-api-key":    apiKeyValue,
-      "Authorization": `Bearer ${access_token}`,
+      "x-api-key": apiKeyValue,
+      Authorization: `Bearer ${access_token}`,
     },
   });
   expect(invokeRes.status()).toBe(200);
@@ -347,7 +333,12 @@ test.describe("Happy path — full portal flow", () => {
     await page.waitForTimeout(10_000);
 
     await test.step("Verify Consumer A token URL and invoke URL", async () => {
-      await verifyConsumerUrls(page, "Consumer A", "Marketplace", "/pet/findByStatus?status=available");
+      await verifyConsumerUrls(
+        page,
+        "Consumer A",
+        "Marketplace",
+        "/pet/findByStatus?status=available"
+      );
     });
 
     // ── 13. Product 2: Commerce (users + stores, premium plan) ────────────
@@ -373,7 +364,12 @@ test.describe("Happy path — full portal flow", () => {
     await page.waitForTimeout(10_000);
 
     await test.step("Verify Consumer B token URL and invoke URL", async () => {
-      await verifyConsumerUrls(page, "Consumer B", "Commerce", "/user/login?username=test&password=test");
+      await verifyConsumerUrls(
+        page,
+        "Consumer B",
+        "Commerce",
+        "/user/login?username=test&password=test"
+      );
     });
 
     // ── 14. Product 3: Pet Catalog (pets only, standard plan) ─────────────
@@ -399,7 +395,12 @@ test.describe("Happy path — full portal flow", () => {
     await page.waitForTimeout(10_000);
 
     await test.step("Verify Consumer C token URL and invoke URL", async () => {
-      await verifyConsumerUrls(page, "Consumer C", "Pet Catalog", "/pet/findByStatus?status=available");
+      await verifyConsumerUrls(
+        page,
+        "Consumer C",
+        "Pet Catalog",
+        "/pet/findByStatus?status=available"
+      );
     });
   });
 });

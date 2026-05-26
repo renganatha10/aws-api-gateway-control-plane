@@ -1,25 +1,25 @@
-import { useFetcher } from "react-router"
+import { useFetcher } from "react-router";
 
-import { Button } from "~/components/ui/button"
+import { Button } from "~/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "~/components/ui/dialog"
+} from "~/components/ui/dialog";
 
 interface DeleteProductDialogProps {
-  open: boolean
-  productName: string
-  onOpenChange: (open: boolean) => void
+  open: boolean;
+  productName: string;
+  onOpenChange: (open: boolean) => void;
 }
 
 export function DeleteProductDialog({ open, productName, onOpenChange }: DeleteProductDialogProps) {
-  const deleteFetcher = useFetcher()
-  const data = deleteFetcher.data as { deleteError?: string } | undefined
-  const deleteError = data?.deleteError ?? null
-  const busy = deleteFetcher.state !== "idle"
+  const deleteFetcher = useFetcher();
+  const data = deleteFetcher.data as { deleteError?: string } | undefined;
+  const deleteError = data?.deleteError ?? null;
+  const busy = deleteFetcher.state !== "idle";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -29,8 +29,8 @@ export function DeleteProductDialog({ open, productName, onOpenChange }: DeleteP
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
           Are you sure you want to delete{" "}
-          <span className="font-semibold text-gray-900">{productName}</span>? All consumers must
-          be removed first.
+          <span className="font-semibold text-gray-900">{productName}</span>? All consumers must be
+          removed first.
         </p>
         {deleteError && <p className="text-xs text-destructive">{deleteError}</p>}
         <DialogFooter>
@@ -46,5 +46,5 @@ export function DeleteProductDialog({ open, productName, onOpenChange }: DeleteP
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

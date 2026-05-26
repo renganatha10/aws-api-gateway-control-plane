@@ -1,50 +1,50 @@
-import { useEffect, useMemo, useState } from "react"
-import { useActionData, useNavigation } from "react-router"
-import { toast } from "sonner"
+import { useEffect, useMemo, useState } from "react";
+import { useActionData, useNavigation } from "react-router";
+import { toast } from "sonner";
 
-import { ApiHeader } from "./api-header"
-import { DeleteApiDialog } from "./delete-api-dialog"
-import { SourceTab } from "./source-tab"
-import { UiTab } from "./ui-tab"
-import { parseHosts } from "./parse-spec"
+import { ApiHeader } from "./api-header";
+import { DeleteApiDialog } from "./delete-api-dialog";
+import { parseHosts } from "./parse-spec";
+import { SourceTab } from "./source-tab";
+import { UiTab } from "./ui-tab";
 
 interface ApiItem {
-  displayName: string
-  specType:    string
-  scope:       string | null
+  displayName: string;
+  specType: string;
+  scope: string | null;
 }
 
 interface ApiDetailPageProps {
-  api:         ApiItem
-  initialYaml: string
+  api: ApiItem;
+  initialYaml: string;
 }
 
-type ActionData = { ok?: boolean; error?: string } | undefined
+type ActionData = { ok?: boolean; error?: string } | undefined;
 
 export function ApiDetailPage({ api, initialYaml }: ApiDetailPageProps) {
-  const actionData = useActionData() as ActionData
-  const navigation = useNavigation()
-  const saving     = navigation.state === "submitting" && !navigation.formData?.get("_intent")
+  const actionData = useActionData() as ActionData;
+  const navigation = useNavigation();
+  const saving = navigation.state === "submitting" && !navigation.formData?.get("_intent");
 
-  const [activeTab,        setActiveTab]        = useState<"source" | "ui">("source")
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [yamlValue,        setYamlValue]        = useState(initialYaml)
-  const [scope,            setScope]            = useState(api.scope ?? "")
-  const [editScope,        setEditScope]        = useState(false)
-  const [host,             setHost]             = useState("")
+  const [activeTab, setActiveTab] = useState<"source" | "ui">("source");
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [yamlValue, setYamlValue] = useState(initialYaml);
+  const [scope, setScope] = useState(api.scope ?? "");
+  const [editScope, setEditScope] = useState(false);
+  const [host, setHost] = useState("");
 
-  const hosts    = useMemo(() => parseHosts(yamlValue), [yamlValue])
-  const hostKeys = Object.keys(hosts)
-
-  useEffect(() => {
-    if (!host && hostKeys.length > 0) setHost(hostKeys[0])
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hostKeys.join(",")])
+  const hosts = useMemo(() => parseHosts(yamlValue), [yamlValue]);
+  const hostKeys = Object.keys(hosts);
 
   useEffect(() => {
-    if (actionData && "ok"    in actionData) toast.success("Saved")
-    if (actionData && "error" in actionData) toast.error((actionData as { error: string }).error)
-  }, [actionData])
+    if (!host && hostKeys.length > 0) setHost(hostKeys[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hostKeys.join(",")]);
+
+  useEffect(() => {
+    if (actionData && "ok" in actionData) toast.success("Saved");
+    if (actionData && "error" in actionData) toast.error((actionData as { error: string }).error);
+  }, [actionData]);
 
   return (
     <div className="flex flex-col bg-black text-white min-h-svh h-full">
@@ -88,14 +88,9 @@ export function ApiDetailPage({ api, initialYaml }: ApiDetailPageProps) {
       </div>
 
       {activeTab === "source" && (
-        <SourceTab
-          yamlValue={yamlValue}
-          setYamlValue={setYamlValue}
-          hosts={hosts}
-          host={host}
-        />
+        <SourceTab yamlValue={yamlValue} setYamlValue={setYamlValue} hosts={hosts} host={host} />
       )}
       {activeTab === "ui" && <UiTab yamlValue={yamlValue} />}
     </div>
-  )
+  );
 }

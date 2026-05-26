@@ -1,46 +1,42 @@
-import { useState } from "react"
-import { FlaskConical } from "lucide-react"
-import { Link } from "react-router"
+import { FlaskConical } from "lucide-react";
+import { useState } from "react";
+import { Link } from "react-router";
 
-import { Badge } from "~/components/ui/badge"
-import { ConsumerTabBar } from "./consumer-tab-bar"
-import { TryoutCredentialsSection } from "./tryout-credentials-section"
-import { RequestBuilderSection } from "./request-builder-section"
+import { Badge } from "~/components/ui/badge";
+import { ConsumerTabBar } from "./consumer-tab-bar";
+import { RequestBuilderSection } from "./request-builder-section";
+import { TryoutCredentialsSection } from "./tryout-credentials-section";
 
 interface ProductApi {
-  id: number
-  displayName: string
-  spec: unknown
+  id: number;
+  displayName: string;
+  spec: unknown;
 }
 
 interface TryoutConsumer {
-  id: number
-  name: string
-  productId: number
-  environmentId: number
-  clientId: string | null
-  tokenUrl: string | null
-  productName: string
-  environmentName: string
-  planName: string
+  id: number;
+  name: string;
+  productId: number;
+  environmentId: number;
+  clientId: string | null;
+  tokenUrl: string | null;
+  productName: string;
+  environmentName: string;
+  planName: string;
 }
 
 interface ConsumerTryoutPageProps {
-  consumer: TryoutConsumer
-  productApis: ProductApi[]
-  invokeUrl: string | null
+  consumer: TryoutConsumer;
+  productApis: ProductApi[];
+  invokeUrl: string | null;
 }
 
-export function ConsumerTryoutPage({
-  consumer,
-  productApis,
-  invokeUrl,
-}: ConsumerTryoutPageProps) {
-  const [token, setToken] = useState("")
-  const [tokenVisible, setTokenVisible] = useState(false)
-  const [apiKeyVisible, setApiKeyVisible] = useState(false)
+export function ConsumerTryoutPage({ consumer, productApis, invokeUrl }: ConsumerTryoutPageProps) {
+  const [token, setToken] = useState("");
+  const [tokenVisible, setTokenVisible] = useState(false);
+  const [apiKeyVisible, setApiKeyVisible] = useState(false);
 
-  const apiKeyValue = consumer.clientId ?? ""
+  const apiKeyValue = consumer.clientId ?? "";
 
   return (
     <div className="flex flex-col min-h-full bg-white">
@@ -96,6 +92,7 @@ export function ConsumerTryoutPage({
           />
 
           <RequestBuilderSection
+            consumerId={consumer.id}
             productApis={productApis}
             invokeUrl={invokeUrl}
             token={token}
@@ -104,5 +101,5 @@ export function ConsumerTryoutPage({
         </div>
       </div>
     </div>
-  )
+  );
 }

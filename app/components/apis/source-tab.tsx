@@ -1,17 +1,17 @@
-import { useMemo } from "react"
+import { useMemo } from "react";
 
-import { MethodBadge } from "./method-badge"
-import { parseEndpointList } from "./parse-spec"
+import { MethodBadge } from "./method-badge";
+import { parseEndpointList } from "./parse-spec";
 
 interface SourceTabProps {
-  yamlValue:    string
-  setYamlValue: (v: string) => void
-  hosts:        Record<string, string>
-  host:         string
+  yamlValue: string;
+  setYamlValue: (v: string) => void;
+  hosts: Record<string, string>;
+  host: string;
 }
 
 export function SourceTab({ yamlValue, setYamlValue, hosts, host }: SourceTabProps) {
-  const endpoints = useMemo(() => parseEndpointList(yamlValue), [yamlValue])
+  const endpoints = useMemo(() => parseEndpointList(yamlValue), [yamlValue]);
 
   return (
     <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -31,9 +31,7 @@ export function SourceTab({ yamlValue, setYamlValue, hosts, host }: SourceTabPro
         <div className="px-4 py-2 text-xs text-zinc-500 border-b border-white/10 sticky top-0 bg-zinc-950">
           {endpoints.length} endpoint{endpoints.length !== 1 ? "s" : ""}
           {host && hosts[host] && (
-            <span className="ml-2 text-zinc-700 font-mono text-[11px] truncate">
-              {hosts[host]}
-            </span>
+            <span className="ml-2 text-zinc-700 font-mono text-[11px] truncate">{hosts[host]}</span>
           )}
         </div>
         {endpoints.length === 0 ? (
@@ -55,5 +53,5 @@ export function SourceTab({ yamlValue, setYamlValue, hosts, host }: SourceTabPro
         )}
       </div>
     </div>
-  )
+  );
 }

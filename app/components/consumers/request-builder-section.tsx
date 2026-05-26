@@ -1,130 +1,135 @@
-import { useEffect, useState } from "react"
-import { useFetcher } from "react-router"
-import { Send } from "lucide-react"
+import { Send } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useFetcher } from "react-router";
 
-import { Button } from "~/components/ui/button"
-import { Input } from "~/components/ui/input"
-import { Label } from "~/components/ui/label"
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "~/components/ui/select"
-import { Textarea } from "~/components/ui/textarea"
-import { CopyButton } from "./copy-button"
-import { KVEditor } from "./kv-editor"
-import { MethodBadge } from "./method-badge"
-import { ResponsePanel } from "./response-panel"
-import { parseEndpoints } from "./parse-endpoints"
-import type { KVRow, ParsedEndpoint, ProxyResponse } from "./tryout-types"
+} from "~/components/ui/select";
+import { Textarea } from "~/components/ui/textarea";
+import { CopyButton } from "./copy-button";
+import { KVEditor } from "./kv-editor";
+import { MethodBadge } from "./method-badge";
+import { parseEndpoints } from "./parse-endpoints";
+import { ResponsePanel } from "./response-panel";
+import type { KVRow, ParsedEndpoint, ProxyResponse } from "./tryout-types";
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
     <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
       {children}
     </h3>
-  )
+  );
 }
 
 interface ProductApi {
-  id: number
-  displayName: string
-  spec: unknown
+  id: number;
+  displayName: string;
+  spec: unknown;
 }
 
 interface RequestBuilderSectionProps {
-  productApis: ProductApi[]
-  invokeUrl: string | null
-  token: string
-  apiKeyValue: string
+  consumerId: number;
+  productApis: ProductApi[];
+  invokeUrl: string | null;
+  token: string;
+  apiKeyValue: string;
 }
 
 export function RequestBuilderSection({
+  consumerId,
   productApis,
   invokeUrl,
   token,
   apiKeyValue,
 }: RequestBuilderSectionProps) {
-  const proxyFetcher = useFetcher<ProxyResponse & { error?: string }>()
+  const proxyFetcher = useFetcher<ProxyResponse & { error?: string }>();
 
   const [selectedApiId, setSelectedApiId] = useState<string>(
-    productApis.length === 1 ? String(productApis[0].id) : "",
-  )
-  const [selectedEndpoint, setSelectedEndpoint] = useState<string>("")
-  const [pathParams, setPathParams] = useState<Record<string, string>>({})
-  const [queryRows, setQueryRows] = useState<KVRow[]>([])
-  const [headerRows, setHeaderRows] = useState<KVRow[]>([])
-  const [body, setBody] = useState("")
+    productApis.length === 1 ? String(productApis[0].id) : ""
+  );
+  const [selectedEndpoint, setSelectedEndpoint] = useState<string>("");
+  const [pathParams, setPathParams] = useState<Record<string, string>>({});
+  const [queryRows, setQueryRows] = useState<KVRow[]>([]);
+  const [headerRows, setHeaderRows] = useState<KVRow[]>([]);
+  const [body, setBody] = useState("");
 
-  const selectedApi = productApis.find((a) => String(a.id) === selectedApiId)
+  const selectedApi = productApis.find((a) => String(a.id) === selectedApiId);
   const endpoints: ParsedEndpoint[] = selectedApi
     ? parseEndpoints(selectedApi.spec as Record<string, unknown>)
-    : []
+    : [];
 
-  const currentEndpoint = endpoints.find((e) => `${e.method} ${e.path}` === selectedEndpoint)
-
-  useEffect(() => {
-    setSelectedEndpoint("")
-    setPathParams({})
-  }, [selectedApiId])
+  const currentEndpoint = endpoints.find((e) => `${e.method} ${e.path}` === selectedEndpoint);
 
   useEffect(() => {
-    if (!currentEndpoint) { setPathParams({}); return }
+    setSelectedEndpoint("");
+    setPathParams({});
+  }, [selectedApiId]);
+
+  useEffect(() => {
+    if (!currentEndpoint) {
+      setPathParams({});
+      return;
+    }
     setPathParams(
-      Object.fromEntries(currentEndpoint.pathParams.map((p) => [p, pathParams[p] ?? ""])),
-    )
+      Object.fromEntries(currentEndpoint.pathParams.map((p) => [p, pathParams[p] ?? ""]))
+    );
     if (currentEndpoint.queryParams.length > 0 && queryRows.length === 0) {
-      setQueryRows(currentEndpoint.queryParams.map((q) => ({ key: q.name, value: "" })))
+      setQueryRows(currentEndpoint.queryParams.map((q) => ({ key: q.name, value: "" })));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedEndpoint])
+  }, [selectedEndpoint]);
 
   function buildRequestUrl(): string {
-    if (!invokeUrl || !currentEndpoint) return ""
-    let path = currentEndpoint.path
+    if (!invokeUrl || !currentEndpoint) return "";
+    let path = currentEndpoint.path;
     for (const [k, v] of Object.entries(pathParams)) {
-      path = path.replace(`{${k}}`, encodeURIComponent(v))
+      path = path.replace(`{${k}}`, encodeURIComponent(v));
     }
     const qs = queryRows
       .filter((r) => r.key.trim())
       .map((r) => `${encodeURIComponent(r.key)}=${encodeURIComponent(r.value)}`)
-      .join("&")
-    return `${invokeUrl}${path}${qs ? `?${qs}` : ""}`
+      .join("&");
+    return `${invokeUrl}${path}${qs ? `?${qs}` : ""}`;
   }
 
   function handleSend() {
-    if (!invokeUrl || !currentEndpoint) return
-    const url = buildRequestUrl()
+    if (!invokeUrl || !currentEndpoint) return;
+    const url = buildRequestUrl();
 
-    const headers: Record<string, string> = {}
-    if (token)       headers["Authorization"] = `Bearer ${token}`
-    if (apiKeyValue) headers["x-api-key"]     = apiKeyValue
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (apiKeyValue) headers["x-api-key"] = apiKeyValue;
     for (const { key, value } of headerRows) {
-      if (key.trim()) headers[key.trim()] = value
+      if (key.trim()) headers[key.trim()] = value;
     }
-    const hasBody = ["post", "put", "patch"].includes(currentEndpoint.method)
-    if (hasBody && body.trim()) headers["Content-Type"] = "application/json"
+    const hasBody = ["post", "put", "patch"].includes(currentEndpoint.method);
+    if (hasBody && body.trim()) headers["Content-Type"] = "application/json";
 
     const payload: Record<string, unknown> = {
-      consumerId: undefined,
-      method:     currentEndpoint.method.toUpperCase(),
+      consumerId,
+      method: currentEndpoint.method.toUpperCase(),
       url,
       headers,
-    }
-    if (hasBody && body.trim()) payload.body = body
+    };
+    if (hasBody && body.trim()) payload.body = body;
 
     proxyFetcher.submit(payload as unknown as Record<string, string>, {
       method: "post",
       action: "/api/consumer-proxy",
       encType: "application/json",
-    })
+    });
   }
 
-  const isSending = proxyFetcher.state !== "idle"
-  const requestUrl = buildRequestUrl()
-  const canSend = !!invokeUrl && !!currentEndpoint
+  const isSending = proxyFetcher.state !== "idle";
+  const requestUrl = buildRequestUrl();
+  const canSend = !!invokeUrl && !!currentEndpoint;
 
   return (
     <>
@@ -134,9 +139,7 @@ export function RequestBuilderSection({
         <div className="space-y-2">
           <Label className="text-xs font-medium text-gray-600">API</Label>
           {productApis.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              No APIs associated with this product.
-            </p>
+            <p className="text-xs text-muted-foreground">No APIs associated with this product.</p>
           ) : (
             <Select value={selectedApiId} onValueChange={setSelectedApiId}>
               <SelectTrigger className="max-w-sm h-9">
@@ -313,5 +316,5 @@ export function RequestBuilderSection({
         </section>
       )}
     </>
-  )
+  );
 }

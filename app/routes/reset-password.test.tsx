@@ -1,53 +1,77 @@
-import { render, screen } from "@testing-library/react"
-import { vi } from "vitest"
-import ResetPassword from "~/routes/reset-password"
+import { render, screen } from "@testing-library/react";
+import { vi } from "vitest";
+import ResetPassword from "~/routes/reset-password";
 
-let mockNavState = "idle"
+let mockNavState = "idle";
 
 vi.mock("react-router", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("react-router")>()
+  const actual = await importOriginal<typeof import("react-router")>();
   return {
     ...actual,
-    Form: ({ children, ...props }: React.PropsWithChildren<React.FormHTMLAttributes<HTMLFormElement>>) =>
-      <form {...props}>{children}</form>,
-    Link: ({ to, children, ...props }: { to: string; children: React.ReactNode; className?: string }) =>
-      <a href={to} {...props}>{children}</a>,
+    Form: ({
+      children,
+      ...props
+    }: React.PropsWithChildren<React.FormHTMLAttributes<HTMLFormElement>>) => (
+      <form {...props}>{children}</form>
+    ),
+    Link: ({
+      to,
+      children,
+      ...props
+    }: {
+      to: string;
+      children: React.ReactNode;
+      className?: string;
+    }) => (
+      <a href={to} {...props}>
+        {children}
+      </a>
+    ),
     useNavigation: () => ({ state: mockNavState }),
-  }
-})
+  };
+});
 
-beforeEach(() => { mockNavState = "idle" })
+beforeEach(() => {
+  mockNavState = "idle";
+});
 
 describe("ResetPassword route", () => {
-  const loaderData = { email: "user@example.com" }
+  const loaderData = { email: "user@example.com" };
 
   it("renders the Set new password title", () => {
-    render(<ResetPassword loaderData={loaderData} actionData={undefined} as any />)
-    expect(screen.getByText("Set new password")).toBeInTheDocument()
-  })
+    render(<ResetPassword loaderData={loaderData} actionData={undefined} as any />);
+    expect(screen.getByText("Set new password")).toBeInTheDocument();
+  });
 
   it("renders code, new password and confirm password fields", () => {
-    render(<ResetPassword loaderData={loaderData} actionData={undefined} as any />)
-    expect(screen.getByLabelText("Reset code")).toBeInTheDocument()
-    expect(screen.getByLabelText("New password")).toBeInTheDocument()
-    expect(screen.getByLabelText("Confirm password")).toBeInTheDocument()
-  })
+    render(<ResetPassword loaderData={loaderData} actionData={undefined} as any />);
+    expect(screen.getByLabelText("Reset code")).toBeInTheDocument();
+    expect(screen.getByLabelText("New password")).toBeInTheDocument();
+    expect(screen.getByLabelText("Confirm password")).toBeInTheDocument();
+  });
 
   it("pre-fills email hidden input from loaderData", () => {
-    render(<ResetPassword loaderData={loaderData} actionData={undefined} as any />)
-    const emailInput = document.querySelector('input[name="email"]') as HTMLInputElement
-    expect(emailInput?.value).toBe("user@example.com")
-  })
+    render(<ResetPassword loaderData={loaderData} actionData={undefined} as any />);
+    const emailInput = document.querySelector('input[name="email"]') as HTMLInputElement;
+    expect(emailInput?.value).toBe("user@example.com");
+  });
 
   it("shows error from actionData", () => {
-    render(<ResetPassword loaderData={loaderData} actionData={{ error: "Passwords do not match", email: "user@example.com" }} as any />)
-    expect(screen.getByText("Passwords do not match")).toBeInTheDocument()
-  })
+    render(
+      <ResetPassword
+        loaderData={loaderData}
+        actionData={{ error: "Passwords do not match", email: "user@example.com" }}
+        as
+        any
+      />
+    );
+    expect(screen.getByText("Passwords do not match")).toBeInTheDocument();
+  });
 
   it("shows Resetting… and disables button while submitting", () => {
-    mockNavState = "submitting"
-    render(<ResetPassword loaderData={loaderData} actionData={undefined} as any />)
-    expect(screen.getByText("Resetting…")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Resetting…" })).toBeDisabled()
-  })
-})
+    mockNavState = "submitting";
+    render(<ResetPassword loaderData={loaderData} actionData={undefined} as any />);
+    expect(screen.getByText("Resetting…")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Resetting…" })).toBeDisabled();
+  });
+});

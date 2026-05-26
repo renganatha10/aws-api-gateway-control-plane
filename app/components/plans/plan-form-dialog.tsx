@@ -1,32 +1,32 @@
-import type { Plan } from "~/lib/schema"
-import { Button } from "~/components/ui/button"
+import { Button } from "~/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "~/components/ui/dialog"
-import { Input } from "~/components/ui/input"
-import { Label } from "~/components/ui/label"
+} from "~/components/ui/dialog";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "~/components/ui/select"
-import type { FormErrors, PlanForm, QuotaPeriod } from "./types"
+} from "~/components/ui/select";
+import type { Plan } from "~/lib/schema";
+import type { FormErrors, PlanForm, QuotaPeriod } from "./types";
 
 interface PlanFormDialogProps {
-  open: boolean
-  editingPlan: Plan | null
-  form: PlanForm
-  errors: FormErrors
-  submitting: boolean
-  onOpenChange: (open: boolean) => void
-  onFormChange: (patch: Partial<PlanForm>) => void
-  onSave: () => void
+  open: boolean;
+  editingPlan: Plan | null;
+  form: PlanForm;
+  errors: FormErrors;
+  submitting: boolean;
+  onOpenChange: (open: boolean) => void;
+  onFormChange: (patch: Partial<PlanForm>) => void;
+  onSave: () => void;
 }
 
 export function PlanFormDialog({
@@ -43,7 +43,7 @@ export function PlanFormDialog({
     <Dialog
       open={open}
       onOpenChange={(v) => {
-        onOpenChange(v)
+        onOpenChange(v);
       }}
     >
       <DialogContent className="sm:max-w-[480px]">
@@ -65,7 +65,8 @@ export function PlanFormDialog({
 
           <div className="grid gap-1.5">
             <Label htmlFor="plan-throttle">
-              Throttle <span className="text-muted-foreground font-normal">(requests/sec, optional)</span>
+              Throttle{" "}
+              <span className="text-muted-foreground font-normal">(requests/sec, optional)</span>
             </Label>
             <Input
               id="plan-throttle"
@@ -81,7 +82,8 @@ export function PlanFormDialog({
 
           <div className="grid gap-1.5">
             <Label htmlFor="plan-burst">
-              Burst <span className="text-muted-foreground font-normal">(requests/sec, optional)</span>
+              Burst{" "}
+              <span className="text-muted-foreground font-normal">(requests/sec, optional)</span>
             </Label>
             <Input
               id="plan-burst"
@@ -141,5 +143,5 @@ export function PlanFormDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

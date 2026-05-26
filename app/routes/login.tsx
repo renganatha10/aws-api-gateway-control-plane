@@ -1,76 +1,65 @@
-import { Zap } from "lucide-react"
-import { data, Form, Link, redirect, useNavigation } from "react-router"
-
-import {
-  extractUserId,
-  loginWithCredentials,
-  registerUser,
-} from "~/lib/cognito.server"
-import { createUserSession, getSession } from "~/lib/session.server"
-import { Button } from "~/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "~/components/ui/card"
-import { Input } from "~/components/ui/input"
-import { Label } from "~/components/ui/label"
-import type { Route } from "./+types/login"
+import { Zap } from "lucide-react";
+import { data, Form, Link, redirect, useNavigation } from "react-router";
+import { Button } from "~/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
+import { extractUserId, loginWithCredentials, registerUser } from "~/lib/cognito.server";
+import { createUserSession, getSession } from "~/lib/session.server";
+import type { Route } from "./+types/login";
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const session = await getSession(request)
-  if (session.get("accessToken")) throw redirect("/")
-  const url = new URL(request.url)
-  const mode = url.searchParams.get("mode") === "signup" ? "signup" : "login"
-  return { mode }
+  const session = await getSession(request);
+  if (session.get("accessToken")) throw redirect("/");
+  const url = new URL(request.url);
+  const mode = url.searchParams.get("mode") === "signup" ? "signup" : "login";
+  return { mode };
 }
 
 export async function action({ request }: Route.ActionArgs) {
   try {
-    const formData = await request.formData()
-    const mode = formData.get("mode") as string
-    const email = (formData.get("email") as string)?.trim()
-    const password = formData.get("password") as string
-    const firstName = (formData.get("firstName") as string | null)?.trim() ?? ""
-    const lastName = (formData.get("lastName") as string | null)?.trim() ?? ""
+    const formData = await request.formData();
+    const mode = formData.get("mode") as string;
+    const email = (formData.get("email") as string)?.trim();
+    const password = formData.get("password") as string;
+    const firstName = (formData.get("firstName") as string | null)?.trim() ?? "";
+    const lastName = (formData.get("lastName") as string | null)?.trim() ?? "";
 
     if (!email || !password) {
-      return data({ error: "Email and password are required", mode }, { status: 400 })
+      return data({ error: "Email and password are required", mode }, { status: 400 });
     }
 
     if (mode === "signup") {
-      await registerUser({ email, password, firstName, lastName })
-      const tokens = await loginWithCredentials(email, password)
+      await registerUser({ email, password, firstName, lastName });
+      const tokens = await loginWithCredentials(email, password);
       return createUserSession({
         request,
         accessToken: tokens.access_token,
         userId: extractUserId(tokens.access_token),
         redirectTo: "/",
-      })
+      });
     } else {
-      const tokens = await loginWithCredentials(email, password)
+      const tokens = await loginWithCredentials(email, password);
       return createUserSession({
         request,
         accessToken: tokens.access_token,
         userId: extractUserId(tokens.access_token),
         redirectTo: "/",
-      })
+      });
     }
   } catch (err) {
-    console.error("[login] action failed", err)
-    const message = err instanceof Error ? err.message : "Something went wrong. Please try again."
-    return data({ error: message, mode: "login" }, { status: 400 })
+    console.error("[login] action failed", err);
+    const message = err instanceof Error ? err.message : "Something went wrong. Please try again.";
+    return data({ error: message, mode: "login" }, { status: 400 });
   }
 }
 
 export default function Login({ loaderData, actionData }: Route.ComponentProps) {
-  const navigation = useNavigation()
-  const submitting = navigation.state === "submitting"
+  const navigation = useNavigation();
+  const submitting = navigation.state === "submitting";
   // actionData.mode preserves mode on validation error; loaderData.mode comes from URL
-  const mode = actionData?.mode ?? loaderData.mode
-  const isSignup = mode === "signup"
+  const mode = actionData?.mode ?? loaderData.mode;
+  const isSignup = mode === "signup";
 
   return (
     <div className="min-h-svh flex items-center justify-center bg-gradient-to-br from-stone-50 via-stone-100 to-stone-200 dark:from-stone-950 dark:via-stone-900 dark:to-stone-800 relative overflow-hidden">
@@ -137,13 +126,7 @@ export default function Login({ loaderData, actionData }: Route.ComponentProps) 
 
             <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="you@company.com"
-                required
-              />
+              <Input id="email" name="email" type="email" placeholder="you@company.com" required />
             </div>
 
             <div className="space-y-1.5">
@@ -167,18 +150,24 @@ export default function Login({ loaderData, actionData }: Route.ComponentProps) 
                 minLength={isSignup ? 8 : 1}
               />
               {isSignup && (
-                <p className="text-xs text-muted-foreground">Min 8 characters with uppercase, lowercase, number, and symbol</p>
+                <p className="text-xs text-muted-foreground">
+                  Min 8 characters with uppercase, lowercase, number, and symbol
+                </p>
               )}
             </div>
 
             <Button className="w-full" size="lg" type="submit" disabled={submitting}>
               {submitting
-                ? (isSignup ? "Creating account…" : "Signing in…")
-                : (isSignup ? "Create Account" : "Sign In")}
+                ? isSignup
+                  ? "Creating account…"
+                  : "Signing in…"
+                : isSignup
+                  ? "Create Account"
+                  : "Sign In"}
             </Button>
           </Form>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

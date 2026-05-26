@@ -1,18 +1,18 @@
-import { Form, Link } from "react-router"
+import { Form, Link } from "react-router";
 
 interface ApiHeaderProps {
-  apiDisplayName: string
-  apiSpecType:    string
-  yamlValue:      string
-  scope:          string
-  editScope:      boolean
-  setScope:       (v: string) => void
-  setEditScope:   (v: boolean) => void
-  hosts:          Record<string, string>
-  host:           string
-  setHost:        (v: string) => void
-  saving:         boolean
-  onDeleteClick:  () => void
+  apiDisplayName: string;
+  apiSpecType: string;
+  yamlValue: string;
+  scope: string;
+  editScope: boolean;
+  setScope: (v: string) => void;
+  setEditScope: (v: boolean) => void;
+  hosts: Record<string, string>;
+  host: string;
+  setHost: (v: string) => void;
+  saving: boolean;
+  onDeleteClick: () => void;
 }
 
 export function ApiHeader({
@@ -29,11 +29,11 @@ export function ApiHeader({
   saving,
   onDeleteClick,
 }: ApiHeaderProps) {
-  const hostKeys = Object.keys(hosts)
+  const hostKeys = Object.keys(hosts);
 
   return (
     <Form method="post">
-      <input type="hidden" name="yaml"  value={yamlValue} />
+      <input type="hidden" name="yaml" value={yamlValue} />
       <input type="hidden" name="scope" value={scope} />
 
       <div className="flex items-center gap-3 px-5 py-3 border-b border-white/10 bg-zinc-950 sticky top-0 z-10 min-w-0">
@@ -105,5 +105,5 @@ export function ApiHeader({
         </button>
       </div>
     </Form>
-  )
+  );
 }

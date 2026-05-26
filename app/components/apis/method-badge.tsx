@@ -1,4 +1,4 @@
-import { METHOD_BG } from "./constants"
+import { METHOD_BG } from "./constants";
 
 export function MethodBadge({ method }: { method: string }) {
   return (
@@ -7,5 +7,5 @@ export function MethodBadge({ method }: { method: string }) {
     >
       {method.toUpperCase()}
     </span>
-  )
+  );
 }

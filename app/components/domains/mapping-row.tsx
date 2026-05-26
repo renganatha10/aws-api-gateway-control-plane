@@ -1,21 +1,21 @@
-import { X } from "lucide-react"
+import { X } from "lucide-react";
 
-import { Input } from "~/components/ui/input"
+import { Input } from "~/components/ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "~/components/ui/select"
-import type { MappingEntry, SyncedApi } from "./types"
+} from "~/components/ui/select";
+import type { MappingEntry, SyncedApi } from "./types";
 
 interface MappingRowProps {
-  entry: MappingEntry
-  apis: SyncedApi[]
-  canRemove: boolean
-  onUpdate: (key: number, field: keyof Omit<MappingEntry, "key">, value: string) => void
-  onRemove: (key: number) => void
+  entry: MappingEntry;
+  apis: SyncedApi[];
+  canRemove: boolean;
+  onUpdate: (key: number, field: keyof Omit<MappingEntry, "key">, value: string) => void;
+  onRemove: (key: number) => void;
 }
 
 export function MappingRow({ entry, apis, canRemove, onUpdate, onRemove }: MappingRowProps) {
@@ -27,10 +27,14 @@ export function MappingRow({ entry, apis, canRemove, onUpdate, onRemove }: Mappi
         </SelectTrigger>
         <SelectContent>
           {apis.length === 0 ? (
-            <SelectItem value="_none" disabled>No AWS-synced APIs found</SelectItem>
+            <SelectItem value="_none" disabled>
+              No AWS-synced APIs found
+            </SelectItem>
           ) : (
             apis.map((a) => (
-              <SelectItem key={a.id} value={String(a.id)}>{a.displayName}</SelectItem>
+              <SelectItem key={a.id} value={String(a.id)}>
+                {a.displayName}
+              </SelectItem>
             ))
           )}
         </SelectContent>
@@ -59,5 +63,5 @@ export function MappingRow({ entry, apis, canRemove, onUpdate, onRemove }: Mappi
         <X className="size-4" />
       </button>
     </div>
-  )
+  );
 }

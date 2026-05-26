@@ -1,42 +1,32 @@
-import { Form } from "react-router"
+import { Form } from "react-router";
 
-import { Input } from "~/components/ui/input"
-import { Label } from "~/components/ui/label"
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "~/components/ui/select"
-import { ConsumerCredentials } from "./consumer-credentials"
-import type { ConsumerItem, EnvironmentOption, PlanOption, ProductOption } from "./types"
+} from "~/components/ui/select";
+import { ConsumerCredentials } from "./consumer-credentials";
+import type { ConsumerItem, EnvironmentOption, PlanOption, ProductOption } from "./types";
 
 interface ConsumerFormProps {
-  consumer: ConsumerItem
-  products: ProductOption[]
-  environments: EnvironmentOption[]
-  plans: PlanOption[]
+  consumer: ConsumerItem;
+  products: ProductOption[];
+  environments: EnvironmentOption[];
+  plans: PlanOption[];
 }
 
 export function ConsumerForm({ consumer, products, environments, plans }: ConsumerFormProps) {
   return (
-    <Form
-      method="post"
-      id="consumer-form"
-      className="flex flex-col flex-1 min-h-0 overflow-auto"
-    >
+    <Form method="post" id="consumer-form" className="flex flex-col flex-1 min-h-0 overflow-auto">
       <input type="hidden" name="_intent" value="update" />
       <div className="flex flex-col gap-6 px-6 py-6 max-w-lg">
         <div className="space-y-2">
           <Label htmlFor="name">Consumer Name</Label>
-          <Input
-            id="name"
-            name="name"
-            defaultValue={consumer.name}
-            required
-            className="max-w-sm"
-          />
+          <Input id="name" name="name" defaultValue={consumer.name} required className="max-w-sm" />
         </div>
 
         <div className="space-y-2">
@@ -90,5 +80,5 @@ export function ConsumerForm({ consumer, products, environments, plans }: Consum
         <ConsumerCredentials consumer={consumer} />
       </div>
     </Form>
-  )
+  );
 }

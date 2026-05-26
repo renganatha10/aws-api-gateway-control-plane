@@ -1,8 +1,8 @@
-import { Link } from "react-router"
+import { Link } from "react-router";
 
 interface ConsumerTabBarProps {
-  consumerId: number
-  activeTab: "details" | "tryout"
+  consumerId: number;
+  activeTab: "details" | "tryout";
 }
 
 export function ConsumerTabBar({ consumerId, activeTab }: ConsumerTabBarProps) {
@@ -34,5 +34,5 @@ export function ConsumerTabBar({ consumerId, activeTab }: ConsumerTabBarProps) {
         </Link>
       )}
     </div>
-  )
+  );
 }

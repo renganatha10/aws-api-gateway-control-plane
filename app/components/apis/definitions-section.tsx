@@ -1,13 +1,13 @@
-import { generateSample, schemaType } from "./parse-spec"
-import type { RawSchema, RawSpec } from "./types"
+import { generateSample, schemaType } from "./parse-spec";
+import type { RawSchema, RawSpec } from "./types";
 
 interface DefinitionsSectionProps {
-  definitions: [string, RawSchema][]
-  spec: RawSpec
+  definitions: [string, RawSchema][];
+  spec: RawSpec;
 }
 
 export function DefinitionsSection({ definitions, spec }: DefinitionsSectionProps) {
-  if (definitions.length === 0) return null
+  if (definitions.length === 0) return null;
 
   return (
     <div>
@@ -21,14 +21,20 @@ export function DefinitionsSection({ definitions, spec }: DefinitionsSectionProp
 
       <div className="space-y-4">
         {definitions.map(([name, schema]) => {
-          const props    = Object.entries(schema.properties ?? {})
-          const required = (schema as RawSchema & { required?: string[] }).required ?? []
-          let sample = ""
-          try { sample = JSON.stringify(generateSample(spec, schema), null, 2) }
-          catch { sample = "{}" }
+          const props = Object.entries(schema.properties ?? {});
+          const required = (schema as RawSchema & { required?: string[] }).required ?? [];
+          let sample = "";
+          try {
+            sample = JSON.stringify(generateSample(spec, schema), null, 2);
+          } catch {
+            sample = "{}";
+          }
 
           return (
-            <div key={name} className="rounded-md border border-white/10 bg-zinc-900 overflow-hidden">
+            <div
+              key={name}
+              className="rounded-md border border-white/10 bg-zinc-900 overflow-hidden"
+            >
               <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10 bg-zinc-800">
                 <span className="text-sm font-mono font-semibold text-white">{name}</span>
                 {schema.type && (
@@ -44,10 +50,18 @@ export function DefinitionsSection({ definitions, spec }: DefinitionsSectionProp
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-zinc-800 border-b border-white/10">
-                          <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400 w-1/4">Property</th>
-                          <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400 w-32">Type</th>
-                          <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400 w-20">Required</th>
-                          <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400">Enum / Format</th>
+                          <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400 w-1/4">
+                            Property
+                          </th>
+                          <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400 w-32">
+                            Type
+                          </th>
+                          <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400 w-20">
+                            Required
+                          </th>
+                          <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400">
+                            Enum / Format
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/5">
@@ -86,9 +100,9 @@ export function DefinitionsSection({ definitions, spec }: DefinitionsSectionProp
                 </div>
               </div>
             </div>
-          )
+          );
         })}
       </div>
     </div>
-  )
+  );
 }

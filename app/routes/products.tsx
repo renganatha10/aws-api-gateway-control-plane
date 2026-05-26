@@ -1,11 +1,7 @@
-import { Link, useLoaderData, useNavigate } from "react-router"
-import { Rocket } from "lucide-react"
-
-import { getActiveOrganisationId, requireAuth } from "~/lib/session.server"
-import { listProductsByOrganisation } from "~/repositories/product.repository.server"
-import { listDeploymentsByOrganisation } from "~/repositories/product-deployment.repository.server"
-import { Badge } from "~/components/ui/badge"
-import { Button } from "~/components/ui/button"
+import { Rocket } from "lucide-react";
+import { Link, useLoaderData, useNavigate } from "react-router";
+import { Badge } from "~/components/ui/badge";
+import { Button } from "~/components/ui/button";
 import {
   Table,
   TableBody,
@@ -13,36 +9,39 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "~/components/ui/table"
-import type { Route } from "./+types/products"
+} from "~/components/ui/table";
+import { getActiveOrganisationId, requireAuth } from "~/lib/session.server";
+import { listProductsByOrganisation } from "~/repositories/product.repository.server";
+import { listDeploymentsByOrganisation } from "~/repositories/product-deployment.repository.server";
+import type { Route } from "./+types/products";
 
 export function meta({}: Route.MetaArgs) {
-  return [{ title: "Develop — Products" }]
+  return [{ title: "Develop — Products" }];
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  await requireAuth(request)
-  const organisationId = await getActiveOrganisationId(request)
+  await requireAuth(request);
+  const organisationId = await getActiveOrganisationId(request);
 
   const [products, deployments] = await Promise.all([
     organisationId ? listProductsByOrganisation(organisationId) : [],
     organisationId ? listDeploymentsByOrganisation(organisationId) : [],
-  ])
+  ]);
 
-  return { products, deployments, organisationId }
+  return { products, deployments, organisationId };
 }
 
 const VISIBILITY_BADGE: Record<string, { label: string; className: string }> = {
-  public:        { label: "Public",        className: "bg-green-100 text-green-700 border-green-200" },
-  authenticated: { label: "Authenticated", className: "bg-blue-100 text-blue-700 border-blue-200"   },
-  invisible:     { label: "Invisible",     className: "bg-gray-100 text-gray-600 border-gray-200"   },
-}
+  public: { label: "Public", className: "bg-green-100 text-green-700 border-green-200" },
+  authenticated: { label: "Authenticated", className: "bg-blue-100 text-blue-700 border-blue-200" },
+  invisible: { label: "Invisible", className: "bg-gray-100 text-gray-600 border-gray-200" },
+};
 
 export default function ProductsPage() {
-  const { products, deployments } = useLoaderData<typeof loader>()
-  const navigate = useNavigate()
+  const { products, deployments } = useLoaderData<typeof loader>();
+  const navigate = useNavigate();
 
-  const deployedProductIds = new Set(deployments.map((d) => d.productId))
+  const deployedProductIds = new Set(deployments.map((d) => d.productId));
 
   return (
     <div className="flex flex-col min-h-full bg-white">
@@ -57,14 +56,22 @@ export default function ProductsPage() {
       {/* Table */}
       {products.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 mx-6 mt-6 rounded-lg border-2 border-dashed border-gray-200 py-16 text-center">
-          <svg className="size-10 text-gray-300" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+          <svg
+            className="size-10 text-gray-300"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            viewBox="0 0 24 24"
+          >
             <path d="M20 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z" />
             <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
           </svg>
           <div>
             <p className="text-sm font-medium text-gray-600">No products yet</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              <Link to="/products/new" className="underline underline-offset-2">Create your first product</Link>
+              <Link to="/products/new" className="underline underline-offset-2">
+                Create your first product
+              </Link>
             </p>
           </div>
         </div>
@@ -82,22 +89,31 @@ export default function ProductsPage() {
             </TableHeader>
             <TableBody>
               {products.map((product) => {
-                const vis      = VISIBILITY_BADGE[product.visibility] ?? VISIBILITY_BADGE.authenticated
-                const deployed = deployedProductIds.has(product.id)
+                const vis = VISIBILITY_BADGE[product.visibility] ?? VISIBILITY_BADGE.authenticated;
+                const deployed = deployedProductIds.has(product.id);
                 return (
                   <TableRow
                     key={product.id}
                     className="cursor-pointer hover:bg-gray-50"
                     onClick={() => navigate(`/products/${product.id}`)}
                   >
-                    <TableCell className="font-medium text-gray-900">{product.displayName}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground font-mono">{product.name}</TableCell>
+                    <TableCell className="font-medium text-gray-900">
+                      {product.displayName}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground font-mono">
+                      {product.name}
+                    </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={`text-xs ${vis.className}`}>{vis.label}</Badge>
+                      <Badge variant="outline" className={`text-xs ${vis.className}`}>
+                        {vis.label}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       {deployed ? (
-                        <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                        <Badge
+                          variant="outline"
+                          className="text-xs bg-green-50 text-green-700 border-green-200"
+                        >
                           <Rocket className="size-3 mr-1" /> Deployed
                         </Badge>
                       ) : (
@@ -108,12 +124,12 @@ export default function ProductsPage() {
                       {new Date(product.createdAt).toLocaleDateString()}
                     </TableCell>
                   </TableRow>
-                )
+                );
               })}
             </TableBody>
           </Table>
         </div>
       )}
     </div>
-  )
+  );
 }

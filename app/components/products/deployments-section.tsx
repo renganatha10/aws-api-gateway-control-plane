@@ -1,11 +1,11 @@
-import { Separator } from "~/components/ui/separator"
-import type { DeploymentItem, EnvironmentItem } from "./types"
+import { Separator } from "~/components/ui/separator";
+import type { DeploymentItem, EnvironmentItem } from "./types";
 
 interface DeploymentsSectionProps {
-  deployments: DeploymentItem[]
-  allEnvironments: EnvironmentItem[]
-  selectedEnvId: number | null
-  onSelectEnv: (id: number) => void
+  deployments: DeploymentItem[];
+  allEnvironments: EnvironmentItem[];
+  selectedEnvId: number | null;
+  onSelectEnv: (id: number) => void;
 }
 
 export function DeploymentsSection({
@@ -14,7 +14,7 @@ export function DeploymentsSection({
   selectedEnvId,
   onSelectEnv,
 }: DeploymentsSectionProps) {
-  const selectedDeployment = deployments.find((d) => d.environmentId === selectedEnvId) ?? null
+  const selectedDeployment = deployments.find((d) => d.environmentId === selectedEnvId) ?? null;
 
   return (
     <div className="flex h-full -mx-8 -my-6">
@@ -23,8 +23,8 @@ export function DeploymentsSection({
           <p className="px-5 py-3 text-sm text-muted-foreground">No deployments yet</p>
         ) : (
           deployments.map((d) => {
-            const env = allEnvironments.find((e) => e.id === d.environmentId)
-            const active = d.environmentId === selectedEnvId
+            const env = allEnvironments.find((e) => e.id === d.environmentId);
+            const active = d.environmentId === selectedEnvId;
             return (
               <button
                 key={d.id}
@@ -38,7 +38,7 @@ export function DeploymentsSection({
               >
                 {env?.name ?? `env ${d.environmentId}`}
               </button>
-            )
+            );
           })
         )}
       </aside>
@@ -71,9 +71,7 @@ export function DeploymentsSection({
                     </p>
                     <button
                       type="button"
-                      onClick={() =>
-                        navigator.clipboard.writeText(selectedDeployment.invokeUrl!)
-                      }
+                      onClick={() => navigator.clipboard.writeText(selectedDeployment.invokeUrl!)}
                       className="shrink-0 p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
                       title="Copy"
                     >
@@ -130,5 +128,5 @@ export function DeploymentsSection({
         )}
       </div>
     </div>
-  )
+  );
 }

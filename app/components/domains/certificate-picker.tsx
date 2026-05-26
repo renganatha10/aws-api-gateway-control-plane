@@ -1,26 +1,26 @@
-import { Badge } from "~/components/ui/badge"
-import { Label } from "~/components/ui/label"
+import { Badge } from "~/components/ui/badge";
+import { Label } from "~/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "~/components/ui/select"
+} from "~/components/ui/select";
 
 interface CertEntry {
-  arn: string
-  domain: string
-  region: string
+  arn: string;
+  domain: string;
+  region: string;
 }
 
 interface CertificatePickerProps {
-  certs: CertEntry[]
-  filteredCerts: CertEntry[]
-  selectedArn: string
-  domainName: string
-  primaryRegion: string
-  onChange: (arn: string) => void
+  certs: CertEntry[];
+  filteredCerts: CertEntry[];
+  selectedArn: string;
+  domainName: string;
+  primaryRegion: string;
+  onChange: (arn: string) => void;
 }
 
 export function CertificatePicker({
@@ -31,7 +31,7 @@ export function CertificatePicker({
   primaryRegion,
   onChange,
 }: CertificatePickerProps) {
-  const selectedCert = certs.find((c) => c.arn === selectedArn)
+  const selectedCert = certs.find((c) => c.arn === selectedArn);
 
   return (
     <div className="space-y-2">
@@ -58,8 +58,10 @@ export function CertificatePicker({
                 filteredCerts.map((cert) => (
                   <SelectItem key={cert.arn} value={cert.arn}>
                     <span className="font-mono text-xs">{cert.domain}</span>
-                    {cert.region === "us-east-1" && primaryRegion !== "us-east-1" && (
-                      <span className="ml-2 text-[10px] text-muted-foreground">(us-east-1 / Edge)</span>
+                    {cert.region === "ap-south-1" && primaryRegion !== "ap-south-1" && (
+                      <span className="ml-2 text-[10px] text-muted-foreground">
+                        (ap-south-1 / Edge)
+                      </span>
                     )}
                   </SelectItem>
                 ))
@@ -86,16 +88,19 @@ export function CertificatePicker({
       )}
 
       <p className="text-xs text-muted-foreground">
-        Only <Badge variant="outline" className="text-[10px] px-1 py-0">Issued</Badge> certificates
-        are shown. Certificates are pulled from{" "}
+        Only{" "}
+        <Badge variant="outline" className="text-[10px] px-1 py-0">
+          Issued
+        </Badge>{" "}
+        certificates are shown. Certificates are pulled from{" "}
         {primaryRegion ? (
           <>
-            <strong>{primaryRegion}</strong> (Regional) and <strong>us-east-1</strong> (Edge).
+            <strong>{primaryRegion}</strong> (Regional) and <strong>ap-south-1</strong> (Edge).
           </>
         ) : (
-          <strong>us-east-1</strong>
+          <strong>ap-south-1</strong>
         )}
       </p>
     </div>
-  )
+  );
 }

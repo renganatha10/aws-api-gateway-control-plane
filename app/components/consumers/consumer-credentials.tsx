@@ -1,15 +1,15 @@
-import { RevealSecret } from "./reveal-secret"
+import { RevealSecret } from "./reveal-secret";
 
 interface ConsumerCredentialsProps {
   consumer: {
-    id: number
-    clientId: string | null
-    tokenUrl: string | null
-    createdBy: string
-    createdAt: Date | string
-    updatedBy: string | null
-    updatedAt: Date | string
-  }
+    id: number;
+    clientId: string | null;
+    tokenUrl: string | null;
+    createdBy: string;
+    createdAt: Date | string;
+    updatedBy: string | null;
+    updatedAt: Date | string;
+  };
 }
 
 export function ConsumerCredentials({ consumer }: ConsumerCredentialsProps) {
@@ -55,5 +55,5 @@ export function ConsumerCredentials({ consumer }: ConsumerCredentialsProps) {
         )}
       </div>
     </div>
-  )
+  );
 }

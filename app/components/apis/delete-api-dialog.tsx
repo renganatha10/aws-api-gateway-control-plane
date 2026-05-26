@@ -1,25 +1,25 @@
-import { useFetcher } from "react-router"
+import { useFetcher } from "react-router";
 
-import { Button } from "~/components/ui/button"
+import { Button } from "~/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "~/components/ui/dialog"
+} from "~/components/ui/dialog";
 
 interface DeleteApiDialogProps {
-  open: boolean
-  apiDisplayName: string
-  onOpenChange: (open: boolean) => void
+  open: boolean;
+  apiDisplayName: string;
+  onOpenChange: (open: boolean) => void;
 }
 
 export function DeleteApiDialog({ open, apiDisplayName, onOpenChange }: DeleteApiDialogProps) {
-  const deleteFetcher = useFetcher()
-  const data = deleteFetcher.data as { deleteError?: string } | undefined
-  const deleteError = data?.deleteError ?? null
-  const busy = deleteFetcher.state !== "idle"
+  const deleteFetcher = useFetcher();
+  const data = deleteFetcher.data as { deleteError?: string } | undefined;
+  const deleteError = data?.deleteError ?? null;
+  const busy = deleteFetcher.state !== "idle";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -46,5 +46,5 @@ export function DeleteApiDialog({ open, apiDisplayName, onOpenChange }: DeleteAp
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

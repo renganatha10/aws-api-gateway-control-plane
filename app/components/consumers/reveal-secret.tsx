@@ -1,15 +1,15 @@
-import { useState } from "react"
-import { useFetcher } from "react-router"
-import { Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff } from "lucide-react";
+import { useState } from "react";
+import { useFetcher } from "react-router";
 
 export function RevealSecret({ consumerId }: { consumerId: number }) {
-  const fetcher = useFetcher<{ secret?: string; error?: string }>()
-  const [visible, setVisible] = useState(false)
-  const secret   = fetcher.data?.secret
-  const fetchErr = fetcher.data?.error
+  const fetcher = useFetcher<{ secret?: string; error?: string }>();
+  const [visible, setVisible] = useState(false);
+  const secret = fetcher.data?.secret;
+  const fetchErr = fetcher.data?.error;
 
   if (fetchErr) {
-    return <span className="text-sm text-destructive">{fetchErr}</span>
+    return <span className="text-sm text-destructive">{fetchErr}</span>;
   }
 
   if (!secret) {
@@ -21,7 +21,7 @@ export function RevealSecret({ consumerId }: { consumerId: number }) {
       >
         {fetcher.state === "loading" ? "Loading…" : "Show secret"}
       </button>
-    )
+    );
   }
 
   return (
@@ -37,5 +37,5 @@ export function RevealSecret({ consumerId }: { consumerId: number }) {
         {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
       </button>
     </span>
-  )
+  );
 }

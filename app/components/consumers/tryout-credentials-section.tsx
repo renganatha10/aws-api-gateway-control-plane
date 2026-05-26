@@ -1,29 +1,29 @@
-import { useEffect } from "react"
-import { useFetcher } from "react-router"
-import { Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff } from "lucide-react";
+import { useEffect } from "react";
+import { useFetcher } from "react-router";
 
-import { Button } from "~/components/ui/button"
-import { Label } from "~/components/ui/label"
-import { CopyButton } from "./copy-button"
+import { Button } from "~/components/ui/button";
+import { Label } from "~/components/ui/label";
+import { CopyButton } from "./copy-button";
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
     <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
       {children}
     </h3>
-  )
+  );
 }
 
 interface TryoutCredentialsSectionProps {
-  consumerId: number
-  tokenUrl: string | null
-  token: string
-  tokenVisible: boolean
-  apiKeyValue: string
-  apiKeyVisible: boolean
-  onTokenChange: (token: string) => void
-  onTokenVisibleToggle: () => void
-  onApiKeyVisibleToggle: () => void
+  consumerId: number;
+  tokenUrl: string | null;
+  token: string;
+  tokenVisible: boolean;
+  apiKeyValue: string;
+  apiKeyVisible: boolean;
+  onTokenChange: (token: string) => void;
+  onTokenVisibleToggle: () => void;
+  onApiKeyVisibleToggle: () => void;
 }
 
 export function TryoutCredentialsSection({
@@ -38,17 +38,17 @@ export function TryoutCredentialsSection({
   onApiKeyVisibleToggle,
 }: TryoutCredentialsSectionProps) {
   const tokenFetcher = useFetcher<{
-    access_token?: string
-    expires_in?: number
-    token_type?: string
-    error?: string
-  }>()
+    access_token?: string;
+    expires_in?: number;
+    token_type?: string;
+    error?: string;
+  }>();
 
   useEffect(() => {
     if (tokenFetcher.data?.access_token) {
-      onTokenChange(tokenFetcher.data.access_token)
+      onTokenChange(tokenFetcher.data.access_token);
     }
-  }, [tokenFetcher.data, onTokenChange])
+  }, [tokenFetcher.data, onTokenChange]);
 
   return (
     <section className="rounded-lg border border-gray-200 p-5 space-y-4">
@@ -58,10 +58,7 @@ export function TryoutCredentialsSection({
         <Label className="text-xs font-medium text-gray-600">OAuth2 Token</Label>
         {tokenUrl ? (
           <div className="flex items-center gap-2 flex-wrap">
-            <span
-              className="text-xs text-gray-400 font-mono truncate max-w-xs"
-              title={tokenUrl}
-            >
+            <span className="text-xs text-gray-400 font-mono truncate max-w-xs" title={tokenUrl}>
               {tokenUrl}
             </span>
             <Button
@@ -116,5 +113,5 @@ export function TryoutCredentialsSection({
         </div>
       )}
     </section>
-  )
+  );
 }

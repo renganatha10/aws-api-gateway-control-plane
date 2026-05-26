@@ -1,16 +1,16 @@
-import { useNavigate } from "react-router"
-import { Button } from "~/components/ui/button"
+import { useNavigate } from "react-router";
+import { Button } from "~/components/ui/button";
 
 interface ServerErrorProps {
-  title?: string
-  message?: string
+  title?: string;
+  message?: string;
 }
 
 export function ServerError({
   title = "Something went wrong",
   message = "We're having trouble reaching our servers. This could be a temporary issue — please try again in a moment.",
 }: ServerErrorProps) {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   return (
     <div className="flex min-h-svh flex-col items-center justify-center gap-8 bg-white px-4 py-16">
@@ -30,10 +30,8 @@ export function ServerError({
         <Button variant="outline" onClick={() => navigate(-1)}>
           Go back
         </Button>
-        <Button onClick={() => window.location.reload()}>
-          Try again
-        </Button>
+        <Button onClick={() => window.location.reload()}>Try again</Button>
       </div>
     </div>
-  )
+  );
 }

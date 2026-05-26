@@ -1,6 +1,6 @@
-import { useState } from "react"
-import { useFetcher } from "react-router"
-import { Button } from "~/components/ui/button"
+import { useState } from "react";
+import { useFetcher } from "react-router";
+import { Button } from "~/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -8,14 +8,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "~/components/ui/dialog"
-import { Input } from "~/components/ui/input"
-import { Label } from "~/components/ui/label"
+} from "~/components/ui/dialog";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
 
 interface CreateEnvironmentDialogProps {
-  open: boolean
-  organisationId: number | null
-  onOpenChange: (open: boolean) => void
+  open: boolean;
+  organisationId: number | null;
+  onOpenChange: (open: boolean) => void;
 }
 
 export function CreateEnvironmentDialog({
@@ -23,27 +23,36 @@ export function CreateEnvironmentDialog({
   organisationId,
   onOpenChange,
 }: CreateEnvironmentDialogProps) {
-  const fetcher = useFetcher()
-  const [name,      setName]      = useState("")
-  const [nameError, setNameError] = useState("")
+  const fetcher = useFetcher();
+  const [name, setName] = useState("");
+  const [nameError, setNameError] = useState("");
 
-  const creating = fetcher.state !== "idle"
+  const creating = fetcher.state !== "idle";
 
   function handleCreate() {
-    if (!name.trim()) { setNameError("Name is required"); return }
-    if (!organisationId) { setNameError("No organisation selected"); return }
+    if (!name.trim()) {
+      setNameError("Name is required");
+      return;
+    }
+    if (!organisationId) {
+      setNameError("No organisation selected");
+      return;
+    }
     fetcher.submit(
       { _intent: "create", name: name.trim(), organisationId: String(organisationId) },
-      { method: "post" },
-    )
-    setName("")
-    setNameError("")
-    onOpenChange(false)
+      { method: "post" }
+    );
+    setName("");
+    setNameError("");
+    onOpenChange(false);
   }
 
   function handleOpenChange(v: boolean) {
-    onOpenChange(v)
-    if (!v) { setName(""); setNameError("") }
+    onOpenChange(v);
+    if (!v) {
+      setName("");
+      setNameError("");
+    }
   }
 
   return (
@@ -60,8 +69,13 @@ export function CreateEnvironmentDialog({
             id="env-name"
             placeholder="e.g. Production"
             value={name}
-            onChange={(e) => { setName(e.target.value); setNameError("") }}
-            onKeyDown={(e) => { if (e.key === "Enter") handleCreate() }}
+            onChange={(e) => {
+              setName(e.target.value);
+              setNameError("");
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleCreate();
+            }}
           />
           {nameError && <p className="text-xs text-destructive">{nameError}</p>}
         </div>
@@ -80,5 +94,5 @@ export function CreateEnvironmentDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

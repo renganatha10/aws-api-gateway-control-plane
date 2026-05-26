@@ -1,13 +1,13 @@
-import { Trash2, Plus } from "lucide-react"
+import { Plus, Trash2 } from "lucide-react";
 
-import { Input } from "~/components/ui/input"
-import type { KVRow } from "./tryout-types"
+import { Input } from "~/components/ui/input";
+import type { KVRow } from "./tryout-types";
 
 interface KVEditorProps {
-  rows: KVRow[]
-  onChange: (rows: KVRow[]) => void
-  keyPlaceholder?: string
-  valuePlaceholder?: string
+  rows: KVRow[];
+  onChange: (rows: KVRow[]) => void;
+  keyPlaceholder?: string;
+  valuePlaceholder?: string;
 }
 
 export function KVEditor({
@@ -23,9 +23,9 @@ export function KVEditor({
           <Input
             value={row.key}
             onChange={(e) => {
-              const next = [...rows]
-              next[i] = { ...next[i], key: e.target.value }
-              onChange(next)
+              const next = [...rows];
+              next[i] = { ...next[i], key: e.target.value };
+              onChange(next);
             }}
             placeholder={keyPlaceholder}
             className="h-8 text-sm font-mono"
@@ -33,9 +33,9 @@ export function KVEditor({
           <Input
             value={row.value}
             onChange={(e) => {
-              const next = [...rows]
-              next[i] = { ...next[i], value: e.target.value }
-              onChange(next)
+              const next = [...rows];
+              next[i] = { ...next[i], value: e.target.value };
+              onChange(next);
             }}
             placeholder={valuePlaceholder}
             className="h-8 text-sm font-mono"
@@ -56,5 +56,5 @@ export function KVEditor({
         Add row
       </button>
     </div>
-  )
+  );
 }

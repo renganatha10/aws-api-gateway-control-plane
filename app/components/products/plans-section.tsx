@@ -1,12 +1,12 @@
-import { Button } from "~/components/ui/button"
+import { Button } from "~/components/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "~/components/ui/select"
-import { Separator } from "~/components/ui/separator"
+} from "~/components/ui/select";
+import { Separator } from "~/components/ui/separator";
 import {
   Table,
   TableBody,
@@ -14,16 +14,16 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "~/components/ui/table"
-import type { PlanItem } from "./types"
+} from "~/components/ui/table";
+import type { PlanItem } from "./types";
 
 interface PlansSectionProps {
-  displayedPlans: PlanItem[]
-  availablePlans: PlanItem[]
-  dropdownPlanId: string
-  onDropdownChange: (value: string) => void
-  onAdd: () => void
-  onRemove: (id: number) => void
+  displayedPlans: PlanItem[];
+  availablePlans: PlanItem[];
+  dropdownPlanId: string;
+  onDropdownChange: (value: string) => void;
+  onAdd: () => void;
+  onRemove: (id: number) => void;
 }
 
 export function PlansSection({
@@ -130,5 +130,5 @@ export function PlansSection({
         </div>
       )}
     </div>
-  )
+  );
 }

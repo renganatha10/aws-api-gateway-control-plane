@@ -1,4 +1,4 @@
-import { type RouteConfig, index, layout, route } from "@react-router/dev/routes";
+import { index, layout, type RouteConfig, route } from "@react-router/dev/routes";
 
 export default [
   route("health", "routes/health.ts"),
@@ -26,7 +26,7 @@ export default [
     route("consumers/new", "routes/consumer-create.tsx"),
     route("consumers/:id", "routes/consumers.$id.tsx"),
     route("consumers/:id/tryout", "routes/consumers.$id.tryout.tsx"),
-    route("domains",     "routes/domains.tsx"),
+    route("domains", "routes/domains.tsx"),
     route("domains/new", "routes/domain-create.tsx"),
     route("domains/:id", "routes/domains.$id.tsx"),
   ]),

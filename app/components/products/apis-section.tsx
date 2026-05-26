@@ -1,13 +1,13 @@
-import { Badge } from "~/components/ui/badge"
-import { Button } from "~/components/ui/button"
+import { Badge } from "~/components/ui/badge";
+import { Button } from "~/components/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "~/components/ui/select"
-import { Separator } from "~/components/ui/separator"
+} from "~/components/ui/select";
+import { Separator } from "~/components/ui/separator";
 import {
   Table,
   TableBody,
@@ -15,16 +15,16 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "~/components/ui/table"
-import { SPEC_TYPE_LABEL, type ApiItem } from "./types"
+} from "~/components/ui/table";
+import { type ApiItem, SPEC_TYPE_LABEL } from "./types";
 
 interface ApisSectionProps {
-  displayedApis: ApiItem[]
-  availableApis: ApiItem[]
-  dropdownApiId: string
-  onDropdownChange: (value: string) => void
-  onAdd: () => void
-  onRemove: (id: number) => void
+  displayedApis: ApiItem[];
+  availableApis: ApiItem[];
+  dropdownApiId: string;
+  onDropdownChange: (value: string) => void;
+  onAdd: () => void;
+  onRemove: (id: number) => void;
 }
 
 export function ApisSection({
@@ -131,5 +131,5 @@ export function ApisSection({
         </div>
       )}
     </div>
-  )
+  );
 }

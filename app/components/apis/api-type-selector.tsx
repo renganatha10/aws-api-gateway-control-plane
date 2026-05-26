@@ -1,13 +1,13 @@
-import { Label } from "~/components/ui/label"
+import { Label } from "~/components/ui/label";
 
 const API_TYPES = [
   { value: "swagger2", label: "Swagger 2.0" },
   { value: "openapi3", label: "OpenAPI 3.0" },
-]
+];
 
 interface ApiTypeSelectorProps {
-  value: string
-  onChange: (value: string) => void
+  value: string;
+  onChange: (value: string) => void;
 }
 
 export function ApiTypeSelector({ value, onChange }: ApiTypeSelectorProps) {
@@ -33,5 +33,5 @@ export function ApiTypeSelector({ value, onChange }: ApiTypeSelectorProps) {
         ))}
       </div>
     </div>
-  )
+  );
 }

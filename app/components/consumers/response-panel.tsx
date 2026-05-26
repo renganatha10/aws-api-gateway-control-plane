@@ -1,27 +1,30 @@
-import { useState } from "react"
-import { ChevronDown, ChevronRight } from "lucide-react"
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { useState } from "react";
 
-import { StatusBadge } from "./status-badge"
-import type { ProxyResponse } from "./tryout-types"
+import { StatusBadge } from "./status-badge";
+import type { ProxyResponse } from "./tryout-types";
 
 export function ResponsePanel({ data }: { data: ProxyResponse }) {
-  const [headersOpen, setHeadersOpen] = useState(false)
+  const [headersOpen, setHeadersOpen] = useState(false);
 
-  let prettyBody = data.resBody
-  const contentType = data.resHeaders["content-type"] ?? ""
+  let prettyBody = data.resBody;
+  const contentType = data.resHeaders["content-type"] ?? "";
   if (contentType.includes("json")) {
     try {
-      prettyBody = JSON.stringify(JSON.parse(data.resBody), null, 2)
+      prettyBody = JSON.stringify(JSON.parse(data.resBody), null, 2);
     } catch {
       /* keep raw */
     }
   }
 
   const bodyBg =
-    data.httpStatus >= 200 && data.httpStatus < 300 ? "bg-green-50 border-green-200" :
-    data.httpStatus >= 400 && data.httpStatus < 500 ? "bg-orange-50 border-orange-200" :
-    data.httpStatus >= 500                          ? "bg-red-50 border-red-200"       :
-                                                     "bg-gray-50 border-gray-200"
+    data.httpStatus >= 200 && data.httpStatus < 300
+      ? "bg-green-50 border-green-200"
+      : data.httpStatus >= 400 && data.httpStatus < 500
+        ? "bg-orange-50 border-orange-200"
+        : data.httpStatus >= 500
+          ? "bg-red-50 border-red-200"
+          : "bg-gray-50 border-gray-200";
 
   return (
     <div className="space-y-3">
@@ -55,9 +58,11 @@ export function ResponsePanel({ data }: { data: ProxyResponse }) {
         )}
       </div>
 
-      <div className={`rounded border p-4 text-xs font-mono whitespace-pre-wrap break-all ${bodyBg}`}>
+      <div
+        className={`rounded border p-4 text-xs font-mono whitespace-pre-wrap break-all ${bodyBg}`}
+      >
         {prettyBody || <span className="text-gray-400 italic">Empty response body</span>}
       </div>
     </div>
-  )
+  );
 }

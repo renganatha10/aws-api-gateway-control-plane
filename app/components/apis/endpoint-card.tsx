@@ -1,13 +1,13 @@
-import { useState } from "react"
+import { useState } from "react";
 
-import { METHOD_BORDER } from "./constants"
-import { MethodBadge } from "./method-badge"
-import { StatusBadge } from "./status-badge"
-import type { ParsedEndpoint } from "./types"
+import { METHOD_BORDER } from "./constants";
+import { MethodBadge } from "./method-badge";
+import { StatusBadge } from "./status-badge";
+import type { ParsedEndpoint } from "./types";
 
 export function EndpointCard({ ep }: { ep: ParsedEndpoint }) {
-  const [open, setOpen] = useState(false)
-  const borderCls = METHOD_BORDER[ep.method] ?? "border-zinc-700"
+  const [open, setOpen] = useState(false);
+  const borderCls = METHOD_BORDER[ep.method] ?? "border-zinc-700";
 
   return (
     <div className={`rounded-md border ${borderCls} bg-zinc-900 overflow-hidden`}>
@@ -18,7 +18,9 @@ export function EndpointCard({ ep }: { ep: ParsedEndpoint }) {
       >
         <MethodBadge method={ep.method} />
         <code className="text-sm font-mono text-white/90 flex-1 truncate">{ep.path}</code>
-        <span className="text-sm text-zinc-400 hidden sm:block truncate max-w-xs">{ep.summary}</span>
+        <span className="text-sm text-zinc-400 hidden sm:block truncate max-w-xs">
+          {ep.summary}
+        </span>
         <svg
           className={`size-4 text-zinc-500 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
           fill="none"
@@ -43,10 +45,18 @@ export function EndpointCard({ ep }: { ep: ParsedEndpoint }) {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-zinc-800 border-b border-white/10">
-                      <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400 w-1/4">Name</th>
-                      <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400 w-16">In</th>
-                      <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400 w-20">Type</th>
-                      <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400">Description</th>
+                      <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400 w-1/4">
+                        Name
+                      </th>
+                      <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400 w-16">
+                        In
+                      </th>
+                      <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400 w-20">
+                        Type
+                      </th>
+                      <th className="text-left px-3 py-2 text-xs font-semibold text-zinc-400">
+                        Description
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
@@ -102,5 +112,5 @@ export function EndpointCard({ ep }: { ep: ParsedEndpoint }) {
         </div>
       )}
     </div>
-  )
+  );
 }

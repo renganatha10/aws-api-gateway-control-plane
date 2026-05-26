@@ -1,58 +1,51 @@
-import { KeyRound, Zap } from "lucide-react"
-import { data, Form, Link, redirect, useNavigation } from "react-router"
-
-import { confirmPasswordReset } from "~/lib/cognito.server"
-import { Button } from "~/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "~/components/ui/card"
-import { Input } from "~/components/ui/input"
-import { Label } from "~/components/ui/label"
-import type { Route } from "./+types/reset-password"
+import { KeyRound, Zap } from "lucide-react";
+import { data, Form, Link, redirect, useNavigation } from "react-router";
+import { Button } from "~/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
+import { confirmPasswordReset } from "~/lib/cognito.server";
+import type { Route } from "./+types/reset-password";
 
 export function loader({ request }: Route.LoaderArgs) {
-  const url = new URL(request.url)
-  const email = url.searchParams.get("email") ?? ""
-  return { email }
+  const url = new URL(request.url);
+  const email = url.searchParams.get("email") ?? "";
+  return { email };
 }
 
 export async function action({ request }: Route.ActionArgs) {
-  const formData = await request.formData()
-  const email = (formData.get("email") as string)?.trim()
-  const code = (formData.get("code") as string)?.trim()
-  const newPassword = formData.get("newPassword") as string
-  const confirmPassword = formData.get("confirmPassword") as string
+  const formData = await request.formData();
+  const email = (formData.get("email") as string)?.trim();
+  const code = (formData.get("code") as string)?.trim();
+  const newPassword = formData.get("newPassword") as string;
+  const confirmPassword = formData.get("confirmPassword") as string;
 
   if (!email || !code || !newPassword) {
-    return data({ error: "All fields are required", email }, { status: 400 })
+    return data({ error: "All fields are required", email }, { status: 400 });
   }
 
   if (newPassword !== confirmPassword) {
-    return data({ error: "Passwords do not match", email }, { status: 400 })
+    return data({ error: "Passwords do not match", email }, { status: 400 });
   }
 
   if (newPassword.length < 8) {
-    return data({ error: "Password must be at least 8 characters", email }, { status: 400 })
+    return data({ error: "Password must be at least 8 characters", email }, { status: 400 });
   }
 
   try {
-    await confirmPasswordReset(email, code, newPassword)
-    throw redirect("/login?reset=1")
+    await confirmPasswordReset(email, code, newPassword);
+    throw redirect("/login?reset=1");
   } catch (err) {
-    if (err instanceof Response) throw err
-    const message = err instanceof Error ? err.message : "Failed to reset password"
-    return data({ error: message, email }, { status: 400 })
+    if (err instanceof Response) throw err;
+    const message = err instanceof Error ? err.message : "Failed to reset password";
+    return data({ error: message, email }, { status: 400 });
   }
 }
 
 export default function ResetPassword({ loaderData, actionData }: Route.ComponentProps) {
-  const navigation = useNavigation()
-  const submitting = navigation.state === "submitting"
-  const email = actionData?.email ?? loaderData.email
+  const navigation = useNavigation();
+  const submitting = navigation.state === "submitting";
+  const email = actionData?.email ?? loaderData.email;
 
   return (
     <div className="min-h-svh flex items-center justify-center bg-gradient-to-br from-stone-50 via-stone-100 to-stone-200 dark:from-stone-950 dark:via-stone-900 dark:to-stone-800 relative overflow-hidden">
@@ -139,5 +132,5 @@ export default function ResetPassword({ loaderData, actionData }: Route.Componen
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

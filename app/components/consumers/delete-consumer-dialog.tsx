@@ -1,18 +1,18 @@
-import { useFetcher } from "react-router"
+import { useFetcher } from "react-router";
 
-import { Button } from "~/components/ui/button"
+import { Button } from "~/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "~/components/ui/dialog"
+} from "~/components/ui/dialog";
 
 interface DeleteConsumerDialogProps {
-  open: boolean
-  consumerName: string
-  onOpenChange: (open: boolean) => void
+  open: boolean;
+  consumerName: string;
+  onOpenChange: (open: boolean) => void;
 }
 
 export function DeleteConsumerDialog({
@@ -20,10 +20,10 @@ export function DeleteConsumerDialog({
   consumerName,
   onOpenChange,
 }: DeleteConsumerDialogProps) {
-  const deleteFetcher = useFetcher()
-  const data = deleteFetcher.data as { deleteError?: string } | undefined
-  const deleteError = data?.deleteError ?? null
-  const busy = deleteFetcher.state !== "idle"
+  const deleteFetcher = useFetcher();
+  const data = deleteFetcher.data as { deleteError?: string } | undefined;
+  const deleteError = data?.deleteError ?? null;
+  const busy = deleteFetcher.state !== "idle";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -33,8 +33,8 @@ export function DeleteConsumerDialog({
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
           Are you sure you want to delete{" "}
-          <span className="font-semibold text-gray-900">{consumerName}</span>? This will remove
-          the Cognito app client and API key and cannot be undone.
+          <span className="font-semibold text-gray-900">{consumerName}</span>? This will remove the
+          Cognito app client and API key and cannot be undone.
         </p>
         {deleteError && <p className="text-xs text-destructive">{deleteError}</p>}
         <DialogFooter>
@@ -50,5 +50,5 @@ export function DeleteConsumerDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

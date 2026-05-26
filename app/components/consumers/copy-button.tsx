@@ -1,14 +1,14 @@
-import { Check, Copy } from "lucide-react"
+import { Check, Copy } from "lucide-react";
 
-import { useCopy } from "./use-copy"
+import { useCopy } from "./use-copy";
 
 interface CopyButtonProps {
-  value: string
-  size?: "sm" | "xs"
+  value: string;
+  size?: "sm" | "xs";
 }
 
 export function CopyButton({ value, size = "sm" }: CopyButtonProps) {
-  const { copied, copy } = useCopy(value)
+  const { copied, copy } = useCopy(value);
   return (
     <button
       onClick={copy}
@@ -21,5 +21,5 @@ export function CopyButton({ value, size = "sm" }: CopyButtonProps) {
         <Copy className={size === "xs" ? "size-3" : "size-3.5"} />
       )}
     </button>
-  )
+  );
 }

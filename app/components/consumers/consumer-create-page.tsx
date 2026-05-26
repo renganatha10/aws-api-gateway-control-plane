@@ -1,44 +1,44 @@
-import { useState } from "react"
-import { Form, useNavigate } from "react-router"
+import { useState } from "react";
+import { Form, useNavigate } from "react-router";
 
-import { Button } from "~/components/ui/button"
-import { Input } from "~/components/ui/input"
-import { Label } from "~/components/ui/label"
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "~/components/ui/select"
+} from "~/components/ui/select";
 
 interface Product {
-  id: number
-  displayName: string
+  id: number;
+  displayName: string;
 }
 
 interface Environment {
-  id: number
-  name: string
+  id: number;
+  name: string;
 }
 
 interface Plan {
-  id: number
-  displayName: string
+  id: number;
+  displayName: string;
 }
 
 interface Deployment {
-  productId: number
-  environmentId: number
+  productId: number;
+  environmentId: number;
 }
 
 interface ConsumerCreatePageProps {
-  products: Product[]
-  allEnvironments: Environment[]
-  plans: Plan[]
-  deployments: Deployment[]
-  actionError?: string
-  submitting: boolean
+  products: Product[];
+  allEnvironments: Environment[];
+  plans: Plan[];
+  deployments: Deployment[];
+  actionError?: string;
+  submitting: boolean;
 }
 
 export function ConsumerCreatePage({
@@ -49,20 +49,18 @@ export function ConsumerCreatePage({
   actionError,
   submitting,
 }: ConsumerCreatePageProps) {
-  const navigate = useNavigate()
-  const [selectedProductId,     setSelectedProductId]     = useState("")
-  const [selectedEnvironmentId, setSelectedEnvironmentId] = useState("")
+  const navigate = useNavigate();
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const [selectedEnvironmentId, setSelectedEnvironmentId] = useState("");
 
   const deployedEnvIds = new Set(
-    deployments
-      .filter((d) => d.productId === Number(selectedProductId))
-      .map((d) => d.environmentId),
-  )
-  const availableEnvironments = allEnvironments.filter((e) => deployedEnvIds.has(e.id))
+    deployments.filter((d) => d.productId === Number(selectedProductId)).map((d) => d.environmentId)
+  );
+  const availableEnvironments = allEnvironments.filter((e) => deployedEnvIds.has(e.id));
 
   function handleProductChange(val: string) {
-    setSelectedProductId(val)
-    setSelectedEnvironmentId("")
+    setSelectedProductId(val);
+    setSelectedEnvironmentId("");
   }
 
   return (
@@ -78,7 +76,12 @@ export function ConsumerCreatePage({
             >
               {submitting ? "Creating…" : "Save Consumer"}
             </Button>
-            <Button type="button" variant="outline" disabled={submitting} onClick={() => navigate(-1)}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={submitting}
+              onClick={() => navigate(-1)}
+            >
               Cancel
             </Button>
           </div>
@@ -120,7 +123,9 @@ export function ConsumerCreatePage({
                   </SelectItem>
                 ) : (
                   products.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>{p.displayName}</SelectItem>
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.displayName}
+                    </SelectItem>
                   ))
                 )}
               </SelectContent>
@@ -143,10 +148,14 @@ export function ConsumerCreatePage({
               </SelectTrigger>
               <SelectContent>
                 {availableEnvironments.length === 0 ? (
-                  <SelectItem value="_none" disabled>No deployed stages for this product</SelectItem>
+                  <SelectItem value="_none" disabled>
+                    No deployed stages for this product
+                  </SelectItem>
                 ) : (
                   availableEnvironments.map((e) => (
-                    <SelectItem key={e.id} value={String(e.id)}>{e.name}</SelectItem>
+                    <SelectItem key={e.id} value={String(e.id)}>
+                      {e.name}
+                    </SelectItem>
                   ))
                 )}
               </SelectContent>
@@ -161,10 +170,14 @@ export function ConsumerCreatePage({
               </SelectTrigger>
               <SelectContent>
                 {plans.length === 0 ? (
-                  <SelectItem value="_none" disabled>No plans available</SelectItem>
+                  <SelectItem value="_none" disabled>
+                    No plans available
+                  </SelectItem>
                 ) : (
                   plans.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>{p.displayName}</SelectItem>
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.displayName}
+                    </SelectItem>
                   ))
                 )}
               </SelectContent>
@@ -178,5 +191,5 @@ export function ConsumerCreatePage({
         </div>
       </Form>
     </div>
-  )
+  );
 }

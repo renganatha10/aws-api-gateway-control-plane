@@ -1,44 +1,44 @@
-import { getActiveOrganisationId, requireAuth } from "~/lib/session.server"
-import { getUserProfile } from "~/lib/cognito.server"
+import { EnvironmentsPage } from "~/components/environments/environments-page";
+import { getUserProfile } from "~/lib/cognito.server";
+import { getActiveOrganisationId, requireAuth } from "~/lib/session.server";
 import {
   createEnvironment,
   listEnvironmentsByOrganisation,
-} from "~/repositories/environment.repository.server"
-import { EnvironmentsPage } from "~/components/environments/environments-page"
-import type { Route } from "./+types/environments"
+} from "~/repositories/environment.repository.server";
+import type { Route } from "./+types/environments";
 
 export function meta({}: Route.MetaArgs) {
-  return [{ title: "Environments" }]
+  return [{ title: "Environments" }];
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const { accessToken } = await requireAuth(request)
-  const { email }       = getUserProfile(accessToken)
-  const organisationId  = await getActiveOrganisationId(request)
-  const environments    = organisationId ? await listEnvironmentsByOrganisation(organisationId) : []
-  return { environments, organisationId, email }
+  const { accessToken } = await requireAuth(request);
+  const { email } = getUserProfile(accessToken);
+  const organisationId = await getActiveOrganisationId(request);
+  const environments = organisationId ? await listEnvironmentsByOrganisation(organisationId) : [];
+  return { environments, organisationId, email };
 }
 
 export async function action({ request }: Route.ActionArgs) {
-  const { accessToken } = await requireAuth(request)
-  const { email }       = getUserProfile(accessToken)
-  const formData        = await request.formData()
-  const intent          = formData.get("_intent") as string
+  const { accessToken } = await requireAuth(request);
+  const { email } = getUserProfile(accessToken);
+  const formData = await request.formData();
+  const intent = formData.get("_intent") as string;
 
   if (intent === "create") {
-    const name           = String(formData.get("name") ?? "").trim()
-    const organisationId = Number(formData.get("organisationId"))
-    if (!name || !organisationId) return { error: "Invalid data" }
+    const name = String(formData.get("name") ?? "").trim();
+    const organisationId = Number(formData.get("organisationId"));
+    if (!name || !organisationId) return { error: "Invalid data" };
     try {
-      await createEnvironment({ name, organisationId, createdBy: email })
+      await createEnvironment({ name, organisationId, createdBy: email });
     } catch (err) {
-      console.error("[environments] createEnvironment failed", err)
-      return { error: "Something went wrong while creating the environment. Please try again." }
+      console.error("[environments] createEnvironment failed", err);
+      return { error: "Something went wrong while creating the environment. Please try again." };
     }
-    return { ok: true }
+    return { ok: true };
   }
 
-  return { error: "Unknown intent" }
+  return { error: "Unknown intent" };
 }
 
 export default function EnvironmentsRoute({ loaderData }: Route.ComponentProps) {
@@ -47,5 +47,5 @@ export default function EnvironmentsRoute({ loaderData }: Route.ComponentProps) 
       environments={loaderData.environments}
       organisationId={loaderData.organisationId}
     />
-  )
+  );
 }

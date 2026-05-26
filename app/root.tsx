@@ -6,10 +6,9 @@ import {
   Scripts,
   ScrollRestoration,
 } from "react-router";
-
-import type { Route } from "./+types/root";
-import { Toaster } from "~/components/ui/sonner";
 import { ServerError } from "~/components/server-error";
+import { Toaster } from "~/components/ui/sonner";
+import type { Route } from "./+types/root";
 import "./app.css";
 
 export const links: Route.LinksFunction = () => [
@@ -56,14 +55,14 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
           <h1 className="text-6xl font-bold text-gray-200">404</h1>
           <p className="text-gray-500">The page you're looking for doesn't exist.</p>
         </main>
-      )
+      );
     }
     return (
       <ServerError
         title={`Error ${error.status}`}
         message={error.statusText || "An unexpected server error occurred."}
       />
-    )
+    );
   }
 
   return (
@@ -75,5 +74,5 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
           : "We're having trouble reaching our servers. Please try again."
       }
     />
-  )
+  );
 }

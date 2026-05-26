@@ -16,7 +16,9 @@ const CLIENT_ID = process.env.COGNITO_CLIENT_ID ?? "";
 const CLIENT_SECRET = process.env.COGNITO_CLIENT_SECRET ?? "";
 
 function secretHash(username: string): string {
-  return createHmac("sha256", CLIENT_SECRET).update(username + CLIENT_ID).digest("base64");
+  return createHmac("sha256", CLIENT_SECRET)
+    .update(username + CLIENT_ID)
+    .digest("base64");
 }
 
 export interface TokenResponse {
@@ -37,7 +39,7 @@ export interface UserProfile {
 /** USER_PASSWORD_AUTH flow — server-side direct credential exchange */
 export async function loginWithCredentials(
   username: string,
-  password: string,
+  password: string
 ): Promise<TokenResponse> {
   let res;
   try {
@@ -45,8 +47,12 @@ export async function loginWithCredentials(
       new InitiateAuthCommand({
         AuthFlow: "USER_PASSWORD_AUTH",
         ClientId: CLIENT_ID,
-        AuthParameters: { USERNAME: username, PASSWORD: password, SECRET_HASH: secretHash(username) },
-      }),
+        AuthParameters: {
+          USERNAME: username,
+          PASSWORD: password,
+          SECRET_HASH: secretHash(username),
+        },
+      })
     );
   } catch (err: unknown) {
     const name = (err as { name?: string }).name ?? "";
@@ -89,7 +95,7 @@ export async function registerUser(params: {
           { Name: "given_name", Value: params.firstName ?? "" },
           { Name: "family_name", Value: params.lastName ?? "" },
         ],
-      }),
+      })
     );
   } catch (err: unknown) {
     const e = err as { name?: string; message?: string };
@@ -111,10 +117,13 @@ export async function registerUser(params: {
         Username: params.email,
         Password: params.password,
         Permanent: true,
-      }),
+      })
     );
   } catch (err) {
-    console.error("[cognito] set permanent password failed", { email: params.email, error: String(err) });
+    console.error("[cognito] set permanent password failed", {
+      email: params.email,
+      error: String(err),
+    });
     throw new Error("Failed to create account");
   }
 }
@@ -143,7 +152,11 @@ export function getUserProfile(accessToken: string): UserProfile {
 export async function sendPasswordResetEmail(email: string): Promise<void> {
   try {
     await client.send(
-      new ForgotPasswordCommand({ ClientId: CLIENT_ID, Username: email, SecretHash: secretHash(email) }),
+      new ForgotPasswordCommand({
+        ClientId: CLIENT_ID,
+        Username: email,
+        SecretHash: secretHash(email),
+      })
     );
   } catch (err) {
     console.error("[cognito] forgot password failed", {
@@ -161,7 +174,7 @@ export async function sendPasswordResetEmail(email: string): Promise<void> {
 export async function confirmPasswordReset(
   email: string,
   code: string,
-  newPassword: string,
+  newPassword: string
 ): Promise<void> {
   try {
     await client.send(
@@ -171,7 +184,7 @@ export async function confirmPasswordReset(
         ConfirmationCode: code,
         Password: newPassword,
         SecretHash: secretHash(email),
-      }),
+      })
     );
   } catch (err: unknown) {
     const name = (err as { name?: string }).name ?? "";
@@ -179,9 +192,7 @@ export async function confirmPasswordReset(
       throw new Error("Invalid or expired code. Please request a new one.");
     }
     if (name === "InvalidPasswordException") {
-      throw new Error(
-        "Password does not meet requirements (minimum 8 characters).",
-      );
+      throw new Error("Password does not meet requirements (minimum 8 characters).");
     }
     console.error("[cognito] confirm forgot password failed", {
       email,
@@ -193,9 +204,10 @@ export async function confirmPasswordReset(
 
 function decodeTokenPayload(token: string): Record<string, string> | null {
   try {
-    return JSON.parse(
-      Buffer.from(token.split(".")[1], "base64url").toString(),
-    ) as Record<string, string>;
+    return JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString()) as Record<
+      string,
+      string
+    >;
   } catch {
     return null;
   }

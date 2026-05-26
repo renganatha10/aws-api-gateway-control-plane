@@ -1,14 +1,14 @@
-import { Input } from "~/components/ui/input"
-import { Label } from "~/components/ui/label"
-import { Separator } from "~/components/ui/separator"
-import { Textarea } from "~/components/ui/textarea"
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
+import { Separator } from "~/components/ui/separator";
+import { Textarea } from "~/components/ui/textarea";
 
 interface ProductSetupSectionProps {
-  productName: string
-  displayName: string
-  description: string
-  onDisplayNameChange: (value: string) => void
-  onDescriptionChange: (value: string) => void
+  productName: string;
+  displayName: string;
+  description: string;
+  onDisplayNameChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
 }
 
 export function ProductSetupSection({
@@ -56,5 +56,5 @@ export function ProductSetupSection({
         />
       </div>
     </div>
-  )
+  );
 }

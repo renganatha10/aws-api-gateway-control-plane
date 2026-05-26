@@ -1,9 +1,9 @@
 import {
   CreateResourceServerCommand,
   DescribeResourceServerCommand,
-} from "@aws-sdk/client-cognito-identity-provider"
+} from "@aws-sdk/client-cognito-identity-provider";
 
-import { cognitoClient } from "./cognito-client.server"
+import { cognitoClient } from "./cognito-client.server";
 
 /**
  * Creates a Cognito resource server for the given identifier if one does not
@@ -13,17 +13,17 @@ export async function ensureResourceServer(
   userPoolId: string,
   identifier: string,
   name: string,
-  scopeNames: string[],
+  scopeNames: string[]
 ): Promise<void> {
   try {
     await cognitoClient.send(
-      new DescribeResourceServerCommand({ UserPoolId: userPoolId, Identifier: identifier }),
-    )
-    console.log("[aws:cognito] resource server exists", { identifier })
-    return
+      new DescribeResourceServerCommand({ UserPoolId: userPoolId, Identifier: identifier })
+    );
+    console.log("[aws:cognito] resource server exists", { identifier });
+    return;
   } catch (err: unknown) {
-    const errName = (err as { name?: string }).name ?? ""
-    if (errName !== "ResourceNotFoundException") throw err
+    const errName = (err as { name?: string }).name ?? "";
+    if (errName !== "ResourceNotFoundException") throw err;
   }
 
   await cognitoClient.send(
@@ -32,7 +32,7 @@ export async function ensureResourceServer(
       Identifier: identifier,
       Name: name,
       Scopes: scopeNames.map((s) => ({ ScopeName: s, ScopeDescription: s })),
-    }),
-  )
-  console.log("[aws:cognito] resource server created", { identifier, scopes: scopeNames })
+    })
+  );
+  console.log("[aws:cognito] resource server created", { identifier, scopes: scopeNames });
 }

@@ -1,14 +1,14 @@
-import { Link } from "react-router"
-import { Trash2 } from "lucide-react"
+import { Trash2 } from "lucide-react";
+import { Link } from "react-router";
 
-import { Button } from "~/components/ui/button"
+import { Button } from "~/components/ui/button";
 
 interface ConsumerHeaderProps {
-  consumerName: string
-  submitting: boolean
-  saved: boolean
-  error: string | null
-  onDeleteClick: () => void
+  consumerName: string;
+  submitting: boolean;
+  saved: boolean;
+  error: string | null;
+  onDeleteClick: () => void;
 }
 
 export function ConsumerHeader({
@@ -52,5 +52,5 @@ export function ConsumerHeader({
         </div>
       </div>
     </>
-  )
+  );
 }

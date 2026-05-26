@@ -1,9 +1,7 @@
-import { Globe, LayoutList, Link2, Package, Users, Zap } from "lucide-react"
-import { Link, useLocation } from "react-router"
-
-import type { UserProfile } from "~/lib/cognito.server"
-import type { Organisation } from "~/lib/schema"
-import { Avatar, AvatarFallback } from "~/components/ui/avatar"
+import { Globe, LayoutList, Link2, Package, Users, Zap } from "lucide-react";
+import { Link, useLocation } from "react-router";
+import { OrgSwitcher } from "~/components/org-switcher";
+import { Avatar, AvatarFallback } from "~/components/ui/avatar";
 import {
   Sidebar,
   SidebarContent,
@@ -15,20 +13,21 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "~/components/ui/sidebar"
-import { OrgSwitcher } from "~/components/org-switcher"
+} from "~/components/ui/sidebar";
+import type { UserProfile } from "~/lib/cognito.server";
+import type { Organisation } from "~/lib/schema";
 
 const navItems = [
-  { title: "Products",     url: "/products",     icon: Package    },
-  { title: "APIs",         url: "/apis",         icon: Zap        },
-  { title: "Environments", url: "/environments", icon: Globe      },
-  { title: "Plans",        url: "/plans",        icon: LayoutList },
-  { title: "Consumers",    url: "/consumers",    icon: Users      },
-  { title: "Domains",      url: "/domains",      icon: Link2      },
-]
+  { title: "Products", url: "/products", icon: Package },
+  { title: "APIs", url: "/apis", icon: Zap },
+  { title: "Environments", url: "/environments", icon: Globe },
+  { title: "Plans", url: "/plans", icon: LayoutList },
+  { title: "Consumers", url: "/consumers", icon: Users },
+  { title: "Domains", url: "/domains", icon: Link2 },
+];
 
 function getInitials(given: string, family: string): string {
-  return [given[0], family[0]].filter(Boolean).join("").toUpperCase() || "?"
+  return [given[0], family[0]].filter(Boolean).join("").toUpperCase() || "?";
 }
 
 export function AppSidebar({
@@ -36,12 +35,12 @@ export function AppSidebar({
   organisations,
   activeOrganisationId,
 }: {
-  user: UserProfile
-  organisations: Organisation[]
-  activeOrganisationId: number | null
+  user: UserProfile;
+  organisations: Organisation[];
+  activeOrganisationId: number | null;
 }) {
-  const location = useLocation()
-  const activeId = activeOrganisationId ?? organisations[0]?.id
+  const location = useLocation();
+  const activeId = activeOrganisationId ?? organisations[0]?.id;
 
   return (
     <Sidebar collapsible="icon">
@@ -59,10 +58,7 @@ export function AppSidebar({
           </SidebarMenuItem>
         </SidebarMenu>
 
-        <OrgSwitcher
-          organisations={organisations}
-          activeId={activeId}
-        />
+        <OrgSwitcher organisations={organisations} activeId={activeId} />
       </SidebarHeader>
 
       <SidebarContent>
@@ -111,5 +107,5 @@ export function AppSidebar({
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
-  )
+  );
 }

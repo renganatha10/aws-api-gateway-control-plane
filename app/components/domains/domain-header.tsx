@@ -1,18 +1,20 @@
-import { Link } from "react-router"
+import { Link } from "react-router";
 
-import { Button } from "~/components/ui/button"
-import type { DomainItem } from "./types"
+import { Button } from "~/components/ui/button";
+import type { DomainItem } from "./types";
 
 interface DomainHeaderProps {
-  domain: DomainItem
-  onDeleteClick: () => void
+  domain: DomainItem;
+  onDeleteClick: () => void;
 }
 
 export function DomainHeader({ domain, onDeleteClick }: DomainHeaderProps) {
   return (
     <>
       <div className="px-6 pt-4 text-sm text-muted-foreground">
-        <Link to="/domains" className="hover:underline">Domains</Link>
+        <Link to="/domains" className="hover:underline">
+          Domains
+        </Link>
         {" /"}
       </div>
 
@@ -29,5 +31,5 @@ export function DomainHeader({ domain, onDeleteClick }: DomainHeaderProps) {
         </Button>
       </div>
     </>
-  )
+  );
 }

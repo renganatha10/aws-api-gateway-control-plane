@@ -1,17 +1,17 @@
-import { Form, Link } from "react-router"
-import { Rocket } from "lucide-react"
+import { Rocket } from "lucide-react";
+import { Form, Link } from "react-router";
 
-import { Button } from "~/components/ui/button"
+import { Button } from "~/components/ui/button";
 
 interface ProductHeaderProps {
-  displayName: string
-  description: string
-  visibility: string
-  selectedApiIds: Set<number>
-  selectedPlanIds: Set<number>
-  saving: boolean
-  onPublishClick: () => void
-  onDeleteClick: () => void
+  displayName: string;
+  description: string;
+  visibility: string;
+  selectedApiIds: Set<number>;
+  selectedPlanIds: Set<number>;
+  saving: boolean;
+  onPublishClick: () => void;
+  onDeleteClick: () => void;
 }
 
 export function ProductHeader({
@@ -69,5 +69,5 @@ export function ProductHeader({
         </div>
       </div>
     </>
-  )
+  );
 }

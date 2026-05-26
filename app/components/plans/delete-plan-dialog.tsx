@@ -1,26 +1,26 @@
-import { useFetcher } from "react-router"
-import type { Plan } from "~/lib/schema"
-import { Button } from "~/components/ui/button"
+import { useFetcher } from "react-router";
+import { Button } from "~/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "~/components/ui/dialog"
+} from "~/components/ui/dialog";
+import type { Plan } from "~/lib/schema";
 
 interface DeletePlanDialogProps {
-  plan: Plan
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  plan: Plan;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 export function DeletePlanDialog({ plan, open, onOpenChange }: DeletePlanDialogProps) {
-  const deleteFetcher = useFetcher()
+  const deleteFetcher = useFetcher();
   const deleteError =
     deleteFetcher.data && "error" in deleteFetcher.data
       ? (deleteFetcher.data as { error: string }).error
-      : null
+      : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -29,8 +29,9 @@ export function DeletePlanDialog({ plan, open, onOpenChange }: DeletePlanDialogP
           <DialogTitle>Delete Plan</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          Are you sure you want to delete <span className="font-medium text-foreground">{plan.name}</span>?
-          This will also remove it from AWS.
+          Are you sure you want to delete{" "}
+          <span className="font-medium text-foreground">{plan.name}</span>? This will also remove it
+          from AWS.
         </p>
         {deleteError && <p className="text-xs text-destructive">{deleteError}</p>}
         <DialogFooter>
@@ -40,16 +41,12 @@ export function DeletePlanDialog({ plan, open, onOpenChange }: DeletePlanDialogP
           <deleteFetcher.Form method="post">
             <input type="hidden" name="_intent" value="delete" />
             <input type="hidden" name="id" value={String(plan.id)} />
-            <Button
-              type="submit"
-              variant="destructive"
-              disabled={deleteFetcher.state !== "idle"}
-            >
+            <Button type="submit" variant="destructive" disabled={deleteFetcher.state !== "idle"}>
               {deleteFetcher.state !== "idle" ? "Deleting…" : "Delete"}
             </Button>
           </deleteFetcher.Form>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
