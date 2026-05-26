@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import {
   AdminCreateUserCommand,
   AdminSetUserPasswordCommand,
@@ -5,8 +6,8 @@ import {
   ConfirmForgotPasswordCommand,
   ForgotPasswordCommand,
   InitiateAuthCommand,
+  type InitiateAuthCommandOutput,
 } from "@aws-sdk/client-cognito-identity-provider";
-import { createHmac } from "crypto";
 
 const client = new CognitoIdentityProviderClient({
   region: process.env.AWS_REGION,
@@ -41,7 +42,7 @@ export async function loginWithCredentials(
   username: string,
   password: string
 ): Promise<TokenResponse> {
-  let res;
+  let res: InitiateAuthCommandOutput | undefined;
   try {
     res = await client.send(
       new InitiateAuthCommand({

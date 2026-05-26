@@ -19,7 +19,10 @@ declare global {
   var __aws_apigw_client__: APIGatewayClient | undefined;
 }
 
-export const apigwClient: APIGatewayClient =
-  process.env.NODE_ENV === "production"
-    ? createClient()
-    : (global.__aws_apigw_client__ ??= createClient());
+function getOrCreateClient(): APIGatewayClient {
+  if (process.env.NODE_ENV === "production") return createClient();
+  if (!global.__aws_apigw_client__) global.__aws_apigw_client__ = createClient();
+  return global.__aws_apigw_client__;
+}
+
+export const apigwClient: APIGatewayClient = getOrCreateClient();

@@ -20,11 +20,13 @@ export function PlanCard({ plan, onEdit }: PlanCardProps) {
 
           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
+              type="button"
               onClick={() => onEdit(plan)}
               className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-700"
               aria-label="Edit plan"
             >
               <svg
+                aria-hidden="true"
                 className="size-4"
                 fill="none"
                 stroke="currentColor"
@@ -36,11 +38,13 @@ export function PlanCard({ plan, onEdit }: PlanCardProps) {
               </svg>
             </button>
             <button
+              type="button"
               onClick={() => setShowDeleteDialog(true)}
               className="p-1 hover:bg-red-50 rounded text-gray-400 hover:text-red-500"
               aria-label="Delete plan"
             >
               <svg
+                aria-hidden="true"
                 className="size-4"
                 fill="none"
                 stroke="currentColor"

@@ -51,6 +51,7 @@ export function EnvironmentsPage({ environments, organisationId }: EnvironmentsP
             <p className="text-sm font-medium text-gray-600">No environments yet</p>
             <p className="text-xs text-muted-foreground mt-0.5">
               <button
+                type="button"
                 onClick={() => setOpen(true)}
                 className="underline underline-offset-2 hover:text-gray-700"
               >
@@ -71,6 +72,7 @@ export function EnvironmentsPage({ environments, organisationId }: EnvironmentsP
                 <span className="flex items-center gap-1">
                   Created
                   <svg
+                    aria-hidden="true"
                     className="size-3.5"
                     fill="none"
                     stroke="currentColor"

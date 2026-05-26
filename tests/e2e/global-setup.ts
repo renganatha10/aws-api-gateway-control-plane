@@ -1,6 +1,6 @@
-import { type ChildProcess, spawn, spawnSync } from "child_process";
+import { type ChildProcess, spawn, spawnSync } from "node:child_process";
+import { resolve } from "node:path";
 import { config } from "dotenv";
-import { resolve } from "path";
 import pg from "pg";
 
 // Load .env before anything else so all AWS / Cognito / DB vars are available.

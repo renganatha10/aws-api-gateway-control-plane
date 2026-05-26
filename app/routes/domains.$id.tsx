@@ -39,7 +39,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   return { domain, mappings, syncedApis };
 }
 
-async function handleUpdate(id: number, formData: FormData, organisationId: number | null) {
+async function handleUpdate(id: number, formData: FormData, _organisationId: number | null) {
   const domain = await findDomainById(id);
   if (!domain) return { error: "Domain not found." };
 
@@ -101,8 +101,8 @@ async function handleUpdate(id: number, formData: FormData, organisationId: numb
 
   try {
     for (const m of toAdd) {
-      const api = apiMap.get(m.apiId)!;
-      await createBasePathMapping(domain.domainName, api.awsApiId!, m.stage, m.basePath);
+      const api = apiMap.get(m.apiId);
+      await createBasePathMapping(domain.domainName, api?.awsApiId ?? "", m.stage, m.basePath);
     }
   } catch (err) {
     console.error("[domains.$id] createBasePathMapping failed", err);

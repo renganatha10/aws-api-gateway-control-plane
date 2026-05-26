@@ -15,6 +15,7 @@ export function RevealSecret({ consumerId }: { consumerId: number }) {
   if (!secret) {
     return (
       <button
+        type="button"
         onClick={() => fetcher.load(`/api/consumer-secret/${consumerId}`)}
         disabled={fetcher.state === "loading"}
         className="text-sm text-blue-600 hover:underline disabled:opacity-50"
@@ -30,6 +31,7 @@ export function RevealSecret({ consumerId }: { consumerId: number }) {
         {visible ? secret : "••••••••••••••••"}
       </span>
       <button
+        type="button"
         onClick={() => setVisible((v) => !v)}
         className="text-gray-400 hover:text-gray-700"
         title={visible ? "Hide" : "Show"}

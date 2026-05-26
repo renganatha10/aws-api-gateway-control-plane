@@ -15,7 +15,7 @@ import { listProductsByOrganisation } from "~/repositories/product.repository.se
 import { listDeploymentsByOrganisation } from "~/repositories/product-deployment.repository.server";
 import type { Route } from "./+types/products";
 
-export function meta({}: Route.MetaArgs) {
+export function meta(_: Route.MetaArgs) {
   return [{ title: "Develop — Products" }];
 }
 
@@ -57,6 +57,7 @@ export default function ProductsPage() {
       {products.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 mx-6 mt-6 rounded-lg border-2 border-dashed border-gray-200 py-16 text-center">
           <svg
+            aria-hidden="true"
             className="size-10 text-gray-300"
             fill="none"
             stroke="currentColor"

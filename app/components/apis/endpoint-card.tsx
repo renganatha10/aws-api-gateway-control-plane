@@ -22,6 +22,7 @@ export function EndpointCard({ ep }: { ep: ParsedEndpoint }) {
           {ep.summary}
         </span>
         <svg
+          aria-hidden="true"
           className={`size-4 text-zinc-500 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
           fill="none"
           stroke="currentColor"

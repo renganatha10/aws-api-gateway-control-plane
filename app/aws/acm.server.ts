@@ -17,7 +17,7 @@ async function listCertsInRegion(region: string): Promise<CertSummary[]> {
     })
   );
   return (result.CertificateSummaryList ?? []).map((c) => ({
-    arn: c.CertificateArn!,
+    arn: c.CertificateArn ?? "",
     domain: c.DomainName ?? "",
     region,
   }));

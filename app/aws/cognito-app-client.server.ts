@@ -43,7 +43,7 @@ export async function getTokenUrl(userPoolId: string): Promise<string> {
   const result = await cognitoClient.send(new DescribeUserPoolCommand({ UserPoolId: userPoolId }));
   const domain = result.UserPool?.Domain;
   if (!domain) throw new Error("Cognito User Pool has no hosted UI domain configured");
-  const region = process.env.AWS_REGION!;
+  const region = process.env.AWS_REGION ?? "";
   return `https://${domain}.auth.${region}.amazoncognito.com/oauth2/token`;
 }
 

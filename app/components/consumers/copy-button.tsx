@@ -11,6 +11,7 @@ export function CopyButton({ value, size = "sm" }: CopyButtonProps) {
   const { copied, copy } = useCopy(value);
   return (
     <button
+      type="button"
       onClick={copy}
       title="Copy"
       className={`text-gray-400 hover:text-gray-700 transition-colors ${size === "xs" ? "p-0.5" : "p-1"}`}

@@ -36,6 +36,7 @@ beforeEach(() => {
 });
 
 describe("Login route", () => {
+  // biome-ignore lint/suspicious/noExplicitAny: test props need dynamic shape
   const loginProps = { loaderData: { mode: "login" }, actionData: undefined } as any;
 
   it("renders Sign In description in login mode", () => {

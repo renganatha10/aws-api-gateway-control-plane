@@ -1,6 +1,6 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
-import { readFileSync } from "fs";
-import { resolve } from "path";
 
 const EMAIL = `smoke+${Date.now()}@mailinator.com`;
 const PASSWORD = "Playwright@2025!";
@@ -192,7 +192,7 @@ test.describe("Smoke — minimal end-to-end flow", () => {
       await page.waitForLoadState("domcontentloaded");
       await page.getByRole("row").filter({ hasText: "Consumer A" }).click();
       await page.waitForURL("**/consumers/**");
-      consumerId = page.url().split("/").pop()!;
+      consumerId = page.url().split("/").pop() ?? "";
 
       // Navigate to tryout page and fetch an OAuth token.
       await page.goto(`/consumers/${consumerId}/tryout`);

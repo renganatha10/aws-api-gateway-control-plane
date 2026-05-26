@@ -8,7 +8,7 @@ import { getActiveOrganisationId, requireAuth } from "~/lib/session.server";
 import { createApi, findApiByOrganisationAndBasePath } from "~/repositories/api.repository.server";
 import type { Route } from "./+types/api-create";
 
-export function meta({}: Route.MetaArgs) {
+export function meta(_: Route.MetaArgs) {
   return [{ title: "Create API" }];
 }
 

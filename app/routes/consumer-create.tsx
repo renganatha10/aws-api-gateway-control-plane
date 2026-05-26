@@ -17,7 +17,7 @@ import { listProductsByOrganisation } from "~/repositories/product.repository.se
 import { listDeploymentsByOrganisation } from "~/repositories/product-deployment.repository.server";
 import type { Route } from "./+types/consumer-create";
 
-export function meta({}: Route.MetaArgs) {
+export function meta(_: Route.MetaArgs) {
   return [{ title: "New Consumer" }];
 }
 
@@ -72,7 +72,7 @@ export async function action({ request }: Route.ActionArgs) {
 
   try {
     for (const api of apis) {
-      await ensureResourceServer(USER_POOL_ID, api.name, api.displayName, [api.scope!]);
+      await ensureResourceServer(USER_POOL_ID, api.name, api.displayName, [api.scope ?? ""]);
     }
 
     const fullScopes = apis.map((api) => `${api.name}/${api.scope}`);
@@ -90,7 +90,7 @@ export async function action({ request }: Route.ActionArgs) {
     await provisionConsumerKey(
       plan.awsUsagePlanId,
       awsApiKeyId,
-      apis.map((api) => ({ apiId: api.awsApiId!, stage: environment.name }))
+      apis.map((api) => ({ apiId: api.awsApiId ?? "", stage: environment.name }))
     );
   } catch (err) {
     console.error("[consumer-create] AWS provisioning failed", err);

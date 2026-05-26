@@ -88,6 +88,7 @@ export function PlansPage({ plans, organisationId }: PlansPageProps) {
       {organisationId && plans.length === 0 && (
         <div className="flex flex-col items-center justify-center gap-3 mx-6 mt-6 rounded-lg border-2 border-dashed border-gray-200 py-16 text-center">
           <svg
+            aria-hidden="true"
             className="size-10 text-gray-300"
             fill="none"
             stroke="currentColor"
@@ -102,6 +103,7 @@ export function PlansPage({ plans, organisationId }: PlansPageProps) {
             <p className="text-sm font-medium text-gray-600">No plans yet</p>
             <p className="text-xs text-muted-foreground mt-0.5">
               <button
+                type="button"
                 onClick={openCreate}
                 className="underline underline-offset-2 hover:text-gray-700"
               >
@@ -120,11 +122,13 @@ export function PlansPage({ plans, organisationId }: PlansPageProps) {
             ))}
 
             <button
+              type="button"
               onClick={openCreate}
               className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-gray-200 p-8 text-muted-foreground transition-colors hover:border-gray-400 hover:text-gray-700 min-h-[160px]"
             >
               <div className="flex size-9 items-center justify-center rounded-full border-2 border-current">
                 <svg
+                  aria-hidden="true"
                   className="size-4"
                   fill="none"
                   stroke="currentColor"

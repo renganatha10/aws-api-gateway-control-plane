@@ -28,6 +28,7 @@ export function DeploymentsSection({
             return (
               <button
                 key={d.id}
+                type="button"
                 onClick={() => onSelectEnv(d.environmentId)}
                 className={[
                   "w-full text-left py-2 text-sm transition-colors",
@@ -71,11 +72,14 @@ export function DeploymentsSection({
                     </p>
                     <button
                       type="button"
-                      onClick={() => navigator.clipboard.writeText(selectedDeployment.invokeUrl!)}
+                      onClick={() =>
+                        navigator.clipboard.writeText(selectedDeployment.invokeUrl ?? "")
+                      }
                       className="shrink-0 p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
                       title="Copy"
                     >
                       <svg
+                        aria-hidden="true"
                         className="size-4"
                         fill="none"
                         stroke="currentColor"
@@ -115,6 +119,7 @@ export function DeploymentsSection({
         ) : (
           <div className="flex flex-col items-center justify-center gap-3 py-20 text-center text-muted-foreground">
             <svg
+              aria-hidden="true"
               className="size-10 text-gray-300"
               fill="none"
               stroke="currentColor"

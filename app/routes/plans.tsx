@@ -12,7 +12,7 @@ import {
 import { listProductsByPlan } from "~/repositories/plan-association.repository.server";
 import type { Route } from "./+types/plans";
 
-export function meta({}: Route.MetaArgs) {
+export function meta(_: Route.MetaArgs) {
   return [{ title: "Plans" }];
 }
 
@@ -150,7 +150,7 @@ async function handleDelete(formData: FormData) {
 function toIntOrNull(v: FormDataEntryValue | null): number | null {
   if (!v || v === "") return null;
   const n = Number(v);
-  return isNaN(n) ? null : n;
+  return Number.isNaN(n) ? null : n;
 }
 
 export default function PlansRoute({ loaderData }: Route.ComponentProps) {

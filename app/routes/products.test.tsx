@@ -3,6 +3,7 @@ import { vi } from "vitest";
 import ProductsPage from "~/routes/products";
 
 const mockNavigate = vi.fn();
+// biome-ignore lint/suspicious/noExplicitAny: test mock needs dynamic shape
 let mockLoaderData: any = { products: [], deployments: [] };
 
 vi.mock("react-router", async (importOriginal) => {

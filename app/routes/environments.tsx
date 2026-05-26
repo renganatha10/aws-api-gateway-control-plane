@@ -7,7 +7,7 @@ import {
 } from "~/repositories/environment.repository.server";
 import type { Route } from "./+types/environments";
 
-export function meta({}: Route.MetaArgs) {
+export function meta(_: Route.MetaArgs) {
   return [{ title: "Environments" }];
 }
 

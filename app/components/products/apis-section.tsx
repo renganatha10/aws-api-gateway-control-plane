@@ -69,6 +69,7 @@ export function ApisSection({
       {displayedApis.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-gray-200 py-12 text-center">
           <svg
+            aria-hidden="true"
             className="size-10 text-gray-300"
             fill="none"
             stroke="currentColor"
@@ -114,6 +115,7 @@ export function ApisSection({
                       aria-label="Remove API"
                     >
                       <svg
+                        aria-hidden="true"
                         className="size-4"
                         fill="none"
                         stroke="currentColor"

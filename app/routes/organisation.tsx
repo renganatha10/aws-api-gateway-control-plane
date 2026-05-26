@@ -10,7 +10,7 @@ import { requireAuth } from "~/lib/session.server";
 import { createOrganisation } from "~/repositories/organisation.repository.server";
 import type { Route } from "./+types/organisation";
 
-export function meta({}: Route.MetaArgs) {
+export function meta(_: Route.MetaArgs) {
   return [{ title: "Create Organisation" }];
 }
 

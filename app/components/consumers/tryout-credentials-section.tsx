@@ -85,6 +85,7 @@ export function TryoutCredentialsSection({
               {tokenVisible ? token : "•".repeat(Math.min(token.length, 48))}
             </span>
             <button
+              type="button"
               onClick={onTokenVisibleToggle}
               className="text-gray-400 hover:text-gray-700 flex-shrink-0"
             >
@@ -103,6 +104,7 @@ export function TryoutCredentialsSection({
               {apiKeyVisible ? apiKeyValue : "•".repeat(Math.min(apiKeyValue.length, 32))}
             </span>
             <button
+              type="button"
               onClick={onApiKeyVisibleToggle}
               className="text-gray-400 hover:text-gray-700 flex-shrink-0"
             >

@@ -30,8 +30,8 @@ export function UiTab({ yamlValue }: { yamlValue: string }) {
           </div>
           {group.description && <p className="text-xs text-zinc-500 mb-3">{group.description}</p>}
           <div className="space-y-2">
-            {group.endpoints.map((ep, i) => (
-              <EndpointCard key={i} ep={ep} />
+            {group.endpoints.map((ep) => (
+              <EndpointCard key={`${ep.method}-${ep.path}`} ep={ep} />
             ))}
           </div>
         </div>

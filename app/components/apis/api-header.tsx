@@ -51,7 +51,6 @@ export function ApiHeader({
           <span className="text-xs text-zinc-500">scope</span>
           {editScope ? (
             <input
-              autoFocus
               value={scope}
               onChange={(e) => setScope(e.target.value)}
               onBlur={() => setEditScope(false)}

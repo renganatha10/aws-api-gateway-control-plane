@@ -36,6 +36,7 @@ export function ResponsePanel({ data }: { data: ProxyResponse }) {
 
       <div>
         <button
+          type="button"
           onClick={() => setHeadersOpen((o) => !o)}
           className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 mb-1"
         >

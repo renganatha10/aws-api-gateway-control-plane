@@ -1,4 +1,4 @@
-import { KeyRound, Zap } from "lucide-react";
+import { KeyRound } from "lucide-react";
 import { data, Form, Link, redirect, useNavigation } from "react-router";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";

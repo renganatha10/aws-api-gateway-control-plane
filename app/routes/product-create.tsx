@@ -5,7 +5,7 @@ import { getActiveOrganisationId, requireAuth } from "~/lib/session.server";
 import { createProduct } from "~/repositories/product.repository.server";
 import type { Route } from "./+types/product-create";
 
-export function meta({}: Route.MetaArgs) {
+export function meta(_: Route.MetaArgs) {
   return [{ title: "New Product" }];
 }
 

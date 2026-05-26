@@ -145,7 +145,7 @@ async function handlePublish(
   const apisToPublish = fullApis
     .filter((a): a is NonNullable<typeof a> => !!a?.awsApiId)
     .map((a) => ({
-      awsApiId: a.awsApiId!,
+      awsApiId: a.awsApiId ?? "",
       spec: a.spec as Record<string, unknown>,
     }));
 

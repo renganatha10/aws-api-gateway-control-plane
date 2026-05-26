@@ -10,7 +10,7 @@ import { createDomain } from "~/repositories/domain.repository.server";
 import { replaceMappings } from "~/repositories/domain-route-mapping.repository.server";
 import type { Route } from "./+types/domain-create";
 
-export function meta({}: Route.MetaArgs) {
+export function meta(_: Route.MetaArgs) {
   return [{ title: "New Domain" }];
 }
 
@@ -78,10 +78,10 @@ export async function action({ request }: Route.ActionArgs) {
 
   try {
     for (const m of mappings) {
-      const api = apiMap.get(m.apiId)!;
+      const api = apiMap.get(m.apiId);
       await createBasePathMapping(
         domainName,
-        api.awsApiId!,
+        api?.awsApiId ?? "",
         m.stage.trim(),
         m.basePath.trim() || "(none)"
       );

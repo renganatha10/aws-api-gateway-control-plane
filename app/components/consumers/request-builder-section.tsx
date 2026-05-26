@@ -70,7 +70,7 @@ export function RequestBuilderSection({
   useEffect(() => {
     setSelectedEndpoint("");
     setPathParams({});
-  }, [selectedApiId]);
+  }, []);
 
   useEffect(() => {
     if (!currentEndpoint) {
@@ -84,7 +84,14 @@ export function RequestBuilderSection({
       setQueryRows(currentEndpoint.queryParams.map((q) => ({ key: q.name, value: "" })));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedEndpoint]);
+  }, [
+    pathParams,
+    currentEndpoint.pathParams.map,
+    currentEndpoint.queryParams.map,
+    queryRows.length,
+    currentEndpoint.queryParams.length,
+    currentEndpoint,
+  ]);
 
   function buildRequestUrl(): string {
     if (!invokeUrl || !currentEndpoint) return "";
@@ -104,7 +111,7 @@ export function RequestBuilderSection({
     const url = buildRequestUrl();
 
     const headers: Record<string, string> = {};
-    if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (token) headers.Authorization = `Bearer ${token}`;
     if (apiKeyValue) headers["x-api-key"] = apiKeyValue;
     for (const { key, value } of headerRows) {
       if (key.trim()) headers[key.trim()] = value;
@@ -304,15 +311,13 @@ export function RequestBuilderSection({
               Waiting for response…
             </div>
           )}
-          {!isSending && proxyFetcher.data && (
-            <>
-              {proxyFetcher.data.error ? (
-                <p className="text-sm text-destructive">{proxyFetcher.data.error}</p>
-              ) : (
-                <ResponsePanel data={proxyFetcher.data as ProxyResponse} />
-              )}
-            </>
-          )}
+          {!isSending &&
+            proxyFetcher.data &&
+            (proxyFetcher.data.error ? (
+              <p className="text-sm text-destructive">{proxyFetcher.data.error}</p>
+            ) : (
+              <ResponsePanel data={proxyFetcher.data as ProxyResponse} />
+            ))}
         </section>
       )}
     </>

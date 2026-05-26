@@ -15,7 +15,12 @@ function createPool() {
   return new pg.Pool({ connectionString: process.env.DATABASE_URL });
 }
 
-const pool: pg.Pool =
-  process.env.NODE_ENV === "production" ? createPool() : (global.__db_pool__ ??= createPool());
+function getOrCreatePool(): pg.Pool {
+  if (process.env.NODE_ENV === "production") return createPool();
+  if (!global.__db_pool__) global.__db_pool__ = createPool();
+  return global.__db_pool__;
+}
+
+const pool: pg.Pool = getOrCreatePool();
 
 export const db = drizzle(pool, { schema });

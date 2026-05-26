@@ -39,7 +39,7 @@ export function ApiDetailPage({ api, initialYaml }: ApiDetailPageProps) {
   useEffect(() => {
     if (!host && hostKeys.length > 0) setHost(hostKeys[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hostKeys.join(",")]);
+  }, [hostKeys[0], host]);
 
   useEffect(() => {
     if (actionData && "ok" in actionData) toast.success("Saved");

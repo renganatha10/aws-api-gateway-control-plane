@@ -45,7 +45,7 @@ export function PublishProductModal({
 
   useEffect(() => {
     setEnvId("");
-  }, [open]);
+  }, []);
 
   return (
     <Dialog
@@ -61,7 +61,12 @@ export function PublishProductModal({
 
         {busy && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-lg bg-white/80">
-            <svg className="size-8 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
+            <svg
+              aria-hidden="true"
+              className="size-8 animate-spin text-blue-600"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
               <circle
                 className="opacity-25"
                 cx="12"
@@ -80,6 +85,7 @@ export function PublishProductModal({
           <div className="flex flex-col items-center gap-3 py-6 text-center">
             <div className="flex size-12 items-center justify-center rounded-full bg-green-100">
               <svg
+                aria-hidden="true"
                 className="size-6 text-green-600"
                 fill="none"
                 stroke="currentColor"
@@ -96,6 +102,7 @@ export function PublishProductModal({
         ) : environments.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-6 text-center">
             <svg
+              aria-hidden="true"
               className="size-10 text-gray-300"
               fill="none"
               stroke="currentColor"

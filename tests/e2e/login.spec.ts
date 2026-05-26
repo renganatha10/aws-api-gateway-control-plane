@@ -35,6 +35,7 @@ test.describe("Login page", () => {
     await page.goto("/login");
     // Clear the required attributes so the browser doesn't block the submit
     await page.evaluate(() => {
+      // biome-ignore lint/suspicious/useIterableCallbackReturn: forEach callback intentionally returns void
       document.querySelectorAll("input[required]").forEach((el) => el.removeAttribute("required"));
     });
     await page.getByRole("button", { name: "Sign In" }).click();

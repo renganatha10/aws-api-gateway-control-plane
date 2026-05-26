@@ -1,6 +1,6 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
-import { readFileSync } from "fs";
-import { resolve } from "path";
 
 // ── Credentials (hardcoded) ────────────────────────────────────────────────
 // Email uses a timestamp so each test run creates a fresh Cognito account.
@@ -156,9 +156,9 @@ async function verifyConsumerUrls(
   await page.getByRole("menuitem", { name: "Edit" }).click();
   await page.waitForURL("**/consumers/**");
 
-  const consumerId = page.url().split("/").pop()!;
-  const clientId = (await page.getByTestId("client-id").textContent())!.trim();
-  const tokenUrl = (await page.getByTestId("token-url").textContent())!.trim();
+  const consumerId = page.url().split("/").pop() ?? "";
+  const clientId = (await page.getByTestId("client-id").textContent())?.trim();
+  const tokenUrl = (await page.getByTestId("token-url").textContent())?.trim();
 
   // ── Fetch secret + API key value via internal routes ────────────────────
   const [secretRes, apiKeyRes] = await Promise.all([
@@ -175,7 +175,7 @@ async function verifyConsumerUrls(
   await page.waitForURL("**/products/**");
   await page.getByRole("button", { name: "Deployments" }).click();
   await expect(page.getByTestId("invoke-url")).toBeVisible({ timeout: 10_000 });
-  const invokeUrl = (await page.getByTestId("invoke-url").textContent())!.trim();
+  const invokeUrl = (await page.getByTestId("invoke-url").textContent())?.trim();
 
   // ── Verify token URL → 200 ───────────────────────────────────────────────
   const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");

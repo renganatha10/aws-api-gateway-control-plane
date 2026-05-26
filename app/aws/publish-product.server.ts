@@ -22,7 +22,7 @@ export async function publishProductToEnvironment(
   envName: string
 ): Promise<{ warnings: string[]; invokeUrl: string }> {
   const stageName = sanitizeStageName(envName);
-  const region = process.env.AWS_REGION!;
+  const region = process.env.AWS_REGION ?? "";
   const warnings: string[] = [];
 
   for (const api of apis) {

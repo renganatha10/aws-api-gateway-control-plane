@@ -13,7 +13,7 @@ import { getActiveOrganisationId, requireAuth } from "~/lib/session.server";
 import { listDomainsByOrganisation } from "~/repositories/domain.repository.server";
 import type { Route } from "./+types/domains";
 
-export function meta({}: Route.MetaArgs) {
+export function meta(_: Route.MetaArgs) {
   return [{ title: "Domains" }];
 }
 
@@ -47,6 +47,7 @@ export default function DomainsPage() {
       {domains.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 mx-6 mt-6 rounded-lg border-2 border-dashed border-gray-200 py-16 text-center">
           <svg
+            aria-hidden="true"
             className="size-10 text-gray-300"
             fill="none"
             stroke="currentColor"

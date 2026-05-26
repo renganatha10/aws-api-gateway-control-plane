@@ -13,6 +13,7 @@ export function ProductLeftNav({ activeSection, onSectionChange }: ProductLeftNa
         return (
           <button
             key={section}
+            type="button"
             onClick={() => onSectionChange(section)}
             className={[
               "w-full text-left py-2 text-sm transition-colors",

@@ -1,5 +1,5 @@
 export function StatusBadge({ code }: { code: string }) {
-  const n = parseInt(code);
+  const n = parseInt(code, 10);
   const cls =
     n < 300
       ? "text-green-400 border-green-700"

@@ -54,15 +54,15 @@ export function buildAwsSpec(
   if (isOas3) {
     const components = (aws.components ?? {}) as Record<string, unknown>;
     const schemes = (components.securitySchemes ?? {}) as Record<string, unknown>;
-    schemes["api_key"] = apiKeyScheme;
-    schemes["CognitoAuth"] = cognitoScheme;
+    schemes.api_key = apiKeyScheme;
+    schemes.CognitoAuth = cognitoScheme;
     components.securitySchemes = schemes;
     aws.components = components;
   } else {
     const secDefs = (aws.securityDefinitions ?? {}) as Record<string, unknown>;
-    delete secDefs["apigw_key"];
-    secDefs["api_key"] = apiKeyScheme;
-    secDefs["CognitoAuth"] = cognitoScheme;
+    delete secDefs.apigw_key;
+    secDefs.api_key = apiKeyScheme;
+    secDefs.CognitoAuth = cognitoScheme;
     aws.securityDefinitions = secDefs;
   }
 
@@ -75,7 +75,9 @@ export function buildAwsSpec(
       const operation = op as Record<string, unknown>;
       const pathParams = [...path.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
       const opParams = (operation.parameters ?? []) as Array<{ in?: string; name?: string }>;
-      const queryParams = opParams.filter((p) => p.in === "query" && p.name).map((p) => p.name!);
+      const queryParams = opParams
+        .filter((p) => p.in === "query" && p.name)
+        .map((p) => p.name ?? "");
       const requestParameters = {
         ...Object.fromEntries(
           pathParams.map((p) => [`integration.request.path.${p}`, `method.request.path.${p}`])
@@ -97,7 +99,7 @@ export function buildAwsSpec(
         connectionType: "INTERNET",
         ...(Object.keys(requestParameters).length > 0 && { requestParameters }),
       };
-      operation["security"] = [{ api_key: [], CognitoAuth: [fullScope] }];
+      operation.security = [{ api_key: [], CognitoAuth: [fullScope] }];
     }
   }
 

@@ -40,8 +40,11 @@ export function SourceTab({ yamlValue, setYamlValue, hosts, host }: SourceTabPro
           </div>
         ) : (
           <div className="divide-y divide-white/5">
-            {endpoints.map(({ method, path, summary }, i) => (
-              <div key={i} className="flex items-start gap-2 px-4 py-2.5 hover:bg-white/5">
+            {endpoints.map(({ method, path, summary }) => (
+              <div
+                key={`${method}-${path}`}
+                className="flex items-start gap-2 px-4 py-2.5 hover:bg-white/5"
+              >
                 <MethodBadge method={method} />
                 <div className="min-w-0 mt-0.5">
                   <p className="font-mono text-xs text-white/90 truncate">{path}</p>

@@ -13,8 +13,8 @@ import type {
 export function resolveRef(spec: RawSpec, ref?: string): RawSchema | null {
   if (!ref) return null;
   const parts = ref.replace("#/", "").split("/");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return parts.reduce((o: any, k) => o?.[k], spec) ?? null;
+  // biome-ignore lint/suspicious/noExplicitAny: generic path traversal requires dynamic indexing
+  return parts.reduce((o: any, k: string) => o?.[k], spec) ?? null;
 }
 
 export function schemaType(spec: RawSpec, schema?: RawSchema): string {

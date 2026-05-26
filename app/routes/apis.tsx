@@ -13,7 +13,7 @@ import { getActiveOrganisationId, requireAuth } from "~/lib/session.server";
 import { listApisByOrganisation } from "~/repositories/api.repository.server";
 import type { Route } from "./+types/apis";
 
-export function meta({}: Route.MetaArgs) {
+export function meta(_: Route.MetaArgs) {
   return [{ title: "APIs" }];
 }
 
@@ -54,7 +54,12 @@ export default function ApisPage({ loaderData }: Route.ComponentProps) {
       {/* Spinner */}
       {isLoading && (
         <div className="flex items-center justify-center py-16">
-          <svg className="size-6 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
+          <svg
+            aria-hidden="true"
+            className="size-6 animate-spin text-blue-600"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
             <circle
               className="opacity-25"
               cx="12"
@@ -110,6 +115,7 @@ export default function ApisPage({ loaderData }: Route.ComponentProps) {
                 <span className="flex items-center gap-1">
                   Created
                   <svg
+                    aria-hidden="true"
                     className="size-3.5"
                     fill="none"
                     stroke="currentColor"
