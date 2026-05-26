@@ -83,9 +83,9 @@ async function deployProduct(
 ) {
   await page.goto("/products");
   await page.waitForLoadState("domcontentloaded");
-  const row = page.getByRole("row").filter({ hasText: displayName });
-  await row.getByRole("button").click();
-  await page.getByRole("menuitem", { name: "Publish" }).click();
+  await page.getByRole("row").filter({ hasText: displayName }).click();
+  await page.waitForURL("**/products/**");
+  await page.getByRole("button", { name: "Publish" }).click();
   await page.getByRole("dialog").getByText(envName, { exact: true }).click();
   await page.getByRole("button", { name: "Deploy" }).click();
   await expect(page.getByText(/Published to/)).toBeVisible({
@@ -115,9 +115,12 @@ async function createConsumer(
 test.describe("Smoke — minimal end-to-end flow", () => {
   test.setTimeout(600_000);
 
-  test("1 api · 1 env · 1 plan · 1 product · 1 consumer · curl verify", async ({
+  test("1 api · 1 env · 1 plan · 1 product · 1 consumer · tryout verify · teardown", async ({
     page,
   }) => {
+    // Captured mid-test for use in later teardown steps.
+    let consumerId = "";
+
     // 1. Sign up
     await test.step("Sign up", async () => {
       await page.goto("/login?mode=signup");
@@ -126,24 +129,23 @@ test.describe("Smoke — minimal end-to-end flow", () => {
       await page.getByLabel("Email").fill(EMAIL);
       await page.getByLabel("Password").fill(PASSWORD);
       await page.getByRole("button", { name: "Create Account" }).click();
-      await page.waitForURL("**/gateway", { timeout: 10_000 });
+      await page.waitForURL("**/organisation", { timeout: 10_000 });
     });
 
-    // 2. Create gateway
-    await test.step("Create gateway", async () => {
-      await page.getByLabel("Gateway name").fill("smoke-gateway");
-      await page.getByRole("button", { name: "Create Gateway" }).click();
-      await page.waitForURL(/\/$/, { timeout: 50_000 });
-      await expect(page.getByText("smoke-gateway")).toBeVisible();
+    // 1b. Create organisation (onboarding step for new users)
+    await test.step("Create organisation", async () => {
+      await page.getByLabel("Organisation name").fill("smoke-org");
+      await page.getByRole("button", { name: "Create Organisation" }).click();
+      await page.waitForURL(/localhost:5173\/$/, { timeout: 10_000 });
     });
 
-    // 3. Create pets API
+    // 2. Create pets API
     await test.step("Create API: pets-api", async () => {
       await createApi(page, "pets-api", "pets", PETS_YAML);
     });
     await page.waitForTimeout(10_000);
 
-    // 4. Create prod environment
+    // 3. Create prod environment
     await test.step("Create environment: prod", async () => {
       await page.goto("/environments");
       await page.getByRole("button", { name: "Add" }).click();
@@ -155,7 +157,7 @@ test.describe("Smoke — minimal end-to-end flow", () => {
     });
     await page.waitForTimeout(10_000);
 
-    // 5. Create standard plan
+    // 4. Create standard plan
     await test.step("Create plan: standard", async () => {
       await page.goto("/plans");
       await page.getByRole("button", { name: "Add" }).click();
@@ -168,7 +170,7 @@ test.describe("Smoke — minimal end-to-end flow", () => {
     });
     await page.waitForTimeout(10_000);
 
-    // 6. Create product, attach API + plan, deploy to prod
+    // 5. Create product, attach API + plan, deploy to prod
     await test.step("Create product: Pet Store", async () => {
       await createProduct(page, "Pet Store", "Pets API product");
       await configureProduct(page, ["pets-api"], /standard/);
@@ -179,82 +181,99 @@ test.describe("Smoke — minimal end-to-end flow", () => {
     });
     await page.waitForTimeout(10_000);
 
-    // 7. Create consumer
+    // 6. Create consumer
     await test.step("Create consumer: Consumer A", async () => {
       await createConsumer(page, "Consumer A", "Pet Store", /standard/);
     });
-    await page.waitForTimeout(10_000);
+    // AWS API key + usage plan association takes 30-60 s to propagate.
+    await page.waitForTimeout(30_000);
 
-    // 8. Read credentials + curl verify
-    await test.step("Verify: get token then call invoke URL", async () => {
-      // Navigate to consumer detail to read clientId + tokenUrl
+    // 7. Verify endpoint returns 200 via the tryout page UI
+    await test.step("Verify: invoke endpoint via tryout page returns 200", async () => {
+      // Get consumerId from the URL.
       await page.goto("/consumers");
       await page.waitForLoadState("domcontentloaded");
-      const row = page.getByRole("row").filter({ hasText: "Consumer A" });
-      await row.locator('[aria-haspopup="menu"]').click();
-      await page.getByRole("menuitem", { name: "Edit" }).click();
+      await page.getByRole("row").filter({ hasText: "Consumer A" }).click();
       await page.waitForURL("**/consumers/**");
+      consumerId = page.url().split("/").pop()!;
 
-      const consumerId = page.url().split("/").pop()!;
-      const clientId = (await page
-        .getByTestId("client-id")
-        .textContent())!.trim();
-      const tokenUrl = (await page
-        .getByTestId("token-url")
-        .textContent())!.trim();
+      // Navigate to tryout page and fetch an OAuth token.
+      await page.goto(`/consumers/${consumerId}/tryout`);
+      await page.waitForLoadState("domcontentloaded");
+      await page.getByRole("button", { name: "Get Token" }).click();
+      await expect(
+        page.locator("section").filter({ hasText: "Credentials" }).locator(".font-mono.text-xs.text-gray-800"),
+      ).toBeVisible({ timeout: 30_000 });
 
-      // Fetch client secret
-      const secretRes = await page.request.get(
-        `/api/consumer-secret/${consumerId}`,
-      );
-      const { secret: clientSecret } = await secretRes.json();
+      // Select the GET /pet/findByStatus endpoint (API is auto-selected — only one).
+      await selectOption(page, "Select an endpoint…", /findByStatus/);
+      // Fill in the auto-added "status" query param.
+      await expect(page.locator('input[placeholder="value"]').first()).toBeVisible({ timeout: 5_000 });
+      await page.locator('input[placeholder="value"]').first().fill("available");
 
-      // Read invoke URL from product Deployments tab
+      // Retry send until 200 — AWS API key propagation can take up to 90 s.
+      const invokeDeadline = Date.now() + 90_000;
+      while (Date.now() < invokeDeadline) {
+        await page.getByRole("button", { name: "Send Request" }).click();
+        // Wait for the request to finish (button re-enables when fetcher is idle).
+        await expect(page.getByRole("button", { name: "Send Request" })).toBeVisible({ timeout: 30_000 });
+
+        const has200 = await page
+          .locator("section")
+          .filter({ hasText: "Response" })
+          .getByText("200", { exact: true })
+          .isVisible()
+          .catch(() => false);
+        if (has200) break;
+
+        const statusEl = page.locator("section").filter({ hasText: "Response" }).locator("span.font-semibold").first();
+        const statusText = await statusEl.textContent().catch(() => "?");
+        console.log(`── Invoke retry (${statusText?.trim()}) — waiting 10 s for API key propagation…`);
+        await page.waitForTimeout(10_000);
+      }
+      await expect(
+        page.locator("section").filter({ hasText: "Response" }).getByText("200", { exact: true }),
+      ).toBeVisible({ timeout: 5_000 });
+    });
+
+    // ── Teardown ──────────────────────────────────────────────────────────────
+
+    // 8. Delete consumer → verify it's gone from the list
+    await test.step("Delete consumer: Consumer A", async () => {
+      await page.goto(`/consumers/${consumerId}`);
+      await page.waitForLoadState("domcontentloaded");
+      await page.getByRole("button", { name: "Delete" }).click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
+      await page.waitForURL("**/consumers", { timeout: 30_000 });
+      await page.waitForLoadState("domcontentloaded");
+      await expect(page.getByRole("cell", { name: "Consumer A", exact: true })).toHaveCount(0);
+    });
+
+    // 9. Delete product → verify it's gone from the list
+    await test.step("Delete product: Pet Store", async () => {
       await page.goto("/products");
       await page.waitForLoadState("domcontentloaded");
-      await page.getByRole("link", { name: "Pet Store" }).click();
+      await page.getByRole("row").filter({ hasText: "Pet Store" }).click();
       await page.waitForURL("**/products/**");
-      await page.getByRole("button", { name: "Deployments" }).click();
-      await expect(page.getByTestId("invoke-url")).toBeVisible({
-        timeout: 10_000,
-      });
-      const invokeUrl = (await page
-        .getByTestId("invoke-url")
-        .textContent())!.trim();
+      await page.getByRole("button", { name: "Delete" }).click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
+      await page.waitForURL("**/products", { timeout: 30_000 });
+      await expect(page.getByRole("row").filter({ hasText: "Pet Store" })).toHaveCount(0);
+    });
 
-      // POST token endpoint (client credentials)
-      const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString(
-        "base64",
-      );
-      const tokenRes = await page.request.post(tokenUrl, {
-        headers: {
-          Authorization: `Basic ${credentials}`,
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        form: { grant_type: "client_credentials" },
-      });
-      const tokenBody = await tokenRes.json();
-
-      expect(tokenRes.status()).toBe(200);
-      const { access_token } = tokenBody;
-
-      // GET pets endpoint with API key = clientId + Bearer token
-      const invokeRes = await page.request.get(
-        `${invokeUrl}/pet/findByStatus?status=available`,
-        {
-          headers: {
-            "x-api-key": clientId,
-            Authorization: `Bearer ${access_token}`,
-          },
-        },
-      );
-      const invokeBody = await invokeRes.text();
-
-      console.log(
-        "── Invoke response ─────────────────────────────────────────",
-      );
-      console.log(`status: ${invokeRes.status()}`, invokeBody);
-      expect(invokeRes.status()).toBe(200);
+    // 10. Delete API → verify it's gone from the list
+    await test.step("Delete API: pets-api", async () => {
+      await page.goto("/apis");
+      await page.waitForLoadState("domcontentloaded");
+      await page.getByRole("row").filter({ hasText: "pets-api" }).click();
+      await page.waitForURL("**/apis/**");
+      await page.getByRole("button", { name: "Delete" }).click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
+      await page.waitForURL("**/apis", { timeout: 30_000 });
+      await expect(page.getByRole("row").filter({ hasText: "pets-api" })).toHaveCount(0);
     });
   });
 });
