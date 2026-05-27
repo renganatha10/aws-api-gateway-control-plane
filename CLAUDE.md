@@ -186,6 +186,13 @@ See `app/components/products/` as the canonical example — `product-detail-page
 
 **Repositories** — thin Drizzle wrappers, one file per entity, named `*.repository.server.ts`. No business logic inside.
 
+**Indexes** — add indexes whenever you introduce FK columns or columns used in common queries:
+- Every FK column (`gateway_id`, `organisation_id`, `product_id`, etc.) gets an index.
+- Add indexes for columns used in loader WHERE clauses (e.g., `environment_id`, `plan_id` on consumers).
+- Unique constraints (e.g., `(product_id, api_id)`) act as indexes — no separate index needed.
+- Declare indexes in the same migration that creates the table; use a dedicated `N_indexes_and_constraints.sql` migration only when backfilling across multiple tables.
+- Never add a composite index speculatively — only when a real query pattern drives it.
+
 **AWS helpers** — one file per AWS concern in `app/aws/`. Server-only (`.server.ts`). Always log with `[aws:service]` prefix.
 
 **UI components** — import from `radix-ui` unified package (not `@radix-ui/react-*`):
@@ -229,7 +236,7 @@ For full-page forms use `useNavigation`: `const submitting = navigation.state ==
 
 ## Database migrations
 
-Migrations live in `db/migrations/` as plain SQL with `-- Up Migration` / `-- Down Migration` sections. Number sequentially (next is `12_...`). Run `npm run db:migrate` after adding one.
+Migrations live in `db/migrations/` as plain SQL with `-- Up Migration` / `-- Down Migration` sections. Number sequentially (next is `15_...`). Run `npm run db:migrate` after adding one.
 
 ## AWS integration notes
 

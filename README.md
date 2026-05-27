@@ -162,20 +162,13 @@ The portal creates an AWS deployment for each API and attaches a stage named aft
 ## Development notes
 
 - `npm run typecheck` must pass before committing — it runs `react-router typegen` first
-- Add new migrations with `npm run db:migrate:create -- <description>`, then edit the generated file under `-- Up Migration` / `-- Down Migration`
 - shadcn components are added with `npx shadcn add <component>` and use the unified `radix-ui` package (not `@radix-ui/react-*`)
 
 ---
 
 ## TODO
 
-### New features
 - [ ] Settings page — global portal configuration
-- [ ] User Management page — manage portal users via Cognito User Pool
 - [ ] Analytics — API call volume, latency, error rates per environment
 - [ ] View logs from APIs (stream or query CloudWatch)
-
-### Infrastructure
-- [ ] CloudFormation template — Aurora (RDS), CloudFront, WAF, EC2 instance
-- [ ] Ansible playbook — deploy application to EC2
 - [ ] S3 bucket + pipeline — upload and serve static assets
