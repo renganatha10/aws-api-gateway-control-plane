@@ -40,7 +40,7 @@ export default function Home() {
         />
         <div>
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            API Gateway Control Panel
+            API Gateway Control Plane
           </h1>
           <p className="mt-3 text-muted-foreground sm:text-lg">
             Manage your APIs, products, environments, and consumers from one place.

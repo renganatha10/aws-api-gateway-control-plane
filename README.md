@@ -1,4 +1,4 @@
-# AWS API Gateway Control Panel
+# AWS API Gateway Control Plane
 
 A full-stack management portal for AWS API Gateway — create and publish APIs, group them into products, apply rate-limit plans, deploy to multiple environments, and provision consumers with Cognito credentials.
 

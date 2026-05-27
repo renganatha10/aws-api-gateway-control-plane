@@ -2,7 +2,7 @@
 
 ## Project overview
 
-AWS API Gateway Control Panel — a full-stack management portal built with React Router 7 (SSR), Tailwind CSS v4, shadcn/ui, and TypeScript. Manages organisations, gateways, APIs, products, plans, environments, custom domains, and consumers, with direct AWS API Gateway, ACM, and Cognito integration for publishing and provisioning.
+AWS API Gateway Control Plane — a full-stack management portal built with React Router 7 (SSR), Tailwind CSS v4, shadcn/ui, and TypeScript. Manages organisations, gateways, APIs, products, plans, environments, custom domains, and consumers, with direct AWS API Gateway, ACM, and Cognito integration for publishing and provisioning.
 
 ## Commands
 

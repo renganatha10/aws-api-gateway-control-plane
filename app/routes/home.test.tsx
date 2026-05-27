@@ -25,7 +25,7 @@ vi.mock("react-router", async (importOriginal) => {
 describe("Home route", () => {
   it("renders the hero heading", () => {
     render(<Home />);
-    expect(screen.getByRole("heading", { level: 1, name: "API Gateway Control Panel" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "API Gateway Control Plane" })).toBeInTheDocument();
   });
 
   it("renders Quick Access section", () => {
