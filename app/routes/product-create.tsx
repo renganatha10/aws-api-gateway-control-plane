@@ -1,8 +1,8 @@
 import { redirect, useActionData, useNavigation } from "react-router";
 import { ProductCreatePage } from "~/components/products/product-create-page";
 import { getUserProfile } from "~/lib/cognito.server";
-import { requirePermission } from "~/lib/require-role.server";
 import { can } from "~/lib/permissions";
+import { requirePermission } from "~/lib/require-role.server";
 import { getActiveOrganisationId, getActiveUserRole, requireAuth } from "~/lib/session.server";
 import { createProduct } from "~/repositories/product.repository.server";
 import type { Route } from "./+types/product-create";

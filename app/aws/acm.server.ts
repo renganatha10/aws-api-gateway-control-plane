@@ -1,7 +1,4 @@
-import {
-  DescribeCertificateCommand,
-  RequestCertificateCommand,
-} from "@aws-sdk/client-acm";
+import { DescribeCertificateCommand, RequestCertificateCommand } from "@aws-sdk/client-acm";
 
 import { createAcmClient } from "./acm-client.server";
 
@@ -22,7 +19,11 @@ export async function requestCertificate(
     })
   );
   if (!result.CertificateArn) throw new Error("ACM did not return a certificate ARN");
-  console.log("[aws:acm] certificate requested", { domainName, region, arn: result.CertificateArn });
+  console.log("[aws:acm] certificate requested", {
+    domainName,
+    region,
+    arn: result.CertificateArn,
+  });
   return { certificateArn: result.CertificateArn };
 }
 
@@ -41,8 +42,8 @@ export async function describeCertificate(
   const validationRecords: DnsValidationRecord[] = (cert.DomainValidationOptions ?? [])
     .filter((opt) => opt.ResourceRecord?.Name && opt.ResourceRecord?.Value)
     .map((opt) => ({
-      name: opt.ResourceRecord!.Name!,
-      value: opt.ResourceRecord!.Value!,
+      name: opt.ResourceRecord?.Name as string,
+      value: opt.ResourceRecord?.Value as string,
     }));
 
   return { status, validationRecords };

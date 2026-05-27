@@ -34,9 +34,7 @@ function MemberRow({
       <TableCell>
         <RoleBadge role={member.role} />
       </TableCell>
-      <TableCell className="text-sm text-muted-foreground">
-        {member.invitedBy ?? "—"}
-      </TableCell>
+      <TableCell className="text-sm text-muted-foreground">{member.invitedBy ?? "—"}</TableCell>
       <TableCell className="text-right">
         <Can permission="invite:users">
           {member.userEmail !== currentUserEmail && (

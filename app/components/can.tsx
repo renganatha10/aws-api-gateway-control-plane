@@ -11,5 +11,5 @@ interface CanProps {
 
 export function Can({ permission, children, fallback = null }: CanProps) {
   const { can } = usePermissions();
-  return can(permission) ? <>{children}</> : <>{fallback}</>;
+  return can(permission) ? children : fallback;
 }

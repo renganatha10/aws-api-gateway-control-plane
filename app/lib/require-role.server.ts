@@ -2,9 +2,9 @@ import { data } from "react-router";
 
 import { getUserProfile } from "~/lib/cognito.server";
 import { can, type Permission } from "~/lib/permissions";
-import { getMemberRole } from "~/repositories/organisation-member.repository.server";
-import { getActiveUserRole, requireAuth } from "~/lib/session.server";
 import type { OrgRole } from "~/lib/schema";
+import { getActiveUserRole, requireAuth } from "~/lib/session.server";
+import { getMemberRole } from "~/repositories/organisation-member.repository.server";
 
 export async function requirePermission(
   request: Request,

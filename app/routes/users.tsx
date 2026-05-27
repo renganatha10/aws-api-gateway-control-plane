@@ -3,6 +3,7 @@ import { UsersPage } from "~/components/users/users-page";
 import { deleteUser, getUserProfile, inviteUser } from "~/lib/cognito.server";
 import { can } from "~/lib/permissions";
 import { requirePermission } from "~/lib/require-role.server";
+import type { OrgRole } from "~/lib/schema";
 import { getActiveOrganisationId, requireAuth } from "~/lib/session.server";
 import {
   addMember,
@@ -11,7 +12,6 @@ import {
   listMembersByOrganisation,
   removeMember,
 } from "~/repositories/organisation-member.repository.server";
-import type { OrgRole } from "~/lib/schema";
 import type { Route } from "./+types/users";
 
 export function meta(_: Route.MetaArgs) {
@@ -45,7 +45,12 @@ export async function action({ request }: Route.ActionArgs) {
   return { inviteError: "Unknown intent." };
 }
 
-async function handleInvite(request: Request, formData: FormData, accessToken: string, orgId: number) {
+async function handleInvite(
+  request: Request,
+  formData: FormData,
+  accessToken: string,
+  orgId: number
+) {
   try {
     await requirePermission(request, orgId, "invite:users");
   } catch {
@@ -138,10 +143,5 @@ async function handleUpdateRole(request: Request, formData: FormData, orgId: num
 }
 
 export default function UsersRoute({ loaderData }: Route.ComponentProps) {
-  return (
-    <UsersPage
-      members={loaderData.members}
-      currentUserEmail={loaderData.currentUserEmail}
-    />
-  );
+  return <UsersPage members={loaderData.members} currentUserEmail={loaderData.currentUserEmail} />;
 }

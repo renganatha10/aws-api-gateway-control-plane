@@ -38,8 +38,7 @@ export async function action({ request }: Route.ActionArgs) {
       redirectTo: "/",
     });
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Something went wrong. Please try again.";
+    const message = err instanceof Error ? err.message : "Something went wrong. Please try again.";
     return data({ error: message }, { status: 400 });
   }
 }

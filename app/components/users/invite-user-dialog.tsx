@@ -56,13 +56,7 @@ export function InviteUserDialog({ open, onOpenChange }: InviteUserDialogProps) 
 
           <div className="space-y-1.5">
             <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              placeholder="jane@company.com"
-              required
-            />
+            <Input id="email" name="email" type="email" placeholder="jane@company.com" required />
           </div>
 
           <div className="space-y-1.5">
@@ -79,16 +73,10 @@ export function InviteUserDialog({ open, onOpenChange }: InviteUserDialogProps) 
             </Select>
           </div>
 
-          {inviteError && (
-            <p className="text-xs text-destructive">{inviteError}</p>
-          )}
+          {inviteError && <p className="text-xs text-destructive">{inviteError}</p>}
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button

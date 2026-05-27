@@ -1,15 +1,15 @@
 import { redirect, useActionData, useLoaderData, useNavigation } from "react-router";
 import {
+  type DnsValidationRecord,
   describeCertificate,
   requestCertificate,
-  type DnsValidationRecord,
 } from "~/aws/acm.server";
 import { createBasePathMapping, createCustomDomain } from "~/aws/custom-domain.server";
 import { DomainCreatePage } from "~/components/domains/domain-create-page";
 import { getUserProfile } from "~/lib/cognito.server";
-import { extractSubdomain, setCname, setAcmValidationCname } from "~/lib/godaddy.server";
-import { requirePermission } from "~/lib/require-role.server";
+import { extractSubdomain, setAcmValidationCname, setCname } from "~/lib/godaddy.server";
 import { can } from "~/lib/permissions";
+import { requirePermission } from "~/lib/require-role.server";
 import { getActiveOrganisationId, getActiveUserRole, requireAuth } from "~/lib/session.server";
 import { listApisByOrganisation } from "~/repositories/api.repository.server";
 import { createDomain } from "~/repositories/domain.repository.server";
@@ -232,8 +232,7 @@ export default function DomainCreate() {
     actionData && "pendingCertArn" in actionData ? actionData.pendingCertArn : null;
   const validationRecords =
     actionData && "validationRecords" in actionData ? actionData.validationRecords : [];
-  const stillPending =
-    actionData && "stillPending" in actionData ? actionData.stillPending : false;
+  const stillPending = actionData && "stillPending" in actionData ? actionData.stillPending : false;
   const actionError = actionData && "error" in actionData ? actionData.error : null;
 
   return (

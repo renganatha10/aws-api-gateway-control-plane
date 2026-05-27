@@ -9,6 +9,7 @@ import {
   InitiateAuthCommand,
   type InitiateAuthCommandOutput,
   RespondToAuthChallengeCommand,
+  type RespondToAuthChallengeCommandOutput,
 } from "@aws-sdk/client-cognito-identity-provider";
 
 const client = new CognitoIdentityProviderClient({
@@ -95,9 +96,7 @@ export async function loginWithCredentials(
 /** Permanently delete a user from the Cognito User Pool */
 export async function deleteUser(email: string): Promise<void> {
   try {
-    await client.send(
-      new AdminDeleteUserCommand({ UserPoolId: USER_POOL_ID, Username: email })
-    );
+    await client.send(new AdminDeleteUserCommand({ UserPoolId: USER_POOL_ID, Username: email }));
     console.log("[cognito] user deleted", { email });
   } catch (err: unknown) {
     const name = (err as { name?: string }).name ?? "";
@@ -133,7 +132,7 @@ export async function setNewPassword(
   session: string,
   newPassword: string
 ): Promise<TokenResponse> {
-  let res;
+  let res: RespondToAuthChallengeCommandOutput;
   try {
     res = await client.send(
       new RespondToAuthChallengeCommand({
@@ -166,7 +165,6 @@ export async function setNewPassword(
     token_type: auth.TokenType ?? "Bearer",
   };
 }
-
 
 /** Create a confirmed user via Admin API */
 export async function registerUser(params: {

@@ -1,4 +1,4 @@
-import { count, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { union } from "drizzle-orm/pg-core";
 
 import { db } from "~/lib/db.server";
@@ -60,10 +60,7 @@ export async function listOrganisations(email: string): Promise<Organisation[]> 
   const memberQ = db
     .select(cols)
     .from(organisations)
-    .innerJoin(
-      organisationMembers,
-      eq(organisationMembers.organisationId, organisations.id)
-    )
+    .innerJoin(organisationMembers, eq(organisationMembers.organisationId, organisations.id))
     .where(eq(organisationMembers.userEmail, email));
 
   const rows = await union(ownedQ, memberQ);
@@ -86,10 +83,7 @@ export async function countOrganisations(email: string): Promise<number> {
   const memberQ = db
     .select(cols)
     .from(organisations)
-    .innerJoin(
-      organisationMembers,
-      eq(organisationMembers.organisationId, organisations.id)
-    )
+    .innerJoin(organisationMembers, eq(organisationMembers.organisationId, organisations.id))
     .where(eq(organisationMembers.userEmail, email));
 
   const rows = await union(ownedQ, memberQ);

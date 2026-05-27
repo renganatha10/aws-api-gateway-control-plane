@@ -174,7 +174,7 @@ async function handleDelete(id: number) {
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
-  const { accessToken } = await requireAuth(request);
+  await requireAuth(request);
   const organisationId = await getActiveOrganisationId(request);
   const id = Number(params.id);
 

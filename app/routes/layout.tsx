@@ -4,16 +4,12 @@ import { Button } from "~/components/ui/button";
 import { Separator } from "~/components/ui/separator";
 import { SidebarProvider, SidebarTrigger } from "~/components/ui/sidebar";
 import { getUserProfile } from "~/lib/cognito.server";
-import {
-  getActiveOrganisationId,
-  requireAuth,
-  setActiveOrgAndRole,
-} from "~/lib/session.server";
-import { getMemberRole } from "~/repositories/organisation-member.repository.server";
+import { getActiveOrganisationId, requireAuth, setActiveOrgAndRole } from "~/lib/session.server";
 import {
   countOrganisations,
   listOrganisations,
 } from "~/repositories/organisation.repository.server";
+import { getMemberRole } from "~/repositories/organisation-member.repository.server";
 import type { Route } from "./+types/layout";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -40,20 +36,19 @@ export async function loader({ request }: Route.LoaderArgs) {
     : null;
 
   if (activeOrganisationId) {
-    headers.set("Set-Cookie", await setActiveOrgAndRole(request, activeOrganisationId, activeUserRole));
+    headers.set(
+      "Set-Cookie",
+      await setActiveOrgAndRole(request, activeOrganisationId, activeUserRole)
+    );
   }
 
   // Portal-users can only access /consumers and resource API routes
   if (activeUserRole === "portal-user") {
-    const isAllowed =
-      url.pathname.startsWith("/consumers") || url.pathname.startsWith("/api/");
+    const isAllowed = url.pathname.startsWith("/consumers") || url.pathname.startsWith("/api/");
     if (!isAllowed) throw redirect("/consumers");
   }
 
-  return Response.json(
-    { user, organisations, activeOrganisationId, activeUserRole },
-    { headers }
-  );
+  return Response.json({ user, organisations, activeOrganisationId, activeUserRole }, { headers });
 }
 
 export default function Layout() {

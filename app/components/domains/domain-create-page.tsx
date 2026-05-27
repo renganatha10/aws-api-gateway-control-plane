@@ -103,7 +103,7 @@ export function DomainCreatePage({
               </p>
               <p className="text-sm text-amber-700">
                 {stillPending
-                  ? "DNS propagation can take a few minutes. Click \"Check Status & Continue\" again shortly."
+                  ? 'DNS propagation can take a few minutes. Click "Check Status & Continue" again shortly.'
                   : "Your ACM certificate has been requested and the DNS validation CNAME has been added to GoDaddy. ACM typically validates within 1–5 minutes once DNS propagates."}
               </p>
               <div>

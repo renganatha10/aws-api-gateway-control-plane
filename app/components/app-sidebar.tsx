@@ -8,7 +8,6 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -69,7 +68,6 @@ export function AppSidebar({
 
       <SidebarContent>
         <SidebarGroup>
-
           <SidebarGroupContent>
             <SidebarMenu>
               {mainNavItems
