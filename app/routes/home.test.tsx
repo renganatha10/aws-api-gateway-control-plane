@@ -25,29 +25,27 @@ vi.mock("react-router", async (importOriginal) => {
 describe("Home route", () => {
   it("renders the hero heading", () => {
     render(<Home />);
-    expect(screen.getByText("API Gateway Dashboard")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "API Gateway Control Panel" })).toBeInTheDocument();
   });
 
-  it("renders stat cards", () => {
+  it("renders Quick Access section", () => {
     render(<Home />);
-    expect(screen.getByText("Total APIs")).toBeInTheDocument();
-    expect(screen.getByText("Active Endpoints")).toBeInTheDocument();
-    expect(screen.getByText("Avg Latency")).toBeInTheDocument();
-    expect(screen.getByText("Uptime")).toBeInTheDocument();
+    expect(screen.getByText("Quick Access")).toBeInTheDocument();
   });
 
-  it("renders quick links to APIs, Environments, and Products", () => {
+  it("renders quick links to APIs, Products, and Consumers", () => {
     render(<Home />);
     const links = screen.getAllByRole("link");
     const hrefs = links.map((l) => l.getAttribute("href"));
     expect(hrefs).toContain("/apis");
-    expect(hrefs).toContain("/environments");
     expect(hrefs).toContain("/products");
+    expect(hrefs).toContain("/consumers");
   });
 
-  it("renders stat values", () => {
+  it("renders quick link card titles", () => {
     render(<Home />);
-    expect(screen.getByText("128")).toBeInTheDocument();
-    expect(screen.getByText("99.98%")).toBeInTheDocument();
+    expect(screen.getByText("APIs")).toBeInTheDocument();
+    expect(screen.getByText("Products")).toBeInTheDocument();
+    expect(screen.getByText("Consumers")).toBeInTheDocument();
   });
 });
