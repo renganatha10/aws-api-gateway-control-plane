@@ -1,4 +1,4 @@
-import { Globe, Package, Zap } from "lucide-react";
+import { Package, Users, Zap } from "lucide-react";
 import { Link } from "react-router";
 
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -14,16 +14,16 @@ export function meta(_: Route.MetaArgs) {
 const quickLinks = [
   { title: "APIs", icon: Zap, description: "View and manage API configurations", url: "/apis" },
   {
-    title: "Environments",
-    icon: Globe,
-    description: "Staging, production, and dev envs",
-    url: "/environments",
-  },
-  {
     title: "Products",
     icon: Package,
     description: "Bundle APIs into product offerings",
     url: "/products",
+  },
+  {
+    title: "Consumers",
+    icon: Users,
+    description: "Manage API consumers and access keys",
+    url: "/consumers",
   },
 ];
 
