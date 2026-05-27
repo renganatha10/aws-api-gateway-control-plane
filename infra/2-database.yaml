@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  Aurora Serverless v2 (PostgreSQL-compatible) in private subnets.
-  All app secrets stored in a single SSM Parameter Store SecureString: /api-portal/env.
+  Single-instance PostgreSQL RDS (db.t3.micro) in private subnets — sandbox tier.
+  DATABASE_URL must be updated in SSM /api-portal/<env>/env after deploy with the new endpoint.
 
 Parameters:
   EnvironmentName:
@@ -12,15 +12,13 @@ Parameters:
     Type: String
     Default: apiportal
 
-  # Minimum ACU: 0.5 (scales to 0 when idle after some minutes)
-  # Raise MinCapacity to 1 if you need always-on (no cold-start delay)
-  AuroraMinCapacity:
-    Type: Number
-    Default: 0.5
-
-  AuroraMaxCapacity:
-    Type: Number
-    Default: 4
+  DBInstanceClass:
+    Type: String
+    Default: db.t3.micro
+    AllowedValues:
+      - db.t3.micro
+      - db.t3.small
+      - db.t3.medium
 
 Resources:
 
@@ -28,82 +26,58 @@ Resources:
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: Private subnets for Aurora
+      DBSubnetGroupDescription: Private subnets for PostgreSQL RDS
       SubnetIds:
         - Fn::ImportValue: !Sub "api-portal-${EnvironmentName}-private-subnet-a"
         - Fn::ImportValue: !Sub "api-portal-${EnvironmentName}-private-subnet-b"
 
-  # ── Aurora Cluster ─────────────────────────────────────────────────────────
-  DBCluster:
-    Type: AWS::RDS::DBCluster
+  # ── PostgreSQL RDS Instance ────────────────────────────────────────────────
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
     Properties:
-      Engine: aurora-postgresql
-      EngineMode: provisioned
+      DBName: !Ref DBName
+      Engine: postgres
       EngineVersion: "16.6"
-      DatabaseName: !Ref DBName
+      DBInstanceClass: !Ref DBInstanceClass
+      AllocatedStorage: "20"
+      StorageType: gp2
+      StorageEncrypted: true
       MasterUsername: apiportal
       # Parameter must exist before stack deploy:
       #   aws ssm put-parameter --name /api-portal/<env>/db-password --type SecureString --value <password>
       MasterUserPassword: !Sub "{{resolve:ssm-secure:/api-portal/${EnvironmentName}/db-password}}"
-      ServerlessV2ScalingConfiguration:
-        MinCapacity: !Ref AuroraMinCapacity
-        MaxCapacity: !Ref AuroraMaxCapacity
       DBSubnetGroupName: !Ref DBSubnetGroup
       VpcSecurityGroupIds:
         - Fn::ImportValue: !Sub "api-portal-${EnvironmentName}-sg-db"
-      StorageEncrypted: true
-      EnableCloudwatchLogsExports:
-        - postgresql
+      PubliclyAccessible: false
+      MultiAZ: false
       BackupRetentionPeriod: 7
       PreferredBackupWindow: "02:00-03:00"
       PreferredMaintenanceWindow: "sun:04:00-sun:05:00"
+      EnableCloudwatchLogsExports:
+        - postgresql
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
 
-  DBInstance:
-    Type: AWS::RDS::DBInstance
-    Properties:
-      DBClusterIdentifier: !Ref DBCluster
-      DBInstanceClass: db.serverless
-      Engine: aurora-postgresql
-      PubliclyAccessible: false
-      EnablePerformanceInsights: true
-      MonitoringInterval: 60
-      MonitoringRoleArn: !GetAtt RDSMonitoringRole.Arn
-
-  RDSMonitoringRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: monitoring.rds.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole
-
-  # ── CloudWatch log group for Aurora slow queries ───────────────────────────
-  AuroraLogGroup:
+  # ── CloudWatch log group ───────────────────────────────────────────────────
+  DBLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/rds/cluster/api-portal-${EnvironmentName}/postgresql"
+      LogGroupName: !Sub "/aws/rds/instance/api-portal-${EnvironmentName}/postgresql"
       RetentionInDays: 30
 
 Outputs:
-  # ── SSM parameter paths (create these via CLI before deploying this stack) ──
-  # /api-portal/<env>/db-password  — SecureString, the Aurora master password
-  # /api-portal/env                — SecureString, all app env vars as JSON
+  # After deploy, update DATABASE_URL in SSM /api-portal/<env>/env:
+  #   postgresql://apiportal:<password>@<DBEndpoint>:5432/apiportal
 
-  ClusterEndpoint:
-    Value: !GetAtt DBCluster.Endpoint.Address
+  DBEndpoint:
+    Value: !GetAtt DBInstance.Endpoint.Address
     Export:
       Name: !Sub "api-portal-${EnvironmentName}-db-endpoint"
 
-  ClusterPort:
-    Value: !GetAtt DBCluster.Endpoint.Port
+  DBPort:
+    Value: !GetAtt DBInstance.Endpoint.Port
     Export:
       Name: !Sub "api-portal-${EnvironmentName}-db-port"
-
