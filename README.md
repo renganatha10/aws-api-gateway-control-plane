@@ -97,6 +97,20 @@ npm run test:e2e          # Playwright e2e tests (headless)
 npm run test:e2e:ui       # Playwright e2e tests (interactive UI)
 ```
 
+## Documentation
+
+Feature guides live in [`docs/`](docs/):
+
+| File | Contents |
+|---|---|
+| [docs/api.md](docs/api.md) | Importing and publishing APIs |
+| [docs/product.md](docs/product.md) | Building products and deploying to environments |
+| [docs/plan.md](docs/plan.md) | Rate-limit plans and usage quotas |
+| [docs/environment.md](docs/environment.md) | Managing deployment environments |
+| [docs/consumer.md](docs/consumer.md) | Provisioning consumers and credentials |
+| [docs/tryout.md](docs/tryout.md) | Using the Try Out sandbox |
+| [docs/users.md](docs/users.md) | User and organisation management |
+
 ## Project structure
 
 ```
@@ -116,6 +130,7 @@ app/
   routes/            # React Router route modules
 db/
   migrations/        # Sequential SQL migrations
+docs/                # Feature guides
 tests/
   e2e/               # Playwright end-to-end tests
 docker-compose.yml   # Local Postgres service
@@ -163,12 +178,3 @@ The portal creates an AWS deployment for each API and attaches a stage named aft
 
 - `npm run typecheck` must pass before committing — it runs `react-router typegen` first
 - shadcn components are added with `npx shadcn add <component>` and use the unified `radix-ui` package (not `@radix-ui/react-*`)
-
----
-
-## TODO
-
-- [ ] Settings page — global portal configuration
-- [ ] Analytics — API call volume, latency, error rates per environment
-- [ ] View logs from APIs (stream or query CloudWatch)
-- [ ] S3 bucket + pipeline — upload and serve static assets
