@@ -28,19 +28,29 @@ A product can be published to multiple environments. Each publish creates or ref
 
 The Products page lists all products as a table. Click a row to open the detail page.
 
-![Products list](screenshots/04-products-list.png)
+![Products list](screenshots/products-list-with-data.png)
 
 ## Product detail page
 
-The detail page is where you manage the product's API associations, plan associations, and deployments.
+The detail page is where you manage the product's API associations, plan associations, and deployments. A left-hand nav switches between sections.
 
-### Sections
+### APIs section
 
-| Section      | What it does |
-|--------------|--------------|
-| APIs         | Add or remove APIs from the product. Changes are saved atomically on **Save**. |
-| Plans        | Add or remove Plans from the product. |
-| Deployments  | Shows each environment the product has been published to, the invoke URL, and the last publish date. |
+Add or remove APIs from the product. The dropdown lists all available APIs in the organisation. Changes are saved atomically on **Save**.
+
+![Product detail — APIs section](screenshots/product-detail-apis.png)
+
+### Plans section
+
+Add or remove Plans from the product. Consumers will choose from these plans when they are created.
+
+![Product detail — Plans section](screenshots/product-detail-with-data.png)
+
+### Deployments section
+
+Shows each environment the product has been published to, the live invoke URL, the deployer, and the last deploy date.
+
+![Product detail — Deployments section](screenshots/product-detail-deployments.png)
 
 ### Header actions
 

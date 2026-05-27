@@ -2,6 +2,11 @@
 
 The **Try Out** tab on a consumer detail page is an in-browser API sandbox. It lets you test the consumer's credentials against the live deployed API without leaving the portal.
 
+Access it from the consumer detail page by clicking the **Try Out** tab. The page is split into two panels:
+
+- **Left panel — Credentials & Request**: token fetch, endpoint selector, parameter inputs, request body, and the Send button.
+- **Right panel — Response**: status code, headers, and formatted response body.
+
 ## How it works
 
 The Try Out tab loads:

@@ -31,11 +31,19 @@ When you create a consumer the portal performs these steps in order:
 
 If any AWS step fails the database record is not created and the user can retry.
 
+## Creating a consumer
+
+Navigate to **Consumers → Add**. Select the product, stage, and plan, then click **Save Consumer**. The portal provisions Cognito and AWS resources before saving.
+
+![Consumer create form](screenshots/consumer-create-filled.png)
+
+> A consumer can only be created for a product that has already been **published** to the target environment.
+
 ## Consumers page
 
 The Consumers page lists all consumers as a table. Click a row to open the detail page.
 
-![Consumers list](screenshots/07-consumers-list.png)
+![Consumers list](screenshots/consumers-list-with-data.png)
 
 ## Consumer detail page
 
@@ -43,7 +51,11 @@ The detail page has two tabs: **Details** and **Try Out**.
 
 ### Details tab
 
-Shows and allows editing of the consumer's name, product, environment, and plan. Editing does not re-provision AWS resources — it only updates the database record.
+Shows the consumer's name, product, environment, plan, and read-only credential information: Client ID, Token URL, and a **Show secret** link that fetches the Cognito client secret on demand.
+
+![Consumer detail — Details tab](screenshots/consumer-detail-page.png)
+
+Editing the name, product, environment, or plan updates the database record only — it does not re-provision AWS resources.
 
 Click **Delete** to remove the consumer. Deletion:
 1. Deletes the Cognito App Client (AWS).

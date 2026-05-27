@@ -84,6 +84,12 @@ Every time you save an API the portal:
 
 The `hosts` field is stripped before the spec is sent to AWS; it is only used by the portal at publish time.
 
+## Creating an API
+
+Click **Add** on the APIs list page to open the create form. Provide a name, choose the spec type (Swagger 2.0 or OpenAPI 3.0), set the scope, and paste your YAML.
+
+![API create form](screenshots/api-create-form.png)
+
 ## API listing
 
 The APIs page shows all APIs in your organisation as a table. Each row is clickable and navigates to the detail page.
