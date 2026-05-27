@@ -5,7 +5,8 @@ import { importApiSpec, putApiSpec } from "~/aws/import-api.server";
 import { deleteRestApi } from "~/aws/rest-api.server";
 import { ApiDetailPage } from "~/components/apis/api-detail-page";
 import { getUserProfile } from "~/lib/cognito.server";
-import { requireAuth } from "~/lib/session.server";
+import { requirePermission } from "~/lib/require-role.server";
+import { getActiveOrganisationId, requireAuth } from "~/lib/session.server";
 import {
   deleteApi,
   findApiById,
@@ -116,10 +117,15 @@ export async function action({ request, params }: Route.ActionArgs) {
   const { accessToken } = await requireAuth(request);
   const updatedBy = getUserProfile(accessToken).email;
   const id = Number(params.id);
+  const orgId = await getActiveOrganisationId(request);
   const formData = await request.formData();
   const intent = formData.get("_intent") as string | null;
 
-  if (intent === "delete") return handleDelete(id);
+  if (intent === "delete") {
+    if (orgId) await requirePermission(request, orgId, "delete:resources");
+    return handleDelete(id);
+  }
+  if (orgId) await requirePermission(request, orgId, "edit:resources");
   return handleUpdate(id, formData, updatedBy);
 }
 

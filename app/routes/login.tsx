@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/com
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { extractUserId, loginWithCredentials, registerUser } from "~/lib/cognito.server";
-import { createUserSession, getSession } from "~/lib/session.server";
+import { createUserSession, getSession, storeNewPasswordChallenge } from "~/lib/session.server";
 import type { Route } from "./+types/login";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -31,19 +31,29 @@ export async function action({ request }: Route.ActionArgs) {
 
     if (mode === "signup") {
       await registerUser({ email, password, firstName, lastName });
-      const tokens = await loginWithCredentials(email, password);
+      const result = await loginWithCredentials(email, password);
+      if ("challengeName" in result) throw new Error("Unexpected challenge after signup.");
       return createUserSession({
         request,
-        accessToken: tokens.access_token,
-        userId: extractUserId(tokens.access_token),
+        accessToken: result.access_token,
+        userId: extractUserId(result.access_token),
         redirectTo: "/",
       });
     } else {
-      const tokens = await loginWithCredentials(email, password);
+      const result = await loginWithCredentials(email, password);
+      if ("challengeName" in result) {
+        const cookie = await storeNewPasswordChallenge(request, {
+          session: result.session,
+          email: result.email,
+        });
+        return redirect("/set-password", {
+          headers: { "Set-Cookie": cookie },
+        });
+      }
       return createUserSession({
         request,
-        accessToken: tokens.access_token,
-        userId: extractUserId(tokens.access_token),
+        accessToken: result.access_token,
+        userId: extractUserId(result.access_token),
         redirectTo: "/",
       });
     }

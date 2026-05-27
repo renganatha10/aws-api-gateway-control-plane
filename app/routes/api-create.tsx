@@ -4,7 +4,9 @@ import { buildAwsSpec, extractBasePath } from "~/aws/build-aws-spec.server";
 import { importApiSpec } from "~/aws/import-api.server";
 import { ApiCreatePage } from "~/components/apis/api-create-page";
 import { getUserProfile } from "~/lib/cognito.server";
-import { getActiveOrganisationId, requireAuth } from "~/lib/session.server";
+import { requirePermission } from "~/lib/require-role.server";
+import { can } from "~/lib/permissions";
+import { getActiveOrganisationId, getActiveUserRole, requireAuth } from "~/lib/session.server";
 import { createApi, findApiByOrganisationAndBasePath } from "~/repositories/api.repository.server";
 import type { Route } from "./+types/api-create";
 
@@ -14,6 +16,11 @@ export function meta(_: Route.MetaArgs) {
 
 export async function loader({ request }: Route.LoaderArgs) {
   await requireAuth(request);
+  const orgId = await getActiveOrganisationId(request);
+  if (orgId) {
+    const role = await getActiveUserRole(request);
+    if (!can(role, "create:resources")) throw redirect("/apis");
+  }
   return null;
 }
 
@@ -22,6 +29,7 @@ export async function action({ request }: Route.ActionArgs) {
   const createdBy = getUserProfile(accessToken).email;
 
   const organisationId = await getActiveOrganisationId(request);
+  if (organisationId) await requirePermission(request, organisationId, "create:resources");
 
   const formData = await request.formData();
   const displayName = (formData.get("name") as string)?.trim();

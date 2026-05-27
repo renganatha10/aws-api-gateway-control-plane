@@ -9,6 +9,8 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
+export type OrgRole = "admin" | "editor" | "viewer" | "portal-user";
+
 export const organisations = pgTable("organisations", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
@@ -231,3 +233,18 @@ export type Domain = typeof domains.$inferSelect;
 export type NewDomain = typeof domains.$inferInsert;
 export type DomainRouteMapping = typeof domainRouteMappings.$inferSelect;
 export type NewDomainRouteMapping = typeof domainRouteMappings.$inferInsert;
+
+export const organisationMembers = pgTable("organisation_members", {
+  id: serial("id").primaryKey(),
+  organisationId: integer("organisation_id")
+    .notNull()
+    .references(() => organisations.id, { onDelete: "cascade" }),
+  userEmail: varchar("user_email", { length: 255 }).notNull(),
+  role: varchar("role", { length: 50 }).$type<OrgRole>().notNull(),
+  invitedBy: varchar("invited_by", { length: 255 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type OrganisationMember = typeof organisationMembers.$inferSelect;
+export type NewOrganisationMember = typeof organisationMembers.$inferInsert;

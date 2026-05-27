@@ -1,6 +1,7 @@
 import { createUsagePlan, deleteUsagePlan, updateUsagePlan } from "~/aws/usage-plan.server";
 import { PlansPage } from "~/components/plans/plans-page";
 import { getUserProfile } from "~/lib/cognito.server";
+import { requirePermission } from "~/lib/require-role.server";
 import { getActiveOrganisationId, requireAuth } from "~/lib/session.server";
 import {
   createPlan,
@@ -27,13 +28,20 @@ export async function loader({ request }: Route.LoaderArgs) {
 export async function action({ request }: Route.ActionArgs) {
   const { accessToken } = await requireAuth(request);
   const { email } = getUserProfile(accessToken);
+  const orgId = await getActiveOrganisationId(request);
   const formData = await request.formData();
   const intent = formData.get("_intent") as string;
 
-  if (intent === "create") return handleCreate(formData, email);
-  if (intent === "update") return handleUpdate(formData, email);
-  if (intent === "delete") return handleDelete(formData);
-  return { error: "Unknown intent" };
+  if (intent === "delete") {
+    if (orgId) await requirePermission(request, orgId, "delete:resources");
+    return handleDelete(formData);
+  }
+  if (intent === "update") {
+    if (orgId) await requirePermission(request, orgId, "edit:resources");
+    return handleUpdate(formData, email);
+  }
+  if (orgId) await requirePermission(request, orgId, "create:resources");
+  return handleCreate(formData, email);
 }
 
 async function handleCreate(formData: FormData, email: string) {

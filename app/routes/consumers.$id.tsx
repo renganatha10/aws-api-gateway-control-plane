@@ -4,6 +4,7 @@ import { deleteAppClient } from "~/aws/cognito-app-client.server";
 import { USER_POOL_ID } from "~/aws/cognito-client.server";
 import { ConsumerDetailPage } from "~/components/consumers/consumer-detail-page";
 import { getUserProfile } from "~/lib/cognito.server";
+import { requirePermission } from "~/lib/require-role.server";
 import { getActiveOrganisationId, requireAuth } from "~/lib/session.server";
 import {
   deleteConsumer,
@@ -107,9 +108,11 @@ export async function action({ request, params }: Route.ActionArgs) {
   const { accessToken } = await requireAuth(request);
   const updatedBy = getUserProfile(accessToken).email;
   const id = Number(params.id);
+  const orgId = await getActiveOrganisationId(request);
   const formData = await request.formData();
   const intent = formData.get("_intent") as string;
 
+  if (orgId) await requirePermission(request, orgId, "manage:consumers");
   if (intent === "delete") return handleDelete(id);
   return handleUpdate(id, formData, updatedBy);
 }

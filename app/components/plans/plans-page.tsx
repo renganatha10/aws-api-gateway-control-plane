@@ -1,6 +1,7 @@
 import { Zap } from "lucide-react";
 import { useState } from "react";
 import { useFetcher } from "react-router";
+import { Can } from "~/components/can";
 import { Button } from "~/components/ui/button";
 import type { Plan } from "~/lib/schema";
 import { PlanCard } from "./plan-card";
@@ -71,9 +72,11 @@ export function PlansPage({ plans, organisationId }: PlansPageProps) {
     <div className="flex flex-col min-h-full bg-white">
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
         <h1 className="text-3xl font-normal text-gray-900">Plans</h1>
-        <Button size="sm" disabled={!organisationId} onClick={openCreate}>
-          Add
-        </Button>
+        <Can permission="create:resources">
+          <Button size="sm" disabled={!organisationId} onClick={openCreate}>
+            Add
+          </Button>
+        </Can>
       </div>
 
       {!organisationId && (
@@ -101,15 +104,17 @@ export function PlansPage({ plans, organisationId }: PlansPageProps) {
           </svg>
           <div>
             <p className="text-sm font-medium text-gray-600">No plans yet</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              <button
-                type="button"
-                onClick={openCreate}
-                className="underline underline-offset-2 hover:text-gray-700"
-              >
-                Create your first plan
-              </button>
-            </p>
+            <Can permission="create:resources">
+              <p className="text-xs text-muted-foreground mt-0.5">
+                <button
+                  type="button"
+                  onClick={openCreate}
+                  className="underline underline-offset-2 hover:text-gray-700"
+                >
+                  Create your first plan
+                </button>
+              </p>
+            </Can>
           </div>
         </div>
       )}
@@ -121,25 +126,27 @@ export function PlansPage({ plans, organisationId }: PlansPageProps) {
               <PlanCard key={plan.id} plan={plan} onEdit={openEdit} />
             ))}
 
-            <button
-              type="button"
-              onClick={openCreate}
-              className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-gray-200 p-8 text-muted-foreground transition-colors hover:border-gray-400 hover:text-gray-700 min-h-[160px]"
-            >
-              <div className="flex size-9 items-center justify-center rounded-full border-2 border-current">
-                <svg
-                  aria-hidden="true"
-                  className="size-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-              </div>
-              <span className="text-sm font-medium">New Plan</span>
-            </button>
+            <Can permission="create:resources">
+              <button
+                type="button"
+                onClick={openCreate}
+                className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-gray-200 p-8 text-muted-foreground transition-colors hover:border-gray-400 hover:text-gray-700 min-h-[160px]"
+              >
+                <div className="flex size-9 items-center justify-center rounded-full border-2 border-current">
+                  <svg
+                    aria-hidden="true"
+                    className="size-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                </div>
+                <span className="text-sm font-medium">New Plan</span>
+              </button>
+            </Can>
           </div>
         </div>
       )}

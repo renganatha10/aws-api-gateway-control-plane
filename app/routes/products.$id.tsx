@@ -2,6 +2,7 @@ import { redirect, useLoaderData } from "react-router";
 import { publishProductToEnvironment } from "~/aws/publish-product.server";
 import { ProductDetailPage } from "~/components/products/product-detail-page";
 import { getUserProfile } from "~/lib/cognito.server";
+import { requirePermission } from "~/lib/require-role.server";
 import { getActiveOrganisationId, requireAuth } from "~/lib/session.server";
 import { findApiById, listApisByOrganisation } from "~/repositories/api.repository.server";
 import {
@@ -192,11 +193,16 @@ export async function action({ request, params }: Route.ActionArgs) {
   const formData = await request.formData();
   const intent = formData.get("_intent") as string;
 
-  if (intent === "update") return handleUpdate(id, formData, organisationId, createdBy);
-  if (intent === "delete") return handleDelete(id);
-  if (intent === "publish") return handlePublish(id, formData, organisationId, createdBy);
-
-  return { error: "Unknown intent." };
+  if (intent === "delete") {
+    if (organisationId) await requirePermission(request, organisationId, "delete:resources");
+    return handleDelete(id);
+  }
+  if (intent === "publish") {
+    if (organisationId) await requirePermission(request, organisationId, "publish:products");
+    return handlePublish(id, formData, organisationId, createdBy);
+  }
+  if (organisationId) await requirePermission(request, organisationId, "edit:resources");
+  return handleUpdate(id, formData, organisationId, createdBy);
 }
 
 export default function ProductDetailRoute() {

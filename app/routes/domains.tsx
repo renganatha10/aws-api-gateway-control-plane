@@ -1,4 +1,5 @@
 import { Link, useLoaderData, useNavigate } from "react-router";
+import { Can } from "~/components/can";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -38,9 +39,11 @@ export default function DomainsPage() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
         <h1 className="text-3xl font-normal text-gray-900">Domains</h1>
-        <Button size="sm" asChild>
-          <Link to="/domains/new">New Domain</Link>
-        </Button>
+        <Can permission="create:resources">
+          <Button size="sm" asChild>
+            <Link to="/domains/new">New Domain</Link>
+          </Button>
+        </Can>
       </div>
 
       {/* Empty state */}
@@ -62,11 +65,13 @@ export default function DomainsPage() {
           </svg>
           <div>
             <p className="text-sm font-medium text-gray-600">No custom domains yet</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              <Link to="/domains/new" className="underline underline-offset-2">
-                Add your first custom domain
-              </Link>
-            </p>
+            <Can permission="create:resources">
+              <p className="text-xs text-muted-foreground mt-0.5">
+                <Link to="/domains/new" className="underline underline-offset-2">
+                  Add your first custom domain
+                </Link>
+              </p>
+            </Can>
           </div>
         </div>
       ) : (

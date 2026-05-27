@@ -1,5 +1,6 @@
 import { Zap } from "lucide-react";
 import { useState } from "react";
+import { Can } from "~/components/can";
 import { Button } from "~/components/ui/button";
 import {
   Table,
@@ -30,9 +31,11 @@ export function EnvironmentsPage({ environments, organisationId }: EnvironmentsP
     <div className="flex flex-col min-h-full bg-white">
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
         <h1 className="text-3xl font-normal text-gray-900">Environments</h1>
-        <Button size="sm" disabled={!organisationId} onClick={() => setOpen(true)}>
-          Add
-        </Button>
+        <Can permission="create:resources">
+          <Button size="sm" disabled={!organisationId} onClick={() => setOpen(true)}>
+            Add
+          </Button>
+        </Can>
       </div>
 
       {!organisationId && (
@@ -49,15 +52,17 @@ export function EnvironmentsPage({ environments, organisationId }: EnvironmentsP
           <Zap className="size-10 text-gray-300" />
           <div>
             <p className="text-sm font-medium text-gray-600">No environments yet</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              <button
-                type="button"
-                onClick={() => setOpen(true)}
-                className="underline underline-offset-2 hover:text-gray-700"
-              >
-                Create your first environment
-              </button>
-            </p>
+            <Can permission="create:resources">
+              <p className="text-xs text-muted-foreground mt-0.5">
+                <button
+                  type="button"
+                  onClick={() => setOpen(true)}
+                  className="underline underline-offset-2 hover:text-gray-700"
+                >
+                  Create your first environment
+                </button>
+              </p>
+            </Can>
           </div>
         </div>
       )}

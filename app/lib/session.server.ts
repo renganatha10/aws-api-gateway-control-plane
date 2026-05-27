@@ -1,5 +1,7 @@
 import { createCookieSessionStorage, redirect } from "react-router";
 
+import type { OrgRole } from "~/lib/schema";
+
 const sessionStorage = createCookieSessionStorage({
   cookie: {
     name: "__session",
@@ -51,6 +53,33 @@ export async function destroyUserSession(request: Request) {
   });
 }
 
+export async function storeNewPasswordChallenge(
+  request: Request,
+  challenge: { session: string; email: string }
+): Promise<string> {
+  const session = await getSession(request);
+  session.set("npChallengSession", challenge.session);
+  session.set("npChallengeEmail", challenge.email);
+  return sessionStorage.commitSession(session);
+}
+
+export async function getNewPasswordChallenge(
+  request: Request
+): Promise<{ session: string; email: string } | null> {
+  const session = await getSession(request);
+  const challengeSession = session.get("npChallengSession") as string | undefined;
+  const email = session.get("npChallengeEmail") as string | undefined;
+  if (!challengeSession || !email) return null;
+  return { session: challengeSession, email };
+}
+
+export async function clearNewPasswordChallenge(request: Request): Promise<string> {
+  const session = await getSession(request);
+  session.unset("npChallengSession");
+  session.unset("npChallengeEmail");
+  return sessionStorage.commitSession(session);
+}
+
 export async function getActiveOrganisationId(request: Request): Promise<number | null> {
   const session = await getSession(request);
   const value = session.get("activeOrganisationId");
@@ -63,5 +92,24 @@ export async function setActiveOrganisationId(
 ): Promise<string> {
   const session = await getSession(request);
   session.set("activeOrganisationId", organisationId);
+  return sessionStorage.commitSession(session);
+}
+
+export async function getActiveUserRole(request: Request): Promise<OrgRole | null> {
+  const session = await getSession(request);
+  const value = session.get("activeUserRole");
+  return (value as OrgRole) ?? null;
+}
+
+/** Writes org id + role in one cookie commit — keeps them in sync. */
+export async function setActiveOrgAndRole(
+  request: Request,
+  organisationId: number,
+  role: OrgRole | null
+): Promise<string> {
+  const session = await getSession(request);
+  session.set("activeOrganisationId", organisationId);
+  if (role) session.set("activeUserRole", role);
+  else session.unset("activeUserRole");
   return sessionStorage.commitSession(session);
 }

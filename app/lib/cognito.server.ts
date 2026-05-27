@@ -1,12 +1,14 @@
 import { createHmac } from "node:crypto";
 import {
   AdminCreateUserCommand,
+  AdminDeleteUserCommand,
   AdminSetUserPasswordCommand,
   CognitoIdentityProviderClient,
   ConfirmForgotPasswordCommand,
   ForgotPasswordCommand,
   InitiateAuthCommand,
   type InitiateAuthCommandOutput,
+  RespondToAuthChallengeCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 
 const client = new CognitoIdentityProviderClient({
@@ -29,6 +31,12 @@ export interface TokenResponse {
   token_type: string;
 }
 
+export interface NewPasswordChallengeResult {
+  challengeName: "NEW_PASSWORD_REQUIRED";
+  session: string;
+  email: string;
+}
+
 export interface UserProfile {
   sub: string;
   email: string;
@@ -41,7 +49,7 @@ export interface UserProfile {
 export async function loginWithCredentials(
   username: string,
   password: string
-): Promise<TokenResponse> {
+): Promise<TokenResponse | NewPasswordChallengeResult> {
   let res: InitiateAuthCommandOutput | undefined;
   try {
     res = await client.send(
@@ -64,6 +72,14 @@ export async function loginWithCredentials(
     throw new Error("Sign in failed. Please try again.");
   }
 
+  if (res.ChallengeName === "NEW_PASSWORD_REQUIRED") {
+    return {
+      challengeName: "NEW_PASSWORD_REQUIRED",
+      session: res.Session ?? "",
+      email: username,
+    };
+  }
+
   const auth = res.AuthenticationResult;
   if (!auth?.IdToken) throw new Error("Invalid username or password");
 
@@ -75,6 +91,82 @@ export async function loginWithCredentials(
     token_type: auth.TokenType ?? "Bearer",
   };
 }
+
+/** Permanently delete a user from the Cognito User Pool */
+export async function deleteUser(email: string): Promise<void> {
+  try {
+    await client.send(
+      new AdminDeleteUserCommand({ UserPoolId: USER_POOL_ID, Username: email })
+    );
+    console.log("[cognito] user deleted", { email });
+  } catch (err: unknown) {
+    const name = (err as { name?: string }).name ?? "";
+    if (name === "UserNotFoundException") return; // already gone, treat as success
+    console.error("[cognito] deleteUser failed", { email, error: String(err) });
+    throw new Error("Failed to delete user from Cognito.");
+  }
+}
+
+/** Invite a new user via Admin API — Cognito sends temp-password email */
+export async function inviteUser(params: {
+  email: string;
+  firstName?: string;
+  lastName?: string;
+}): Promise<void> {
+  await client.send(
+    new AdminCreateUserCommand({
+      UserPoolId: USER_POOL_ID,
+      Username: params.email,
+      UserAttributes: [
+        { Name: "email", Value: params.email },
+        { Name: "email_verified", Value: "true" },
+        { Name: "given_name", Value: params.firstName ?? "" },
+        { Name: "family_name", Value: params.lastName ?? "" },
+      ],
+    })
+  );
+}
+
+/** Complete the NEW_PASSWORD_REQUIRED challenge */
+export async function setNewPassword(
+  email: string,
+  session: string,
+  newPassword: string
+): Promise<TokenResponse> {
+  let res;
+  try {
+    res = await client.send(
+      new RespondToAuthChallengeCommand({
+        ClientId: CLIENT_ID,
+        ChallengeName: "NEW_PASSWORD_REQUIRED",
+        Session: session,
+        ChallengeResponses: {
+          USERNAME: email,
+          NEW_PASSWORD: newPassword,
+          SECRET_HASH: secretHash(email),
+        },
+      })
+    );
+  } catch (err: unknown) {
+    const name = (err as { name?: string }).name ?? "";
+    if (name === "InvalidPasswordException") {
+      throw new Error("Password does not meet requirements (minimum 8 characters).");
+    }
+    console.error("[cognito] set new password failed", { email, error: String(err) });
+    throw new Error("Failed to set password. Please try again.");
+  }
+
+  const auth = res.AuthenticationResult;
+  if (!auth?.IdToken) throw new Error("Failed to set password. Please try again.");
+
+  return {
+    access_token: auth.IdToken,
+    refresh_token: auth.RefreshToken ?? "",
+    expires_in: auth.ExpiresIn ?? 3600,
+    token_type: auth.TokenType ?? "Bearer",
+  };
+}
+
 
 /** Create a confirmed user via Admin API */
 export async function registerUser(params: {

@@ -1,5 +1,6 @@
 import { Rocket } from "lucide-react";
 import { Link, useLoaderData, useNavigate } from "react-router";
+import { Can } from "~/components/can";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -48,9 +49,11 @@ export default function ProductsPage() {
       {/* Toolbar */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
         <h1 className="text-3xl font-normal text-gray-900">Products</h1>
-        <Button size="sm" asChild>
-          <Link to="/products/new">New Product</Link>
-        </Button>
+        <Can permission="create:resources">
+          <Button size="sm" asChild>
+            <Link to="/products/new">New Product</Link>
+          </Button>
+        </Can>
       </div>
 
       {/* Table */}
@@ -69,11 +72,13 @@ export default function ProductsPage() {
           </svg>
           <div>
             <p className="text-sm font-medium text-gray-600">No products yet</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              <Link to="/products/new" className="underline underline-offset-2">
-                Create your first product
-              </Link>
-            </p>
+            <Can permission="create:resources">
+              <p className="text-xs text-muted-foreground mt-0.5">
+                <Link to="/products/new" className="underline underline-offset-2">
+                  Create your first product
+                </Link>
+              </p>
+            </Can>
           </div>
         </div>
       ) : (

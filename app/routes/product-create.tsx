@@ -1,7 +1,9 @@
 import { redirect, useActionData, useNavigation } from "react-router";
 import { ProductCreatePage } from "~/components/products/product-create-page";
 import { getUserProfile } from "~/lib/cognito.server";
-import { getActiveOrganisationId, requireAuth } from "~/lib/session.server";
+import { requirePermission } from "~/lib/require-role.server";
+import { can } from "~/lib/permissions";
+import { getActiveOrganisationId, getActiveUserRole, requireAuth } from "~/lib/session.server";
 import { createProduct } from "~/repositories/product.repository.server";
 import type { Route } from "./+types/product-create";
 
@@ -11,6 +13,11 @@ export function meta(_: Route.MetaArgs) {
 
 export async function loader({ request }: Route.LoaderArgs) {
   await requireAuth(request);
+  const orgId = await getActiveOrganisationId(request);
+  if (orgId) {
+    const role = await getActiveUserRole(request);
+    if (!can(role, "create:resources")) throw redirect("/products");
+  }
   return null;
 }
 
@@ -19,6 +26,7 @@ export async function action({ request }: Route.ActionArgs) {
   const createdBy = getUserProfile(accessToken).email;
 
   const organisationId = await getActiveOrganisationId(request);
+  if (organisationId) await requirePermission(request, organisationId, "create:resources");
 
   const formData = await request.formData();
   const displayName = (formData.get("displayName") as string)?.trim();

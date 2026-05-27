@@ -7,8 +7,9 @@ import { getUserProfile } from "~/lib/cognito.server";
 import {
   getActiveOrganisationId,
   requireAuth,
-  setActiveOrganisationId,
+  setActiveOrgAndRole,
 } from "~/lib/session.server";
+import { getMemberRole } from "~/repositories/organisation-member.repository.server";
 import {
   countOrganisations,
   listOrganisations,
@@ -30,14 +31,34 @@ export async function loader({ request }: Route.LoaderArgs) {
 
   if (!activeOrganisationId && organisations.length > 0) {
     activeOrganisationId = organisations[0].id;
-    headers.set("Set-Cookie", await setActiveOrganisationId(request, activeOrganisationId));
   }
 
-  return Response.json({ user, organisations, activeOrganisationId }, { headers });
+  // Always fetch fresh from DB so role changes are never stale in the UI,
+  // then cache in the session so action requirePermission calls skip the DB.
+  const activeUserRole = activeOrganisationId
+    ? await getMemberRole(activeOrganisationId, user.email)
+    : null;
+
+  if (activeOrganisationId) {
+    headers.set("Set-Cookie", await setActiveOrgAndRole(request, activeOrganisationId, activeUserRole));
+  }
+
+  // Portal-users can only access /consumers and resource API routes
+  if (activeUserRole === "portal-user") {
+    const isAllowed =
+      url.pathname.startsWith("/consumers") || url.pathname.startsWith("/api/");
+    if (!isAllowed) throw redirect("/consumers");
+  }
+
+  return Response.json(
+    { user, organisations, activeOrganisationId, activeUserRole },
+    { headers }
+  );
 }
 
 export default function Layout() {
-  const { user, organisations, activeOrganisationId } = useLoaderData<typeof loader>();
+  const { user, organisations, activeOrganisationId, activeUserRole } =
+    useLoaderData<typeof loader>();
 
   return (
     <SidebarProvider>
@@ -45,6 +66,7 @@ export default function Layout() {
         user={user}
         organisations={organisations}
         activeOrganisationId={activeOrganisationId}
+        activeUserRole={activeUserRole}
       />
       <main className="flex-1 flex flex-col min-h-svh">
         <header className="flex h-14 items-center gap-2 border-b px-4 bg-background sticky top-0 z-10">

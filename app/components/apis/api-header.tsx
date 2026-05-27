@@ -1,5 +1,7 @@
 import { Form, Link } from "react-router";
 
+import { Can } from "~/components/can";
+
 interface ApiHeaderProps {
   apiDisplayName: string;
   apiSpecType: string;
@@ -87,21 +89,25 @@ export function ApiHeader({
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={onDeleteClick}
-          className="shrink-0 rounded border border-red-800/40 text-red-400 text-xs px-3 py-1.5 hover:bg-red-950/40 hover:border-red-700 transition-colors"
-        >
-          Delete
-        </button>
+        <Can permission="delete:resources">
+          <button
+            type="button"
+            onClick={onDeleteClick}
+            className="shrink-0 rounded border border-red-800/40 text-red-400 text-xs px-3 py-1.5 hover:bg-red-950/40 hover:border-red-700 transition-colors"
+          >
+            Delete
+          </button>
+        </Can>
 
-        <button
-          type="submit"
-          disabled={saving}
-          className="shrink-0 rounded bg-white text-black text-xs font-semibold px-4 py-1.5 hover:bg-zinc-200 disabled:opacity-50"
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
+        <Can permission="edit:resources">
+          <button
+            type="submit"
+            disabled={saving}
+            className="shrink-0 rounded bg-white text-black text-xs font-semibold px-4 py-1.5 hover:bg-zinc-200 disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+        </Can>
       </div>
     </Form>
   );

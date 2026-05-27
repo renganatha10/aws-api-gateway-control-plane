@@ -1,4 +1,4 @@
-import { Globe, LayoutList, Link2, Package, Users, Zap } from "lucide-react";
+import { Globe, LayoutList, Link2, Package, UserRound, Users, Zap } from "lucide-react";
 import { Link, useLocation } from "react-router";
 import { OrgSwitcher } from "~/components/org-switcher";
 import { Avatar, AvatarFallback } from "~/components/ui/avatar";
@@ -13,11 +13,13 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
 } from "~/components/ui/sidebar";
 import type { UserProfile } from "~/lib/cognito.server";
-import type { Organisation } from "~/lib/schema";
+import { can } from "~/lib/permissions";
+import type { Organisation, OrgRole } from "~/lib/schema";
 
-const navItems = [
+const mainNavItems = [
   { title: "Products", url: "/products", icon: Package },
   { title: "APIs", url: "/apis", icon: Zap },
   { title: "Environments", url: "/environments", icon: Globe },
@@ -34,13 +36,17 @@ export function AppSidebar({
   user,
   organisations,
   activeOrganisationId,
+  activeUserRole,
 }: {
   user: UserProfile;
   organisations: Organisation[];
   activeOrganisationId: number | null;
+  activeUserRole: OrgRole | null;
 }) {
   const location = useLocation();
   const activeId = activeOrganisationId ?? organisations[0]?.id;
+  const showAll = can(activeUserRole, "view:all");
+  const showUsers = can(activeUserRole, "view:users");
 
   return (
     <Sidebar collapsible="icon">
@@ -66,23 +72,49 @@ export function AppSidebar({
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location.pathname === item.url}
-                    tooltip={item.title}
-                  >
-                    <Link to={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {mainNavItems
+                .filter((item) => item.url === "/consumers" || showAll)
+                .map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={location.pathname === item.url}
+                      tooltip={item.title}
+                    >
+                      <Link to={item.url}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {showUsers && (
+          <>
+            <SidebarSeparator />
+            <SidebarGroup>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={location.pathname === "/users"}
+                      tooltip="Users"
+                    >
+                      <Link to="/users">
+                        <UserRound />
+                        <span>Users</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        )}
       </SidebarContent>
 
       <SidebarFooter>

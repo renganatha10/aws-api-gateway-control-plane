@@ -5,7 +5,9 @@ import { USER_POOL_ID } from "~/aws/cognito-client.server";
 import { ensureResourceServer } from "~/aws/cognito-resource-server.server";
 import { ConsumerCreatePage } from "~/components/consumers/consumer-create-page";
 import { getUserProfile } from "~/lib/cognito.server";
-import { getActiveOrganisationId, requireAuth } from "~/lib/session.server";
+import { requirePermission } from "~/lib/require-role.server";
+import { can } from "~/lib/permissions";
+import { getActiveOrganisationId, getActiveUserRole, requireAuth } from "~/lib/session.server";
 import { listApiScopesForProduct } from "~/repositories/api-association.repository.server";
 import { createConsumer } from "~/repositories/consumer.repository.server";
 import {
@@ -24,6 +26,10 @@ export function meta(_: Route.MetaArgs) {
 export async function loader({ request }: Route.LoaderArgs) {
   await requireAuth(request);
   const organisationId = await getActiveOrganisationId(request);
+  if (organisationId) {
+    const role = await getActiveUserRole(request);
+    if (!can(role, "manage:consumers")) throw redirect("/consumers");
+  }
 
   const [allProducts, allEnvironments, plans, deployments] = await Promise.all([
     organisationId ? listProductsByOrganisation(organisationId) : [],
@@ -44,6 +50,7 @@ export async function action({ request }: Route.ActionArgs) {
   const organisationId = await getActiveOrganisationId(request);
 
   if (!organisationId) return { error: "No active organisation selected." };
+  await requirePermission(request, organisationId, "manage:consumers");
 
   const formData = await request.formData();
   const name = (formData.get("name") as string)?.trim();

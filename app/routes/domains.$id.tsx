@@ -6,6 +6,7 @@ import {
 } from "~/aws/custom-domain.server";
 import { DomainDetailPage } from "~/components/domains/domain-detail-page";
 import { extractSubdomain, removeCname } from "~/lib/godaddy.server";
+import { requirePermission } from "~/lib/require-role.server";
 import { getActiveOrganisationId, requireAuth } from "~/lib/session.server";
 import { listApisByOrganisation } from "~/repositories/api.repository.server";
 import { deleteDomain, findDomainById } from "~/repositories/domain.repository.server";
@@ -173,17 +174,19 @@ async function handleDelete(id: number) {
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
-  await requireAuth(request);
+  const { accessToken } = await requireAuth(request);
   const organisationId = await getActiveOrganisationId(request);
   const id = Number(params.id);
 
   const formData = await request.formData();
   const intent = formData.get("_intent") as string;
 
-  if (intent === "update") return handleUpdate(id, formData, organisationId);
-  if (intent === "delete") return handleDelete(id);
-
-  return { error: "Unknown intent." };
+  if (intent === "delete") {
+    if (organisationId) await requirePermission(request, organisationId, "delete:resources");
+    return handleDelete(id);
+  }
+  if (organisationId) await requirePermission(request, organisationId, "edit:resources");
+  return handleUpdate(id, formData, organisationId);
 }
 
 export default function DomainDetailRoute() {

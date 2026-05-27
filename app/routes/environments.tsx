@@ -1,5 +1,6 @@
 import { EnvironmentsPage } from "~/components/environments/environments-page";
 import { getUserProfile } from "~/lib/cognito.server";
+import { requirePermission } from "~/lib/require-role.server";
 import { getActiveOrganisationId, requireAuth } from "~/lib/session.server";
 import {
   createEnvironment,
@@ -22,10 +23,12 @@ export async function loader({ request }: Route.LoaderArgs) {
 export async function action({ request }: Route.ActionArgs) {
   const { accessToken } = await requireAuth(request);
   const { email } = getUserProfile(accessToken);
+  const orgId = await getActiveOrganisationId(request);
   const formData = await request.formData();
   const intent = formData.get("_intent") as string;
 
   if (intent === "create") {
+    if (orgId) await requirePermission(request, orgId, "create:resources");
     const name = String(formData.get("name") ?? "").trim();
     const organisationId = Number(formData.get("organisationId"));
     if (!name || !organisationId) return { error: "Invalid data" };

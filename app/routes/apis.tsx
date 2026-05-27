@@ -1,5 +1,6 @@
 import { Zap } from "lucide-react";
 import { Link, useNavigate, useNavigation } from "react-router";
+import { Can } from "~/components/can";
 import { Button } from "~/components/ui/button";
 import {
   Table,
@@ -46,9 +47,11 @@ export default function ApisPage({ loaderData }: Route.ComponentProps) {
       {/* Page header */}
       <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-200">
         <h1 className="text-3xl font-normal text-gray-900">APIs</h1>
-        <Button size="sm" onClick={() => navigate("/apis/new")}>
-          Add
-        </Button>
+        <Can permission="create:resources">
+          <Button size="sm" onClick={() => navigate("/apis/new")}>
+            Add
+          </Button>
+        </Can>
       </div>
 
       {/* Spinner */}
@@ -93,11 +96,13 @@ export default function ApisPage({ loaderData }: Route.ComponentProps) {
           <Zap className="size-10 text-gray-300" />
           <div>
             <p className="text-sm font-medium text-gray-600">No APIs yet</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              <Link to="/apis/new" className="underline underline-offset-2">
-                Create your first API
-              </Link>
-            </p>
+            <Can permission="create:resources">
+              <p className="text-xs text-muted-foreground mt-0.5">
+                <Link to="/apis/new" className="underline underline-offset-2">
+                  Create your first API
+                </Link>
+              </p>
+            </Can>
           </div>
         </div>
       )}

@@ -8,7 +8,9 @@ import { createBasePathMapping, createCustomDomain } from "~/aws/custom-domain.s
 import { DomainCreatePage } from "~/components/domains/domain-create-page";
 import { getUserProfile } from "~/lib/cognito.server";
 import { extractSubdomain, setCname, setAcmValidationCname } from "~/lib/godaddy.server";
-import { getActiveOrganisationId, requireAuth } from "~/lib/session.server";
+import { requirePermission } from "~/lib/require-role.server";
+import { can } from "~/lib/permissions";
+import { getActiveOrganisationId, getActiveUserRole, requireAuth } from "~/lib/session.server";
 import { listApisByOrganisation } from "~/repositories/api.repository.server";
 import { createDomain } from "~/repositories/domain.repository.server";
 import { replaceMappings } from "~/repositories/domain-route-mapping.repository.server";
@@ -21,6 +23,10 @@ export function meta(_: Route.MetaArgs) {
 export async function loader({ request }: Route.LoaderArgs) {
   await requireAuth(request);
   const organisationId = await getActiveOrganisationId(request);
+  if (organisationId) {
+    const role = await getActiveUserRole(request);
+    if (!can(role, "create:resources")) throw redirect("/domains");
+  }
   const allApis = organisationId ? await listApisByOrganisation(organisationId) : [];
   const apis = allApis.filter((a) => !!a.awsApiId);
   return { apis };
@@ -125,6 +131,7 @@ export async function action({ request }: Route.ActionArgs) {
   const organisationId = await getActiveOrganisationId(request);
 
   if (!organisationId) return { error: "No active organisation selected." };
+  await requirePermission(request, organisationId, "create:resources");
 
   const formData = await request.formData();
   const intent = (formData.get("_intent") as string) || "create";

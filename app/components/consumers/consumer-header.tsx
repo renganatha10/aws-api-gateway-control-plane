@@ -1,6 +1,7 @@
 import { Trash2 } from "lucide-react";
 import { Link } from "react-router";
 
+import { Can } from "~/components/can";
 import { Button } from "~/components/ui/button";
 
 interface ConsumerHeaderProps {
@@ -32,23 +33,25 @@ export function ConsumerHeader({
         <div className="flex items-center gap-2">
           {saved && <span className="text-xs text-green-600">Saved</span>}
           {error && <span className="text-xs text-destructive">{error}</span>}
-          <Button
-            type="submit"
-            form="consumer-form"
-            disabled={submitting}
-            className="bg-black hover:bg-gray-900 text-white px-6"
-          >
-            {submitting ? "Saving…" : "Save"}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="text-red-600 border-red-200 hover:bg-red-50"
-            onClick={onDeleteClick}
-          >
-            <Trash2 className="size-4 mr-1.5" />
-            Delete
-          </Button>
+          <Can permission="manage:consumers">
+            <Button
+              type="submit"
+              form="consumer-form"
+              disabled={submitting}
+              className="bg-black hover:bg-gray-900 text-white px-6"
+            >
+              {submitting ? "Saving…" : "Save"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="text-red-600 border-red-200 hover:bg-red-50"
+              onClick={onDeleteClick}
+            >
+              <Trash2 className="size-4 mr-1.5" />
+              Delete
+            </Button>
+          </Can>
         </div>
       </div>
     </>

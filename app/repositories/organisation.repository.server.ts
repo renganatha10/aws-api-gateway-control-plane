@@ -1,11 +1,25 @@
 import { count, eq } from "drizzle-orm";
+import { union } from "drizzle-orm/pg-core";
 
 import { db } from "~/lib/db.server";
-import { environments, type NewOrganisation, type Organisation, organisations } from "~/lib/schema";
+import {
+  environments,
+  type NewOrganisation,
+  type Organisation,
+  organisationMembers,
+  organisations,
+} from "~/lib/schema";
 
 export async function createOrganisation(organisation: NewOrganisation): Promise<Organisation> {
-  const [created] = await db.insert(organisations).values(organisation).returning();
-  return created;
+  return db.transaction(async (tx) => {
+    const [created] = await tx.insert(organisations).values(organisation).returning();
+    await tx.insert(organisationMembers).values({
+      organisationId: created.id,
+      userEmail: organisation.createdBy,
+      role: "admin",
+    });
+    return created;
+  });
 }
 
 export async function createOrganisationWithEnvironments(
@@ -14,6 +28,11 @@ export async function createOrganisationWithEnvironments(
 ): Promise<Organisation> {
   return db.transaction(async (tx) => {
     const [created] = await tx.insert(organisations).values(organisation).returning();
+    await tx.insert(organisationMembers).values({
+      organisationId: created.id,
+      userEmail: organisation.createdBy,
+      role: "admin",
+    });
     if (envNames.length > 0) {
       await tx.insert(environments).values(
         envNames.map((name) => ({
@@ -27,12 +46,28 @@ export async function createOrganisationWithEnvironments(
   });
 }
 
-export async function listOrganisations(createdBy: string): Promise<Organisation[]> {
-  return db
-    .select()
+export async function listOrganisations(email: string): Promise<Organisation[]> {
+  const cols = {
+    id: organisations.id,
+    name: organisations.name,
+    createdBy: organisations.createdBy,
+    createdAt: organisations.createdAt,
+    updatedAt: organisations.updatedAt,
+  };
+
+  const ownedQ = db.select(cols).from(organisations).where(eq(organisations.createdBy, email));
+
+  const memberQ = db
+    .select(cols)
     .from(organisations)
-    .where(eq(organisations.createdBy, createdBy))
-    .orderBy(organisations.createdAt);
+    .innerJoin(
+      organisationMembers,
+      eq(organisationMembers.organisationId, organisations.id)
+    )
+    .where(eq(organisationMembers.userEmail, email));
+
+  const rows = await union(ownedQ, memberQ);
+  return rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 }
 
 export async function findOrganisationById(id: number): Promise<Organisation | undefined> {
@@ -44,10 +79,19 @@ export async function deleteOrganisation(id: number): Promise<void> {
   await db.delete(organisations).where(eq(organisations.id, id));
 }
 
-export async function countOrganisations(createdBy: string): Promise<number> {
-  const [{ value }] = await db
-    .select({ value: count() })
+export async function countOrganisations(email: string): Promise<number> {
+  const cols = { id: organisations.id };
+
+  const ownedQ = db.select(cols).from(organisations).where(eq(organisations.createdBy, email));
+  const memberQ = db
+    .select(cols)
     .from(organisations)
-    .where(eq(organisations.createdBy, createdBy));
-  return Number(value);
+    .innerJoin(
+      organisationMembers,
+      eq(organisationMembers.organisationId, organisations.id)
+    )
+    .where(eq(organisationMembers.userEmail, email));
+
+  const rows = await union(ownedQ, memberQ);
+  return rows.length;
 }

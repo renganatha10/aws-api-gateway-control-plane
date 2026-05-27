@@ -11,6 +11,7 @@ export default [
   route("api/consumer-proxy", "routes/api.consumer-proxy.ts"),
   route("forgot-password", "routes/forgot-password.tsx"),
   route("reset-password", "routes/reset-password.tsx"),
+  route("set-password", "routes/set-password.tsx"),
   layout("routes/layout.tsx", [
     index("routes/home.tsx"),
     route("organisation", "routes/organisation.tsx"),
@@ -29,5 +30,6 @@ export default [
     route("domains", "routes/domains.tsx"),
     route("domains/new", "routes/domain-create.tsx"),
     route("domains/:id", "routes/domains.$id.tsx"),
+    route("users", "routes/users.tsx"),
   ]),
 ] satisfies RouteConfig;

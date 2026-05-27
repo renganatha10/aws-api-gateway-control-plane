@@ -1,4 +1,5 @@
 import { Link, useLoaderData, useNavigate } from "react-router";
+import { Can } from "~/components/can";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -37,9 +38,11 @@ export default function ConsumersPage() {
             Manage API consumers and their product subscriptions.
           </p>
         </div>
-        <Button size="sm" asChild>
-          <Link to="/consumers/new">New Consumer</Link>
-        </Button>
+        <Can permission="manage:consumers">
+          <Button size="sm" asChild>
+            <Link to="/consumers/new">New Consumer</Link>
+          </Button>
+        </Can>
       </div>
 
       {consumers.length === 0 ? (
@@ -60,11 +63,13 @@ export default function ConsumersPage() {
           </svg>
           <div>
             <p className="text-sm font-medium text-gray-600">No consumers yet</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              <Link to="/consumers/new" className="underline underline-offset-2">
-                Add your first consumer
-              </Link>
-            </p>
+            <Can permission="manage:consumers">
+              <p className="text-xs text-muted-foreground mt-0.5">
+                <Link to="/consumers/new" className="underline underline-offset-2">
+                  Add your first consumer
+                </Link>
+              </p>
+            </Can>
           </div>
         </div>
       ) : (
