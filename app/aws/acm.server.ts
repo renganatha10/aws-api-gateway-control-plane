@@ -1,43 +1,49 @@
-import { ListCertificatesCommand } from "@aws-sdk/client-acm";
+import {
+  DescribeCertificateCommand,
+  RequestCertificateCommand,
+} from "@aws-sdk/client-acm";
 
 import { createAcmClient } from "./acm-client.server";
 
-export type CertSummary = {
-  arn: string;
-  domain: string;
-  region: string;
+export type DnsValidationRecord = {
+  name: string;
+  value: string;
 };
 
-async function listCertsInRegion(region: string): Promise<CertSummary[]> {
+export async function requestCertificate(
+  domainName: string,
+  region: string
+): Promise<{ certificateArn: string }> {
   const client = createAcmClient(region);
   const result = await client.send(
-    new ListCertificatesCommand({
-      CertificateStatuses: ["ISSUED"],
-      MaxItems: 500,
+    new RequestCertificateCommand({
+      DomainName: domainName,
+      ValidationMethod: "DNS",
     })
   );
-  return (result.CertificateSummaryList ?? []).map((c) => ({
-    arn: c.CertificateArn ?? "",
-    domain: c.DomainName ?? "",
-    region,
-  }));
+  if (!result.CertificateArn) throw new Error("ACM did not return a certificate ARN");
+  console.log("[aws:acm] certificate requested", { domainName, region, arn: result.CertificateArn });
+  return { certificateArn: result.CertificateArn };
 }
 
-/**
- * Lists all ISSUED ACM certificates from both the configured AWS_REGION and ap-south-1
- * (Edge-optimized API Gateway custom domains require a cert in ap-south-1).
- * Failures in either region are silently skipped so a misconfigured region
- * does not block the form from loading.
- */
-export async function listIssuedCertificates(): Promise<CertSummary[]> {
-  const primaryRegion = process.env.AWS_REGION ?? "ap-south-1";
-  const regions = primaryRegion === "ap-south-1" ? ["ap-south-1"] : [primaryRegion, "ap-south-1"];
+export async function describeCertificate(
+  certificateArn: string,
+  region: string
+): Promise<{ status: string; validationRecords: DnsValidationRecord[] }> {
+  const client = createAcmClient(region);
+  const result = await client.send(
+    new DescribeCertificateCommand({ CertificateArn: certificateArn })
+  );
+  const cert = result.Certificate;
+  if (!cert) throw new Error("Certificate not found");
 
-  const results = await Promise.allSettled(regions.map(listCertsInRegion));
+  const status = cert.Status ?? "UNKNOWN";
+  const validationRecords: DnsValidationRecord[] = (cert.DomainValidationOptions ?? [])
+    .filter((opt) => opt.ResourceRecord?.Name && opt.ResourceRecord?.Value)
+    .map((opt) => ({
+      name: opt.ResourceRecord!.Name!,
+      value: opt.ResourceRecord!.Value!,
+    }));
 
-  return results.flatMap((r) => {
-    if (r.status === "fulfilled") return r.value;
-    console.warn("[aws:acm] listCertsInRegion failed", r.reason);
-    return [];
-  });
+  return { status, validationRecords };
 }
