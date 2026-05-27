@@ -2,7 +2,7 @@
 
 ## Project overview
 
-API Gateway management portal built with React Router 7 (SSR), Tailwind CSS v4, shadcn/ui, and TypeScript. Manages gateways, APIs, products, plans, environments, and consumers, with direct AWS API Gateway and Cognito integration for publishing and provisioning.
+AWS API Gateway Control Panel — a full-stack management portal built with React Router 7 (SSR), Tailwind CSS v4, shadcn/ui, and TypeScript. Manages organisations, gateways, APIs, products, plans, environments, custom domains, and consumers, with direct AWS API Gateway, ACM, and Cognito integration for publishing and provisioning.
 
 ## Commands
 
@@ -32,14 +32,17 @@ npm run test:e2e:ui      # run Playwright e2e tests (interactive UI)
 
 ```
 app/
-  aws/               # AWS API Gateway + Cognito helpers (one concern per file)
+  aws/               # AWS API Gateway, ACM + Cognito helpers (one concern per file)
   components/
     ui/              # shadcn components
     apis/            # components for the API detail page
     consumers/       # components for the consumer detail + tryout pages
+    domains/         # components for the custom domain detail page
+    environments/    # components for the environments page
+    plans/           # components for the plans page
     products/        # components for the product detail page
   hooks/             # shared React hooks
-  lib/               # db client, schema, session, cognito
+  lib/               # db client, schema (schema.ts), session, cognito
   repositories/      # DB access layer (one file per entity)
   routes/            # React Router route modules (loader + action + thin default export only)
 db/migrations/       # numbered SQL migrations (node-pg-migrate format)
@@ -50,49 +53,64 @@ tests/e2e/           # Playwright end-to-end tests
 
 ```
 login / logout / forgot-password / reset-password   (standalone, no layout)
+organisation.tsx                                     (new org creation, no layout)
+health.ts                                            (health-check endpoint)
 layout.tsx  (SidebarProvider + AppSidebar + Outlet)
-  /                    home.tsx
-  /gateway             gateway.tsx
-  /apis                apis.tsx
-  /apis/new            api-create.tsx
-  /apis/:id            apis.$id.tsx
-  /products            products.tsx
-  /products/new        product-create.tsx
-  /products/:id        products.$id.tsx
-  /environments        environments.tsx
-  /environments/:id    environments.$id.tsx
-  /plans               plans.tsx
-  /consumers           consumers.tsx
-  /consumers/new       consumer-create.tsx
-  /consumers/:id       consumers.$id.tsx           (Details tab)
-  /consumers/:id/tryout consumers.$id.tryout.tsx   (Try Out tab)
+  /                       home.tsx
+  /gateway                gateway.tsx
+  /apis                   apis.tsx
+  /apis/new               api-create.tsx
+  /apis/:id               apis.$id.tsx
+  /products               products.tsx
+  /products/new           product-create.tsx
+  /products/:id           products.$id.tsx
+  /environments           environments.tsx
+  /environments/:id       environments.$id.tsx
+  /plans                  plans.tsx
+  /consumers              consumers.tsx
+  /consumers/new          consumer-create.tsx
+  /consumers/:id          consumers.$id.tsx           (Details tab)
+  /consumers/:id/tryout   consumers.$id.tryout.tsx    (Try Out tab)
+  /domains                domains.tsx
+  /domains/new            domain-create.tsx
+  /domains/:id            domains.$id.tsx
+
+Resource API routes (no layout, JSON responses):
+  api.organisation-switch.ts        # switch active organisation in session
+  api.consumer-apikey.$id.ts        # fetch API key value for a consumer
+  api.consumer-secret.$id.ts        # fetch Cognito client secret for a consumer
+  api.consumer-token.$id.ts         # exchange credentials for an access token (Try Out)
+  api.consumer-proxy.ts             # proxy API requests for the Try Out sandbox
 ```
 
 ### Data model
 
 ```
-gateways
-  └─ environments      (gateway_id FK)
-  └─ apis              (gateway_id FK, awsApiId)
-  └─ plans             (gateway_id FK, awsUsagePlanId)
-  └─ products          (gateway_id FK)
-       └─ api_associations    (product_id, api_id, gateway_id)
-       └─ plan_associations   (product_id, plan_id, gateway_id)
-       └─ product_deployments (product_id, environment_id, gateway_id, invoke_url)
-  └─ consumers         (product_id, environment_id, plan_id, gateway_id,
-                         client_id, aws_api_key_id, token_url)
+organisations
+  └─ gateways          (organisation_id FK)
+       └─ environments      (gateway_id FK)
+       └─ apis              (gateway_id FK, awsApiId)
+       └─ plans             (gateway_id FK, awsUsagePlanId)
+       └─ domains           (gateway_id FK, acm_certificate_arn)
+            └─ domain_route_mappings  (domain_id FK, base_path, api_id, stage)
+       └─ products          (gateway_id FK)
+            └─ api_associations    (product_id, api_id, gateway_id)
+            └─ plan_associations   (product_id, plan_id, gateway_id)
+            └─ product_deployments (product_id, environment_id, gateway_id, invoke_url)
+       └─ consumers         (product_id, environment_id, plan_id, gateway_id,
+                              client_id, aws_api_key_id, token_url)
 ```
 
 ## UI/UX conventions
 
-**List pages** (`apis.tsx`, `products.tsx`, `consumers.tsx`) — read-only browse views:
+**List pages** (`apis.tsx`, `products.tsx`, `consumers.tsx`, `domains.tsx`) — read-only browse views:
 - No search bar.
 - No per-row action buttons or dropdowns.
 - Entire table row is clickable and navigates to the detail page (`*.id` route).
 - Only one action allowed on the list page: the "New / Add" creation button in the top-right header.
 - Environments and Plans are exempt — they keep their existing layout.
 
-**Detail pages** (`apis.$id.tsx`, `products.$id.tsx`, `consumers.$id.tsx`) — all mutations live here:
+**Detail pages** (`apis.$id.tsx`, `products.$id.tsx`, `consumers.$id.tsx`, `domains.$id.tsx`) — all mutations live here:
 - Header: breadcrumb (`← EntityList / Entity name`) + action buttons (Save, Publish, Delete) in the top-right.
 - All destructive actions (Delete) must open a shadcn `<Dialog>` for confirmation — never use inline confirm/cancel text in the table row or header.
 - Separate `useFetcher` for each independent mutation (save vs. delete vs. publish) so loading states don't interfere.
@@ -164,7 +182,7 @@ export async function action({ request, params }) {
 
 See `app/components/products/` as the canonical example — `product-detail-page.tsx` owns state, `product-header.tsx` / `apis-section.tsx` / `plans-section.tsx` etc. are pure presentational components that receive props and callbacks.
 
-**Loaders/actions** — always call `requireAuth(request)` first, then `getActiveGatewayId(request)`. Multi-intent actions use `formData.get("_intent")`.
+**Loaders/actions** — always call `requireAuth(request)` first, then `getActiveOrganisationId(request)` and/or `getActiveGatewayId(request)`. Multi-intent actions use `formData.get("_intent")`.
 
 **Repositories** — thin Drizzle wrappers, one file per entity, named `*.repository.server.ts`. No business logic inside.
 
@@ -211,7 +229,7 @@ For full-page forms use `useNavigation`: `const submitting = navigation.state ==
 
 ## Database migrations
 
-Migrations live in `db/migrations/` as plain SQL with `-- Up Migration` / `-- Down Migration` sections. Number sequentially (next is `18_...`). Run `npm run db:migrate` after adding one.
+Migrations live in `db/migrations/` as plain SQL with `-- Up Migration` / `-- Down Migration` sections. Number sequentially (next is `12_...`). Run `npm run db:migrate` after adding one.
 
 ## AWS integration notes
 
@@ -221,3 +239,4 @@ Migrations live in `db/migrations/` as plain SQL with `-- Up Migration` / `-- Do
 - Publishing a product calls `publishProductToEnvironment` which creates/updates one stage per API per environment and stores the `invoke_url`
 - Creating a consumer provisions a Cognito App Client and an AWS API key, storing `client_id`, `aws_api_key_id`, and `token_url` on the consumer record
 - Deleting a consumer removes the Cognito App Client (`deleteAppClient`) and the API Gateway key (`deleteApiKey`) before removing the DB record. AWS cleanup runs first — if it fails the record is preserved and the user can retry.
+- Custom domains use ACM for certificate lookup (`acm.server.ts`) and API Gateway custom domain management (`custom-domain.server.ts`); route mappings are persisted in `domain_route_mappings` and synced to AWS base path mappings

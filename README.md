@@ -1,4 +1,4 @@
-# SideHussle CDN Portal
+# AWS API Gateway Control Panel
 
 A full-stack management portal for AWS API Gateway — create and publish APIs, group them into products, apply rate-limit plans, deploy to multiple environments, and provision consumers with Cognito credentials.
 
@@ -6,11 +6,12 @@ A full-stack management portal for AWS API Gateway — create and publish APIs, 
 
 - **Gateways** — multi-tenant top-level resource; switch between gateways from the sidebar
 - **APIs** — import Swagger 2.0 / OpenAPI 3.0 specs; synced to AWS API Gateway with Cognito auth injected automatically
-- **Products** — bundle APIs together and associate plans
+- **Products** — bundle APIs together, associate plans, publish and deploy to environments
 - **Plans** — rate-limit tiers (throttle, burst, quota) synced to AWS Usage Plans
 - **Environments** — named deployment targets (dev, staging, production)
-- **Publish** — deploy a product's APIs to a selected environment; stage variables (`backendHost`) resolve from each spec's `hosts` map
-- **Consumers** — provision a Cognito App Client + AWS API key scoped to a product/environment/plan; surfaces invoke URL, token URL, and API key value
+- **Domains** — custom domain names with ACM certificate picker and path/route mappings
+- **Consumers** — provision a Cognito App Client + AWS API key scoped to a product/environment/plan; surfaces invoke URL, token URL, and API key value; includes an interactive Try Out sandbox
+- **Organisations** — multi-organisation support with sidebar switcher
 
 ## Tech stack
 
@@ -56,12 +57,12 @@ COGNITO_USER_POOL_ID=ap-south-1_xxxxxxx
 COGNITO_CLIENT_ID=your-app-client-id
 COGNITO_CLIENT_SECRET=your-app-client-secret
 
-AWS_REGION=ap-southeast-2
+AWS_REGION=ap-south-1
 AWS_ACCESS_KEY_ID=<key>
 AWS_SECRET_ACCESS_KEY=<secret>
 
-# Optional — ARN of the User Pool used as the CognitoAuth authorizer in API specs
-COGNITO_USER_POOL_ARN=arn:aws:cognito-idp:...
+# ARN of the User Pool used as the CognitoAuth authorizer in API specs
+COGNITO_USER_POOL_ARN=arn:aws:cognito-idp:ap-south-1:...
 
 # Optional — CloudWatch log group ARN for API Gateway access logs
 APIGW_ACCESS_LOG_GROUP_ARN=arn:aws:logs:...
@@ -101,10 +102,17 @@ npm run test:e2e:ui       # Playwright e2e tests (interactive UI)
 ```
 app/
   aws/               # AWS API Gateway + Cognito helpers (one concern per file)
-  components/ui/     # shadcn/ui components
+  components/
+    ui/              # shadcn/ui components
+    apis/            # API detail page components
+    consumers/       # Consumer detail + try-out page components
+    domains/         # Custom domain page components
+    environments/    # Environment components
+    plans/           # Plan components
+    products/        # Product detail page components
   hooks/             # shared React hooks
   lib/               # db, schema, session, cognito
-  repositories/      # Drizzle data-access layer
+  repositories/      # Drizzle data-access layer (one file per entity)
   routes/            # React Router route modules
 db/
   migrations/        # Sequential SQL migrations
@@ -121,6 +129,7 @@ gateways
   ├── environments
   ├── apis
   ├── plans
+  ├── domains              (acm_certificate_arn, route mappings)
   └── products
         ├── api_associations
         ├── plan_associations
@@ -138,7 +147,7 @@ gateways
      production: api.company.com
    ```
 3. Create a product, associate APIs and plans, save
-4. From the Products list, click **⋯ → Publish**, select an environment, and click **Deploy**
+4. From the product detail page click **Publish**, select an environment, and click **Deploy**
 
 The portal creates an AWS deployment for each API and attaches a stage named after the environment. The `backendHost` stage variable is set from `hosts[envName]`.
 
@@ -148,6 +157,7 @@ The portal creates an AWS deployment for each API and attaches a stage named aft
 2. Select a product, environment, and plan
 3. On save, the portal provisions a Cognito App Client and an AWS API key
 4. The consumer detail page shows the invoke URL, token URL, and API key value
+5. Use the **Try Out** tab to send test requests directly from the portal
 
 ## Development notes
 
@@ -159,31 +169,11 @@ The portal creates an AWS deployment for each API and attaches a stage named aft
 
 ## TODO
 
-### Polish
-- [ ] Match the design of empty states and search across all pages (inconsistent between pages)
-- [ ] Error handling and user-facing error logging
-- [ ] UX of consumers is not great — allow try-out and edit directly on the consumer detail page rather than through the dropdown menu; same applies to products
-
-### Missing actions
-- [ ] Delete consumer
-- [ ] Delete product
-- [ ] Delete API
-
-### New pages / features
-- [ ] Settings page — add custom domain and path mapping
-- [ ] Custom Domain page
-- [ ] User Management page
-- [ ] Add "Deploy" option directly from the product detail page (currently only available from the product list)
-- [ ] Analytics — API call volume, latency, error rates
+### New features
+- [ ] Settings page — global portal configuration
+- [ ] User Management page — manage portal users via Cognito User Pool
+- [ ] Analytics — API call volume, latency, error rates per environment
 - [ ] View logs from APIs (stream or query CloudWatch)
-
-### Code quality
-- [ ] Extract each page's sub-components into their own files
-- [ ] Write unit tests for all extracted components
-
-### Think about
-- [ ] Organisation / multi-tenancy model
-- [ ] UX rethink for consumers and products (see Polish note above)
 
 ### Infrastructure
 - [ ] CloudFormation template — Aurora (RDS), CloudFront, WAF, EC2 instance
