@@ -48,7 +48,7 @@ Resources:
       #   aws ssm put-parameter --name /api-portal/<env>/db-password --type SecureString --value <password>
       MasterUserPassword: !Sub "{{resolve:ssm-secure:/api-portal/${EnvironmentName}/db-password}}"
       DBSubnetGroupName: !Ref DBSubnetGroup
-      VpcSecurityGroupIds:
+      VPCSecurityGroups:
         - Fn::ImportValue: !Sub "api-portal-${EnvironmentName}-sg-db"
       PubliclyAccessible: false
       MultiAZ: false
