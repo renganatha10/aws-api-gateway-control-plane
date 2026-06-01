@@ -13,6 +13,7 @@ This portal manages APIs, products, plans, environments, and consumers on top of
 | [Consumer](consumer.md) | A provisioned client: Cognito App Client + API key, scoped to a product + environment + plan. |
 | [Try Out](tryout.md) | In-browser API sandbox on the consumer detail page for testing live endpoints with real credentials. |
 | [Users & Access Control](users.md) | Organisation membership, roles, first-login password flow, and how permissions gate UI and server actions. |
+| [Self-Hosted Runner](self-hosted-runner.md) | Register this Ubuntu machine as a GitHub Actions runner for CI/CD. |
 
 ## How things fit together
 

@@ -39,7 +39,7 @@ jobs:
   # ── Job 0 ─────────────────────────────────────────────────────────────────
   deploy-cognito:
     name: "Stack 0 | Deploy Cognito"
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       user_pool_id:  ${{ steps.out.outputs.user_pool_id }}
       user_pool_arn: ${{ steps.out.outputs.user_pool_arn }}
@@ -98,7 +98,7 @@ jobs:
   # ── Job 1 ─────────────────────────────────────────────────────────────────
   deploy-vpc:
     name: "Stack 1 | Deploy VPC"
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
       - uses: aws-actions/configure-aws-credentials@v4
@@ -127,7 +127,7 @@ jobs:
   # ── Job 2 ─────────────────────────────────────────────────────────────────
   generate-db-password:
     name: "Step 2 | Generate DB password (idempotent)"
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -153,7 +153,7 @@ jobs:
   deploy-database:
     name: "Stack 3 | Deploy Database (Aurora Serverless v2)"
     needs: [deploy-vpc, generate-db-password]
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       db_endpoint: ${{ steps.out.outputs.db_endpoint }}
     steps:
@@ -193,7 +193,7 @@ jobs:
   # ── Job 4 ─────────────────────────────────────────────────────────────────
   deploy-storage:
     name: "Stack 4 | Deploy Storage + CloudFront (placeholder ALB)"
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       artifact_bucket: ${{ steps.out.outputs.artifact_bucket }}
       assets_bucket:   ${{ steps.out.outputs.assets_bucket }}
@@ -238,7 +238,7 @@ jobs:
   deploy-iam:
     name: "Stack 5 | Deploy IAM users + policies"
     needs: [deploy-storage, deploy-cognito]
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       app_key_id:  ${{ steps.out.outputs.app_key_id }}
       app_secret:  ${{ steps.out.outputs.app_secret }}
@@ -298,7 +298,7 @@ jobs:
   deploy-compute:
     name: "Stack 6 | Deploy Compute (EC2 + ALB)"
     needs: [deploy-vpc, deploy-storage]
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       ec2_instance_id: ${{ steps.out.outputs.ec2_instance_id }}
       alb_dns:         ${{ steps.out.outputs.alb_dns }}
@@ -343,7 +343,7 @@ jobs:
   update-cloudfront:
     name: "Step 7 | Update CloudFront origin with real ALB DNS"
     needs: [deploy-compute, deploy-storage]
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
       - uses: aws-actions/configure-aws-credentials@v4
@@ -374,7 +374,7 @@ jobs:
   write-app-env:
     name: "Step 9 | Write app env to SSM Parameter Store"
     needs: [deploy-cognito, deploy-database, deploy-iam, deploy-compute]
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -439,7 +439,7 @@ jobs:
   subscribe-alerts:
     name: "Step 10 | Subscribe to CloudWatch alarm alerts"
     needs: [deploy-compute]
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -465,7 +465,7 @@ jobs:
   write-github-secrets:
     name: "Step 11 | Write deploy secrets to GitHub Actions"
     needs: [deploy-iam, deploy-compute, deploy-storage, update-cloudfront]
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     env:
       GH_TOKEN: ${{ secrets.GH_PAT }}
     steps:

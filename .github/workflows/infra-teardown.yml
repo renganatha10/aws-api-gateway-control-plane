@@ -28,7 +28,7 @@ concurrency:
 jobs:
   teardown:
     name: "Teardown ${{ github.event.inputs.environment }}"
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 60
     steps:
       - name: Confirm environment name

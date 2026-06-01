@@ -19,7 +19,7 @@ jobs:
   # ── CI ────────────────────────────────────────────────────────────────────
   ci:
     name: CI
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 30
 
     steps:
