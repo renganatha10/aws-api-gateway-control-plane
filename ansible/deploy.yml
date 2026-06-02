@@ -92,19 +92,19 @@
 
     - name: "3/7 | Convert JSON to .env file"
       shell: |
-        python3 -c "
+        python3 << 'PYEOF'
         import json, os, pwd
         with open('/tmp/.deploy-env-{{ git_sha }}.json') as f:
             data = json.load(f)
         with open('{{ release_dir }}/.env', 'w') as out:
             for k, v in data.items():
                 safe = str(v).replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
-                out.write('{}=\"{}\"\n'.format(k, safe))
+                out.write('{}="{}"\n'.format(k, safe))
         pw = pwd.getpwnam('{{ app_user }}')
         os.chown('{{ release_dir }}/.env', pw.pw_uid, pw.pw_gid)
         os.chmod('{{ release_dir }}/.env', 0o600)
         os.remove('/tmp/.deploy-env-{{ git_sha }}.json')
-        "
+        PYEOF
       args:
         executable: /bin/bash
       no_log: true
