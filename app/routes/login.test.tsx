@@ -65,7 +65,10 @@ describe("Login route", () => {
 
   it("shows error message from actionData", () => {
     // biome-ignore lint/suspicious/noExplicitAny: test props need dynamic shape
-    const errorProps = { loaderData: { mode: "login" }, actionData: { error: "Invalid credentials", mode: "login" } } as any;
+    const errorProps: any = {
+      loaderData: { mode: "login" },
+      actionData: { error: "Invalid credentials", mode: "login" },
+    };
     render(<Login {...errorProps} />);
     expect(screen.getByText("Invalid credentials")).toBeInTheDocument();
   });

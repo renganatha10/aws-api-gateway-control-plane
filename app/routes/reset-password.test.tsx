@@ -60,7 +60,10 @@ describe("ResetPassword route", () => {
 
   it("shows error from actionData", () => {
     // biome-ignore lint/suspicious/noExplicitAny: test props need dynamic shape
-    const errorProps = { loaderData, actionData: { error: "Passwords do not match", email: "user@example.com" } } as any;
+    const errorProps: any = {
+      loaderData,
+      actionData: { error: "Passwords do not match", email: "user@example.com" },
+    };
     render(<ResetPassword {...errorProps} />);
     expect(screen.getByText("Passwords do not match")).toBeInTheDocument();
   });

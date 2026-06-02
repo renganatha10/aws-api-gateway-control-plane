@@ -56,7 +56,9 @@ describe("ForgotPassword route", () => {
 
   it("shows error message from actionData", () => {
     // biome-ignore lint/suspicious/noExplicitAny: test props need dynamic shape
-    const errorProps = { actionData: { sent: false, email: "", error: "Email is required" } } as any;
+    const errorProps: any = {
+      actionData: { sent: false, email: "", error: "Email is required" },
+    };
     render(<ForgotPassword {...errorProps} />);
     expect(screen.getByText("Email is required")).toBeInTheDocument();
   });
