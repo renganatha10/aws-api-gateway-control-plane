@@ -324,13 +324,48 @@ log "── Step 6: Cognito ─────────────────�
 delete_cognito_resources "$COGNITO_STACK"
 delete_stack "$COGNITO_STACK"
 
+# Step 7 — SSM parameters under /api-portal/
+log ""
+log "── Step 7: SSM parameters ──────────────────────────────────"
+SSM_NAMES=$(aws ssm get-parameters-by-path \
+  --path "/api-portal/" \
+  --recursive \
+  --region "$REGION" \
+  --query 'Parameters[].Name' \
+  --output text 2>/dev/null || echo "")
+if [ -n "$SSM_NAMES" ]; then
+  # delete-parameters accepts up to 10 names at a time
+  echo "$SSM_NAMES" | tr '\t' '\n' | xargs -n 10 \
+    aws ssm delete-parameters --region "$REGION" --names >/dev/null
+  log "  SSM parameters under /api-portal/ — deleted"
+else
+  log "  No SSM parameters found under /api-portal/ — skipping"
+fi
+
+# Step 8 — CloudWatch log groups
+log ""
+log "── Step 8: CloudWatch log groups ───────────────────────────"
+delete_log_groups_by_prefix() {
+  local prefix=$1
+  local names
+  names=$(aws logs describe-log-groups \
+    --log-group-name-prefix "$prefix" \
+    --region "$REGION" \
+    --query 'logGroups[].logGroupName' \
+    --output text 2>/dev/null || echo "")
+  if [ -n "$names" ]; then
+    while read -r lg; do
+      [ -z "$lg" ] && continue
+      aws logs delete-log-group --log-group-name "$lg" --region "$REGION"
+      log "  $lg — deleted"
+    done <<< "$(echo "$names" | tr '\t' '\n')"
+  else
+    log "  No log groups under $prefix — skipping"
+  fi
+}
+delete_log_groups_by_prefix "/api-portal"
+delete_log_groups_by_prefix "/aws/rds/cluster/api-portal"
+delete_log_groups_by_prefix "/aws/rds/instance/api-portal"
+
 log ""
 log "═══ Teardown complete ═══"
-log ""
-log "Remaining (not deleted by this script — clean up manually if needed):"
-log "  - SSM parameters under /api-portal/"
-log "  - CloudWatch log groups under /aws/rds/, /api-portal/"
-log ""
-log "Manual cleanup commands:"
-log "  aws ssm delete-parameters --names \$(aws ssm get-parameters-by-path --path /api-portal/ --recursive --region $REGION --query 'Parameters[].Name' --output text) --region $REGION"
-log "  aws logs describe-log-groups --log-group-name-prefix /api-portal --region $REGION --query 'logGroups[].logGroupName' --output text | xargs -n1 aws logs delete-log-group --region $REGION --log-group-name"

@@ -83,6 +83,13 @@ npm run dev
 
 App is available at `http://localhost:5173`.
 
+### 5. Run in production with pm2
+
+```bash
+npm run build && pm2 start npm --name "api-gateway-control-plane" -- run start
+pm2 logs api-gateway-control-plane
+```
+
 ## Scripts
 
 ```bash

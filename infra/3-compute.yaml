@@ -125,6 +125,12 @@ Resources:
           # ── CloudWatch Agent ──────────────────────────────────────────────
           dnf install -y amazon-cloudwatch-agent
 
+          # ── RDS CA bundle (required for sslmode=verify-full) ─────────────
+          mkdir -p /etc/pki/rds
+          curl -fsSL https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem \
+            -o /etc/pki/rds/global-bundle.pem
+          chmod 644 /etc/pki/rds/global-bundle.pem
+
           # ── App directory structure ───────────────────────────────────────
           mkdir -p /opt/api-portal/releases
           mkdir -p /var/log/api-portal

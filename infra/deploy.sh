@@ -207,7 +207,7 @@ aws ssm put-parameter \
   --overwrite \
   --region "$REGION" \
   --value "{
-    \"DATABASE_URL\": \"postgresql://apiportal:${DB_PASSWORD}@${DB_ENDPOINT}:5432/apiportal?sslmode=require\",
+    \"DATABASE_URL\": \"postgresql://apiportal:${DB_PASSWORD}@${DB_ENDPOINT}:5432/apiportal?sslmode=verify-full&sslrootcert=/etc/pki/rds/global-bundle.pem\",
     \"SESSION_SECRET\": \"${SESSION_SECRET}\",
     \"NODE_ENV\": \"production\",
     \"PORT\": \"3000\",
