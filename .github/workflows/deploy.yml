@@ -141,7 +141,8 @@ jobs:
           aws s3 cp ansible/deploy.yml  "$PREFIX/ansible/deploy.yml"
           aws s3 cp package.json        "$PREFIX/package.json"
           aws s3 cp package-lock.json   "$PREFIX/package-lock.json"
-          aws s3 cp ecosystem.config.cjs "$PREFIX/ecosystem.config.cjs"
+          aws s3 cp ecosystem.config.cjs    "$PREFIX/ecosystem.config.cjs"
+          aws s3 cp instrument.server.mjs  "$PREFIX/instrument.server.mjs"
 
           echo "Artifact upload complete"
 

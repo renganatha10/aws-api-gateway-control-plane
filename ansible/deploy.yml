@@ -98,7 +98,8 @@
             data = json.load(f)
         with open('{{ release_dir }}/.env', 'w') as out:
             for k, v in data.items():
-                out.write('{}={}\n'.format(k, str(v).replace('\n', '\\\\n')))
+                safe = str(v).replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
+                out.write('{}=\"{}\"\n'.format(k, safe))
         pw = pwd.getpwnam('{{ app_user }}')
         os.chown('{{ release_dir }}/.env', pw.pw_uid, pw.pw_gid)
         os.chmod('{{ release_dir }}/.env', 0o600)
@@ -115,7 +116,14 @@
 
     - name: "4/7 | Run database migrations"
       shell: |
-        set -a && source {{ release_dir }}/.env && set +a
+        while read -r line; do
+          [[ "$line" =~ ^[[:space:]]*# ]] && continue
+          [[ -z "$line" ]] && continue
+          key="${line%%=*}"
+          val="${line#*=}"
+          val="${val#\"}" && val="${val%\"}"
+          export "$key=$val"
+        done < {{ release_dir }}/.env
         npx node-pg-migrate up -m {{ release_dir }}/db/migrations
       args:
         executable: /bin/bash
@@ -144,7 +152,12 @@
 
     - name: "5/7 | Reload PM2 (zero-downtime in-process reload)"
       shell: |
-        set -a && source {{ current_link }}/.env && set +a
+        while read -r line; do
+          [[ "$line" =~ ^[[:space:]]*# ]] && continue
+          [[ -z "$line" ]] && continue
+          key="${line%%=*}"; val="${line#*=}"; val="${val#\"}"; val="${val%\"}"
+          export "$key=$val"
+        done < {{ current_link }}/.env
         pm2 reload api-portal --update-env
       args:
         executable: /bin/bash
@@ -156,7 +169,12 @@
 
     - name: "5/7 | Start PM2 if process was not running"
       shell: |
-        set -a && source {{ current_link }}/.env && set +a
+        while read -r line; do
+          [[ "$line" =~ ^[[:space:]]*# ]] && continue
+          [[ -z "$line" ]] && continue
+          key="${line%%=*}"; val="${line#*=}"; val="${val#\"}"; val="${val%\"}"
+          export "$key=$val"
+        done < {{ current_link }}/.env
         pm2 start {{ current_link }}/ecosystem.config.cjs --env production
       args:
         executable: /bin/bash
