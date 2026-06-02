@@ -58,7 +58,6 @@ jobs:
   deploy:
     name: Deploy to Production
     needs: ci
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
