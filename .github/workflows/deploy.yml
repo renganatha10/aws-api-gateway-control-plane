@@ -156,7 +156,7 @@ jobs:
           {
             "commands": [
               "aws s3 cp s3://${BUCKET}/api-portal/${SHA}/ansible/deploy.yml /tmp/deploy-${SHA}.yml",
-              "ANSIBLE_STDOUT_CALLBACK=yaml ansible-playbook /tmp/deploy-${SHA}.yml -e 'git_sha=${SHA} artifact_bucket=${BUCKET}' 2>&1 | tee -a /var/log/api-portal/deploy-${SHA}.log; exit \${PIPESTATUS[0]}"
+              "ANSIBLE_STDOUT_CALLBACK=yaml ansible-playbook /tmp/deploy-${SHA}.yml -e 'git_sha=${SHA} artifact_bucket=${BUCKET} env=prod' 2>&1 | tee -a /var/log/api-portal/deploy-${SHA}.log; exit \${PIPESTATUS[0]}"
             ]
           }
           JSON

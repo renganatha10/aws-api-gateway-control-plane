@@ -16,7 +16,7 @@
     release_dir: "{{ app_dir }}/releases/{{ git_sha }}"
     current_link: "{{ app_dir }}/current"
     app_user: ec2-user
-    ssm_param: /api-portal/env
+    ssm_param: "/api-portal/{{ env }}/env"
 
   tasks:
 

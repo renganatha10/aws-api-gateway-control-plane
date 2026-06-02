@@ -213,18 +213,73 @@ delete_cognito_resources() {
   fi
 }
 
+# Detach all entities from a managed policy then delete it.
+delete_managed_policy() {
+  local arn=$1
+  [ -z "$arn" ] || [ "$arn" = "None" ] && return 0
+
+  log "  Policy $arn — detaching from all entities"
+  local entities
+  entities=$(aws iam list-entities-for-policy --policy-arn "$arn" \
+    --query '{Users:PolicyUsers[].UserName,Roles:PolicyRoles[].RoleName,Groups:PolicyGroups[].GroupName}' \
+    --output json 2>/dev/null || echo '{}')
+
+  echo "$entities" | jq -r '.Users[]? // empty' | while read -r user; do
+    aws iam detach-user-policy --user-name "$user" --policy-arn "$arn"
+    log "    detached from user $user"
+  done
+  echo "$entities" | jq -r '.Roles[]? // empty' | while read -r role; do
+    aws iam detach-role-policy --role-name "$role" --policy-arn "$arn"
+    log "    detached from role $role"
+  done
+  echo "$entities" | jq -r '.Groups[]? // empty' | while read -r group; do
+    aws iam detach-group-policy --group-name "$group" --policy-arn "$arn"
+    log "    detached from group $group"
+  done
+
+  aws iam delete-policy --policy-arn "$arn"
+  log "  Policy $arn — deleted"
+}
+
+delete_iam_resources() {
+  local stack=$1
+  if ! stack_exists "$stack"; then return 0; fi
+
+  local app_policy cicd_policy
+  app_policy=$(aws cloudformation list-stack-resources \
+    --stack-name "$stack" --region "$REGION" \
+    --query "StackResourceSummaries[?ResourceType=='AWS::IAM::ManagedPolicy' && LogicalResourceId=='AppPolicy'].PhysicalResourceId | [0]" \
+    --output text 2>/dev/null || echo "")
+  cicd_policy=$(aws cloudformation list-stack-resources \
+    --stack-name "$stack" --region "$REGION" \
+    --query "StackResourceSummaries[?ResourceType=='AWS::IAM::ManagedPolicy' && LogicalResourceId=='CICDPolicy'].PhysicalResourceId | [0]" \
+    --output text 2>/dev/null || echo "")
+
+  delete_managed_policy "$app_policy"
+  delete_managed_policy "$cicd_policy"
+}
+
 # ────────────────────────────────────────────────────────────────────────────
 log "═══ Teardown: env=$ENV region=$REGION ═══"
 
 # Step 1 — IAM (no Fn::ImportValue dependents)
 log ""
 log "── Step 1: IAM ─────────────────────────────────────────────"
+delete_iam_resources "$IAM_STACK"
 delete_stack "$IAM_STACK"
 
 # Step 2 — Compute (imports VPC subnets/SGs; must go before VPC)
 log ""
 log "── Step 2: Compute ─────────────────────────────────────────"
 delete_stack "$COMPUTE_STACK"
+# Remove log groups that CloudFormation won't delete automatically (no DeletionPolicy)
+for lg in /app/ec2/application /app/ec2/system /app/ec2/deploys; do
+  if aws logs describe-log-groups --log-group-name-prefix "$lg" --region "$REGION" \
+      --query 'logGroups[0].logGroupName' --output text 2>/dev/null | grep -q "$lg"; then
+    aws logs delete-log-group --log-group-name "$lg" --region "$REGION"
+    log "  $lg — deleted"
+  fi
+done
 
 # Step 3 — Database (imports VPC subnets/SG; force-deletes Aurora resources first)
 log ""

@@ -38,7 +38,7 @@ Resources:
     Properties:
       DBName: !Ref DBName
       Engine: postgres
-      EngineVersion: "16.6"
+      EngineVersion: "16.9"
       DBInstanceClass: !Ref DBInstanceClass
       AllocatedStorage: "20"
       StorageType: gp2
