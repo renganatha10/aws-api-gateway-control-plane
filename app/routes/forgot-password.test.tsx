@@ -36,31 +36,34 @@ beforeEach(() => {
 });
 
 describe("ForgotPassword route", () => {
+  // biome-ignore lint/suspicious/noExplicitAny: test props need dynamic shape
+  const baseProps = { actionData: undefined } as any;
+
   it("renders the form when not sent", () => {
-    render(<ForgotPassword actionData={undefined} as any />);
+    render(<ForgotPassword {...baseProps} />);
     expect(screen.getByText("Forgot password?")).toBeInTheDocument();
     expect(screen.getByLabelText(/Email/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Send reset code" })).toBeInTheDocument();
   });
 
   it("shows sent confirmation when actionData.sent=true", () => {
-    render(
-      <ForgotPassword actionData={{ sent: true, email: "user@example.com", error: null }} as any />
-    );
+    // biome-ignore lint/suspicious/noExplicitAny: test props need dynamic shape
+    const sentProps = { actionData: { sent: true, email: "user@example.com", error: null } } as any;
+    render(<ForgotPassword {...sentProps} />);
     expect(screen.getByText("Check your inbox")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Send reset/ })).not.toBeInTheDocument();
   });
 
   it("shows error message from actionData", () => {
-    render(
-      <ForgotPassword actionData={{ sent: false, email: "", error: "Email is required" }} as any />
-    );
+    // biome-ignore lint/suspicious/noExplicitAny: test props need dynamic shape
+    const errorProps = { actionData: { sent: false, email: "", error: "Email is required" } } as any;
+    render(<ForgotPassword {...errorProps} />);
     expect(screen.getByText("Email is required")).toBeInTheDocument();
   });
 
   it("shows Sending… and disables button while submitting", () => {
     mockNavState = "submitting";
-    render(<ForgotPassword actionData={undefined} as any />);
+    render(<ForgotPassword {...baseProps} />);
     expect(screen.getByText("Sending…")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sending…" })).toBeDisabled();
   });

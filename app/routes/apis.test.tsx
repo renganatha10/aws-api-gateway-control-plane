@@ -47,32 +47,37 @@ const apis = [
   },
 ];
 
+// biome-ignore lint/suspicious/noExplicitAny: test props need dynamic shape
+const pageProps = { loaderData: { apis, organisationId: 1 } } as any;
+// biome-ignore lint/suspicious/noExplicitAny: test props need dynamic shape
+const emptyProps = { loaderData: { apis: [], organisationId: 1 } } as any;
+
 beforeEach(() => mockNavigate.mockClear());
 
 describe("ApisPage route", () => {
   it("renders the APIs heading", () => {
-    render(<ApisPage loaderData={{ apis, organisationId: 1 }} as any />);
+    render(<ApisPage {...pageProps} />);
     expect(screen.getByRole("heading", { name: "APIs" })).toBeInTheDocument();
   });
 
   it("renders API rows in the table", () => {
-    render(<ApisPage loaderData={{ apis, organisationId: 1 }} as any />);
+    render(<ApisPage {...pageProps} />);
     expect(screen.getByText("Pets API")).toBeInTheDocument();
     expect(screen.getByText("Stores API")).toBeInTheDocument();
   });
 
   it("shows empty state when no APIs", () => {
-    render(<ApisPage loaderData={{ apis: [], organisationId: 1 }} as any />);
+    render(<ApisPage {...emptyProps} />);
     expect(screen.getByText(/No APIs yet/i)).toBeInTheDocument();
   });
 
   it("renders an Add button to create a new API", () => {
-    render(<ApisPage loaderData={{ apis, organisationId: 1 }} as any />);
+    render(<ApisPage {...pageProps} />);
     expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument();
   });
 
   it("renders spec type labels correctly", () => {
-    render(<ApisPage loaderData={{ apis, organisationId: 1 }} as any />);
+    render(<ApisPage {...pageProps} />);
     expect(screen.getByText("OpenAPI 3.0 (REST)")).toBeInTheDocument();
     expect(screen.getByText("OpenAPI 2.0 (REST)")).toBeInTheDocument();
   });

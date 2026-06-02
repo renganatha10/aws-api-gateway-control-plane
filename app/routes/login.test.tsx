@@ -38,6 +38,8 @@ beforeEach(() => {
 describe("Login route", () => {
   // biome-ignore lint/suspicious/noExplicitAny: test props need dynamic shape
   const loginProps = { loaderData: { mode: "login" }, actionData: undefined } as any;
+  // biome-ignore lint/suspicious/noExplicitAny: test props need dynamic shape
+  const signupProps = { loaderData: { mode: "signup" }, actionData: undefined } as any;
 
   it("renders Sign In description in login mode", () => {
     render(<Login {...loginProps} />);
@@ -51,25 +53,20 @@ describe("Login route", () => {
   });
 
   it("renders Sign Up description in signup mode", () => {
-    render(<Login loaderData={{ mode: "signup" }} actionData={undefined} as any />);
+    render(<Login {...signupProps} />);
     expect(screen.getByText("Create your workspace account")).toBeInTheDocument();
   });
 
   it("shows first name and last name fields in signup mode", () => {
-    render(<Login loaderData={{ mode: "signup" }} actionData={undefined} as any />);
+    render(<Login {...signupProps} />);
     expect(screen.getByLabelText(/First name/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Last name/i)).toBeInTheDocument();
   });
 
   it("shows error message from actionData", () => {
-    render(
-      <Login
-        loaderData={{ mode: "login" }}
-        actionData={{ error: "Invalid credentials", mode: "login" }}
-        as
-        any
-      />
-    );
+    // biome-ignore lint/suspicious/noExplicitAny: test props need dynamic shape
+    const errorProps = { loaderData: { mode: "login" }, actionData: { error: "Invalid credentials", mode: "login" } } as any;
+    render(<Login {...errorProps} />);
     expect(screen.getByText("Invalid credentials")).toBeInTheDocument();
   });
 

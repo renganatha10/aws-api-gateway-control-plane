@@ -86,10 +86,10 @@ export function RequestBuilderSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     pathParams,
-    currentEndpoint.pathParams.map,
-    currentEndpoint.queryParams.map,
+    currentEndpoint?.pathParams.map,
+    currentEndpoint?.queryParams.map,
     queryRows.length,
-    currentEndpoint.queryParams.length,
+    currentEndpoint?.queryParams.length,
     currentEndpoint,
   ]);
 

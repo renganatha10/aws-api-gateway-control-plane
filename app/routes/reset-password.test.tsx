@@ -37,40 +37,37 @@ beforeEach(() => {
 
 describe("ResetPassword route", () => {
   const loaderData = { email: "user@example.com" };
+  // biome-ignore lint/suspicious/noExplicitAny: test props need dynamic shape
+  const baseProps = { loaderData, actionData: undefined } as any;
 
   it("renders the Set new password title", () => {
-    render(<ResetPassword loaderData={loaderData} actionData={undefined} as any />);
+    render(<ResetPassword {...baseProps} />);
     expect(screen.getByText("Set new password")).toBeInTheDocument();
   });
 
   it("renders code, new password and confirm password fields", () => {
-    render(<ResetPassword loaderData={loaderData} actionData={undefined} as any />);
+    render(<ResetPassword {...baseProps} />);
     expect(screen.getByLabelText("Reset code")).toBeInTheDocument();
     expect(screen.getByLabelText("New password")).toBeInTheDocument();
     expect(screen.getByLabelText("Confirm password")).toBeInTheDocument();
   });
 
   it("pre-fills email hidden input from loaderData", () => {
-    render(<ResetPassword loaderData={loaderData} actionData={undefined} as any />);
+    render(<ResetPassword {...baseProps} />);
     const emailInput = document.querySelector('input[name="email"]') as HTMLInputElement;
     expect(emailInput?.value).toBe("user@example.com");
   });
 
   it("shows error from actionData", () => {
-    render(
-      <ResetPassword
-        loaderData={loaderData}
-        actionData={{ error: "Passwords do not match", email: "user@example.com" }}
-        as
-        any
-      />
-    );
+    // biome-ignore lint/suspicious/noExplicitAny: test props need dynamic shape
+    const errorProps = { loaderData, actionData: { error: "Passwords do not match", email: "user@example.com" } } as any;
+    render(<ResetPassword {...errorProps} />);
     expect(screen.getByText("Passwords do not match")).toBeInTheDocument();
   });
 
   it("shows Resetting… and disables button while submitting", () => {
     mockNavState = "submitting";
-    render(<ResetPassword loaderData={loaderData} actionData={undefined} as any />);
+    render(<ResetPassword {...baseProps} />);
     expect(screen.getByText("Resetting…")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Resetting…" })).toBeDisabled();
   });
