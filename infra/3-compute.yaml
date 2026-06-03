@@ -30,10 +30,11 @@ Parameters:
 
   OtelCollectorVersion:
     Type: String
-    Default: "0.115.0"
+    Default: "0.153.0"
     Description: >
       OTel Collector Contrib version to install (x86_64 RPM).
       Check github.com/open-telemetry/opentelemetry-collector-releases/releases for latest.
+      NOTE: otelcol-contrib RPM was not available before v0.120.0; always verify the asset exists.
 
 Resources:
 
@@ -176,34 +177,32 @@ Resources:
             -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
 
           # ── OTel Collector Contrib ────────────────────────────────────────────
-          # Handles: app logs (filelog → CloudWatch) + app metrics (OTLP → Prometheus endpoint).
-          # app/out.log and app/error.log are owned by this collector; CW agent no longer tails them.
-          # Prometheus scrapes :8889/metrics — open that port in the EC2 SG if Prometheus is external.
-          wget -q "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OtelCollectorVersion}/otelcol-contrib_${OtelCollectorVersion}_linux_amd64.rpm" \
-            -O /tmp/otelcol-contrib.rpm
+          # Handles: app logs (filelog → CloudWatch Logs /app/ec2/application).
+          # NOTE: otelcol-contrib RPM was first available from ~v0.120.0.
+          #       Use curl (not wget) — wget silently fails on GitHub 302 redirects.
+          curl -fSL \
+            "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OtelCollectorVersion}/otelcol-contrib_${OtelCollectorVersion}_linux_amd64.rpm" \
+            -o /tmp/otelcol-contrib.rpm
           rpm -ivh /tmp/otelcol-contrib.rpm
           rm -f /tmp/otelcol-contrib.rpm
 
           cat > /etc/otelcol-contrib/config.yaml << 'OTELCFG'
           receivers:
-            filelog:
+            file_log:
               include:
                 - /var/log/api-portal/out.log
                 - /var/log/api-portal/error.log
               start_at: end
               operators:
                 - type: json_parser
-                  timestamp:
-                    parse_from: attributes.time
-                    layout_type: gotime
-                    layout: "2006-01-02T15:04:05.999Z07:00"
-
-            otlp:
-              protocols:
-                grpc:
-                  endpoint: localhost:4317
+                  if: 'body matches "^\\{"'
 
           processors:
+            filter:
+              error_mode: ignore
+              logs:
+                log_record:
+                  - 'attributes["msg"] == nil'
             batch:
               timeout: 5s
 
@@ -213,19 +212,12 @@ Resources:
               log_stream_name: portal
               region: ${AWS::Region}
 
-            prometheus:
-              endpoint: "0.0.0.0:8889"
-
           service:
             pipelines:
               logs:
-                receivers: [filelog]
-                processors: [batch]
+                receivers: [file_log]
+                processors: [filter, batch]
                 exporters: [awscloudwatchlogs]
-              metrics:
-                receivers: [otlp]
-                processors: [batch]
-                exporters: [prometheus]
           OTELCFG
 
           systemctl enable otelcol-contrib
