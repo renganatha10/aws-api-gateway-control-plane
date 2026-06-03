@@ -24,6 +24,7 @@ DATABASE_STACK="api-portal-${ENV}-database"
 STORAGE_STACK="api-portal-${ENV}-storage"
 VPC_STACK="api-portal-${ENV}-vpc"
 COGNITO_STACK="api-portal-cognito"
+MONITORING_STACK="api-portal-${ENV}-monitoring"
 
 TMPDIR_LOCAL=$(mktemp -d)
 trap 'rm -rf "$TMPDIR_LOCAL"' EXIT
@@ -333,9 +334,14 @@ delete_stack "$STORAGE_STACK"
 remove_bucket_if_lingers "$ASSETS_BUCKET"
 remove_bucket_if_lingers "$ARTIFACT_BUCKET"
 
-# Step 5 — VPC (Compute + Database now gone)
+# Step 5a — Monitoring (must go before VPC — references VPC SG exports)
 log ""
-log "── Step 5: VPC ─────────────────────────────────────────────"
+log "── Step 5a: Monitoring ──────────────────────────────────────"
+delete_stack "$MONITORING_STACK"
+
+# Step 5b — VPC (Compute + Database + Monitoring now gone)
+log ""
+log "── Step 5b: VPC ─────────────────────────────────────────────"
 delete_stack "$VPC_STACK"
 
 # Step 6 — Cognito (force-delete UserPool + domain first)

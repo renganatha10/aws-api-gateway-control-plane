@@ -188,6 +188,10 @@ Resources:
 
           cat > /etc/otelcol-contrib/config.yaml << 'OTELCFG'
           receivers:
+            otlp:
+              protocols:
+                grpc:
+                  endpoint: 0.0.0.0:4317
             file_log:
               include:
                 - /var/log/api-portal/out.log
@@ -211,9 +215,14 @@ Resources:
               log_group_name: /app/ec2/application
               log_stream_name: portal
               region: ${AWS::Region}
+            prometheus:
+              endpoint: 0.0.0.0:9464
 
           service:
             pipelines:
+              metrics:
+                receivers: [otlp]
+                exporters: [prometheus]
               logs:
                 receivers: [file_log]
                 processors: [filter, batch]

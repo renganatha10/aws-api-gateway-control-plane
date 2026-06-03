@@ -1,0 +1,269 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Monitoring EC2 (t3.small, public subnet) running Prometheus and Grafana.
+  Prometheus uses EC2 service discovery to scrape the OTel Collector
+  Prometheus endpoint (port 9464) on the app server.
+  Grafana is auto-provisioned with Prometheus as its default data source.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: prod
+    AllowedValues: [prod, staging]
+
+  AmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+
+  PrometheusVersion:
+    Type: String
+    Default: "2.53.4"
+    Description: >
+      Prometheus release version to install (x86_64 tarball from GitHub releases).
+      Check github.com/prometheus/prometheus/releases for latest.
+
+Resources:
+
+  # ── Security group for monitoring EC2 ─────────────────────────────────────
+  SGMonitoring:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Monitoring EC2 — Prometheus (9090) and Grafana (3000) public access
+      VpcId:
+        Fn::ImportValue: !Sub "api-portal-${EnvironmentName}-vpc-id"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 9090
+          ToPort: 9090
+          CidrIp: "0.0.0.0/0"
+          Description: Prometheus UI
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          CidrIp: "0.0.0.0/0"
+          Description: Grafana UI
+      Tags:
+        - Key: Name
+          Value: !Sub "api-portal-${EnvironmentName}-sg-monitoring"
+
+  # Punch a hole in the app EC2's SG so Prometheus can scrape port 9464
+  SGEc2AllowOtelScrape:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId:
+        Fn::ImportValue: !Sub "api-portal-${EnvironmentName}-sg-ec2"
+      IpProtocol: tcp
+      FromPort: 9464
+      ToPort: 9464
+      SourceSecurityGroupId: !Ref SGMonitoring
+      Description: Prometheus scrape of OTel Collector metrics from monitoring EC2
+
+  # ── IAM ───────────────────────────────────────────────────────────────────
+  MonitoringRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "api-portal-${EnvironmentName}-monitoring-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: MonitoringPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # Prometheus EC2 service discovery
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeInstances
+                  - ec2:DescribeAvailabilityZones
+                Resource: "*"
+              # Read Grafana admin password from SSM at boot
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource:
+                  !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/api-portal/${EnvironmentName}/grafana-admin-password"
+
+  MonitoringInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref MonitoringRole]
+
+  # ── Elastic IP (stable public address) ────────────────────────────────────
+  MonitoringEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub "api-portal-${EnvironmentName}-monitoring-eip"
+
+  MonitoringEIPAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      InstanceId: !Ref MonitoringInstance
+      EIP: !Ref MonitoringEIP
+
+  # ── EC2 Instance ──────────────────────────────────────────────────────────
+  MonitoringInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: t3.small
+      IamInstanceProfile: !Ref MonitoringInstanceProfile
+      SubnetId:
+        Fn::ImportValue: !Sub "api-portal-${EnvironmentName}-public-subnet-a"
+      SecurityGroupIds:
+        - !Ref SGMonitoring
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 20
+            VolumeType: gp3
+            Encrypted: true
+            DeleteOnTermination: true
+      Tags:
+        - Key: Name
+          Value: !Sub "api-portal-${EnvironmentName}-monitoring"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euo pipefail
+          exec > >(tee /var/log/userdata-monitoring.log) 2>&1
+
+          echo "=== Monitoring EC2 bootstrap ==="
+          dnf update -y
+
+          # ── Prometheus ────────────────────────────────────────────────────
+          curl -fsSL \
+            "https://github.com/prometheus/prometheus/releases/download/v${PrometheusVersion}/prometheus-${PrometheusVersion}.linux-amd64.tar.gz" \
+            -o /tmp/prometheus.tar.gz
+          tar xzf /tmp/prometheus.tar.gz -C /tmp
+          install -m 0755 /tmp/prometheus-${PrometheusVersion}.linux-amd64/prometheus /usr/local/bin/prometheus
+          install -m 0755 /tmp/prometheus-${PrometheusVersion}.linux-amd64/promtool   /usr/local/bin/promtool
+          rm -rf /tmp/prometheus.tar.gz "/tmp/prometheus-${PrometheusVersion}.linux-amd64"
+
+          useradd --system --no-create-home --shell /sbin/nologin prometheus || true
+          mkdir -p /etc/prometheus /var/lib/prometheus
+          chown -R prometheus:prometheus /etc/prometheus /var/lib/prometheus
+
+          # prometheus.yml — EC2 SD discovers the app server by its Name tag
+          # ${AWS::Region} and ${EnvironmentName} are substituted by CloudFormation
+          cat > /etc/prometheus/prometheus.yml << 'PROMCFG'
+          global:
+            scrape_interval: 60s
+            evaluation_interval: 60s
+
+          scrape_configs:
+            - job_name: prometheus
+              static_configs:
+                - targets: ['localhost:9090']
+
+            - job_name: app-otel-metrics
+              ec2_sd_configs:
+                - region: ${AWS::Region}
+                  port: 9464
+                  filters:
+                    - name: 'tag:Name'
+                      values: ['api-portal-${EnvironmentName}-ec2']
+                    - name: 'instance-state-name'
+                      values: ['running']
+              relabel_configs:
+                - source_labels: [__meta_ec2_tag_Name]
+                  target_label: instance
+                - source_labels: [__meta_ec2_private_ip]
+                  target_label: host
+          PROMCFG
+
+          cat > /etc/systemd/system/prometheus.service << 'PROMSVC'
+          [Unit]
+          Description=Prometheus
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          User=prometheus
+          Group=prometheus
+          Type=simple
+          Restart=on-failure
+          ExecStart=/usr/local/bin/prometheus \
+            --config.file=/etc/prometheus/prometheus.yml \
+            --storage.tsdb.path=/var/lib/prometheus \
+            --storage.tsdb.retention.time=15d \
+            --web.listen-address=0.0.0.0:9090
+
+          [Install]
+          WantedBy=multi-user.target
+          PROMSVC
+
+          systemctl daemon-reload
+          systemctl enable prometheus
+          systemctl start prometheus
+
+          # ── Grafana ───────────────────────────────────────────────────────
+          cat > /etc/yum.repos.d/grafana.repo << 'GRAFANAREPO'
+          [grafana]
+          name=Grafana
+          baseurl=https://rpm.grafana.com
+          repo_gpgcheck=1
+          enabled=1
+          gpgcheck=1
+          gpgkey=https://rpm.grafana.com/gpg.key
+          GRAFANAREPO
+
+          dnf install -y grafana
+
+          # Pull admin password from SSM (stored by deploy.sh before this stack runs)
+          GRAFANA_PASSWORD=$(aws ssm get-parameter \
+            --name "/api-portal/${EnvironmentName}/grafana-admin-password" \
+            --with-decryption --query 'Parameter.Value' --output text \
+            --region "${AWS::Region}")
+
+          # Inject password via systemd drop-in so Grafana sees it on first start
+          mkdir -p /etc/systemd/system/grafana-server.service.d
+          cat > /etc/systemd/system/grafana-server.service.d/password.conf << EOF
+          [Service]
+          Environment=GF_SECURITY_ADMIN_PASSWORD=${!GRAFANA_PASSWORD}
+          EOF
+
+          # Auto-provision Prometheus as default data source
+          mkdir -p /etc/grafana/provisioning/datasources
+          cat > /etc/grafana/provisioning/datasources/prometheus.yaml << 'GFDS'
+          apiVersion: 1
+          datasources:
+            - name: Prometheus
+              type: prometheus
+              uid: prometheus
+              url: http://localhost:9090
+              isDefault: true
+              editable: false
+          GFDS
+
+          systemctl daemon-reload
+          systemctl enable grafana-server
+          systemctl start grafana-server
+
+          echo "=== Monitoring EC2 bootstrap complete ==="
+
+Outputs:
+  MonitoringInstanceId:
+    Value: !Ref MonitoringInstance
+
+  PublicIp:
+    Value: !Ref MonitoringEIP
+    Description: Stable public IP of the monitoring EC2
+
+  GrafanaUrl:
+    Value: !Sub "http://${MonitoringEIP}:3000"
+    Description: Grafana — log in as admin (password in SSM /api-portal/${EnvironmentName}/grafana-admin-password)
+
+  PrometheusUrl:
+    Value: !Sub "http://${MonitoringEIP}:9090"
+    Description: Prometheus UI

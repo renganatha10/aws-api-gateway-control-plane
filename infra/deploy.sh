@@ -270,6 +270,37 @@ else
   log "    ALB_HEALTH_URL             = http://$ALB_DNS/health"
 fi
 
+# ── Step 11: Monitoring (Prometheus + Grafana) ────────────────────────────────
+log ""
+log "── Step 11: Monitoring ──────────────────────────────────────"
+MONITORING_STACK="api-portal-${ENV}-monitoring"
+SSM_GRAFANA_PARAM="/api-portal/${ENV}/grafana-admin-password"
+if aws ssm get-parameter --name "$SSM_GRAFANA_PARAM" --region "$REGION" >/dev/null 2>&1; then
+  log "  $SSM_GRAFANA_PARAM — already exists, reusing"
+else
+  GRAFANA_PASSWORD=$(openssl rand -base64 16 | tr -d '/+=')
+  aws ssm put-parameter \
+    --name "$SSM_GRAFANA_PARAM" \
+    --type SecureString \
+    --value "$GRAFANA_PASSWORD" \
+    --region "$REGION" >/dev/null
+  log "  $SSM_GRAFANA_PARAM — stored"
+fi
+deploy_stack "$MONITORING_STACK" \
+  --template-file "$SCRIPT_DIR/5-monitoring.yaml" \
+  --parameter-overrides EnvironmentName="$ENV" \
+  --region "$REGION" \
+  --capabilities CAPABILITY_NAMED_IAM
+GRAFANA_URL=$(get_output "$MONITORING_STACK" GrafanaUrl)
+PROMETHEUS_URL=$(get_output "$MONITORING_STACK" PrometheusUrl)
+log "  Grafana:    $GRAFANA_URL  (user: admin)"
+log "  Prometheus: $PROMETHEUS_URL"
+log "  Grafana password: aws ssm get-parameter --name $SSM_GRAFANA_PARAM --with-decryption --query Parameter.Value --output text"
+log ""
+log "  NOTE: The OTel Collector config on the app EC2 has been updated in the"
+log "  CloudFormation template. If the app EC2 is already running, apply the"
+log "  new config via SSM Run Command or redeploy the compute stack."
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 log ""
 log "═══ Deployment complete: env=$ENV region=$REGION ═══"
