@@ -205,6 +205,26 @@ delete_cognito_resources() {
         --domain "$domain" \
         --user-pool-id "$pool" \
         --region "$REGION" >/dev/null 2>&1 || log "  Cognito domain $domain — delete failed (may already be gone)"
+
+      # Domain deletion is async; poll until it's gone (up to ~60 s) before
+      # attempting DeleteUserPool — which rejects if a domain still exists.
+      log "  Cognito domain $domain — waiting for removal"
+      local attempts=0
+      while [ $attempts -lt 30 ]; do
+        local current_domain
+        current_domain=$(aws cognito-idp describe-user-pool \
+          --user-pool-id "$pool" --region "$REGION" \
+          --query 'UserPool.Domain' --output text 2>/dev/null || echo "")
+        if [ -z "$current_domain" ] || [ "$current_domain" = "None" ]; then
+          log "  Cognito domain $domain — removed"
+          break
+        fi
+        attempts=$((attempts + 1))
+        sleep 2
+      done
+      if [ $attempts -ge 30 ]; then
+        log "  WARNING: Cognito domain $domain may still exist after 60 s — proceeding anyway"
+      fi
     fi
 
     log "  Cognito UserPool $pool — deleting"
