@@ -36,6 +36,8 @@ export async function action({ request }: Route.ActionArgs) {
       return createUserSession({
         request,
         accessToken: result.access_token,
+        refreshToken: result.refresh_token,
+        username: email,
         userId: extractUserId(result.access_token),
         redirectTo: "/",
       });
@@ -53,6 +55,8 @@ export async function action({ request }: Route.ActionArgs) {
       return createUserSession({
         request,
         accessToken: result.access_token,
+        refreshToken: result.refresh_token,
+        username: email,
         userId: extractUserId(result.access_token),
         redirectTo: "/",
       });

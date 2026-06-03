@@ -12,6 +12,7 @@ import {
   type RespondToAuthChallengeCommandOutput,
 } from "@aws-sdk/client-cognito-identity-provider";
 
+
 const client = new CognitoIdentityProviderClient({
   region: process.env.AWS_REGION,
 });
@@ -219,6 +220,39 @@ export async function registerUser(params: {
   }
 }
 
+/**
+ * Exchange a refresh token for a new IdToken.
+ * Returns only the new access token — Cognito never issues a new refresh token
+ * for the REFRESH_TOKEN_AUTH flow, so the caller keeps the original one.
+ */
+export async function refreshCognitoToken(
+  username: string,
+  refreshToken: string
+): Promise<{ access_token: string; expires_in: number; token_type: string }> {
+  try {
+    const res = await client.send(
+      new InitiateAuthCommand({
+        AuthFlow: "REFRESH_TOKEN_AUTH",
+        ClientId: CLIENT_ID,
+        AuthParameters: {
+          REFRESH_TOKEN: refreshToken,
+          SECRET_HASH: secretHash(username),
+        },
+      })
+    );
+    const auth = res.AuthenticationResult;
+    if (!auth?.IdToken) throw new Error("No IdToken in refresh response");
+    return {
+      access_token: auth.IdToken,
+      expires_in: auth.ExpiresIn ?? 3600,
+      token_type: auth.TokenType ?? "Bearer",
+    };
+  } catch (err) {
+    console.error("[cognito] token refresh failed", { username, error: String(err) });
+    throw err;
+  }
+}
+
 /** Extract the user ID from the Cognito ID token (JWT sub claim) */
 export function extractUserId(accessToken: string): string {
   return decodeTokenPayload(accessToken)?.sub ?? "";
@@ -293,7 +327,7 @@ export async function confirmPasswordReset(
   }
 }
 
-function decodeTokenPayload(token: string): Record<string, string> | null {
+export function decodeTokenPayload(token: string): Record<string, string> | null {
   try {
     return JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString()) as Record<
       string,

@@ -34,6 +34,8 @@ export async function action({ request }: Route.ActionArgs) {
     return createUserSession({
       request,
       accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+      username: challenge.email,
       userId: extractUserId(tokens.access_token),
       redirectTo: "/",
     });

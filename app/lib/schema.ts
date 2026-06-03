@@ -9,6 +9,12 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
+export const sessions = pgTable("sessions", {
+  id: text("id").primaryKey(),
+  data: jsonb("data").notNull().default({}),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
 export type OrgRole = "admin" | "editor" | "viewer" | "portal-user";
 
 export const organisations = pgTable("organisations", {

@@ -29,6 +29,7 @@
     "@opentelemetry/sdk-node": "^0.218.0",
     "@react-router/node": "7.12.0",
     "@react-router/serve": "7.12.0",
+    "aws-jwt-verify": "^5.1.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dotenv": "^16.6.1",
