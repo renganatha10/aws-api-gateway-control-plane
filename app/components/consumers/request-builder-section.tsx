@@ -77,21 +77,17 @@ export function RequestBuilderSection({
       setPathParams({});
       return;
     }
-    setPathParams(
-      Object.fromEntries(currentEndpoint.pathParams.map((p) => [p, pathParams[p] ?? ""]))
+    setPathParams((prev) =>
+      Object.fromEntries(currentEndpoint.pathParams.map((p) => [p, prev[p] ?? ""]))
     );
-    if (currentEndpoint.queryParams.length > 0 && queryRows.length === 0) {
-      setQueryRows(currentEndpoint.queryParams.map((q) => ({ key: q.name, value: "" })));
+    if (currentEndpoint.queryParams.length > 0) {
+      setQueryRows((prev) =>
+        prev.length === 0
+          ? currentEndpoint.queryParams.map((q) => ({ key: q.name, value: "" }))
+          : prev
+      );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    pathParams,
-    currentEndpoint?.pathParams.map,
-    currentEndpoint?.queryParams.map,
-    queryRows.length,
-    currentEndpoint?.queryParams.length,
-    currentEndpoint,
-  ]);
+  }, [currentEndpoint]);
 
   function buildRequestUrl(): string {
     if (!invokeUrl || !currentEndpoint) return "";
