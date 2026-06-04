@@ -1,0 +1,60 @@
+# Prometheus metrics snapshot — app EC2 port 9464
+# Captured: 2026-06-04 from monitoring EC2 scraping http://10.0.10.224:9464/metrics
+# Source: @opentelemetry/auto-instrumentations-node
+
+# ── HTTP Server (inbound) ──────────────────────────────────────────────────────
+# HELP http_server_duration_milliseconds Measures the duration of inbound HTTP requests.
+# TYPE http_server_duration_milliseconds histogram
+# Labels: http_flavor, http_method, http_route, http_scheme, http_status_code,
+#         net_host_name, net_host_port
+# Note: http_route is populated as "*" (catch-all) for most React Router SSR routes
+
+# ── HTTP Client (outbound) ─────────────────────────────────────────────────────
+# HELP http_client_duration_milliseconds Measures the duration of outbound HTTP requests.
+# TYPE http_client_duration_milliseconds histogram
+# Labels: http_flavor, http_method, http_status_code, net_peer_name, net_peer_port
+# Observed peers: localhost (Cognito token endpoint), apigateway.ap-south-1.amazonaws.com
+
+# HELP http_client_request_duration_seconds Measures the duration of outbound HTTP requests.
+# TYPE http_client_request_duration_seconds histogram
+# (newer OTEL semantic convention duplicate of above, in seconds)
+
+# ── Database (PostgreSQL via pg instrumentation) ───────────────────────────────
+# HELP db_client_connection_count The number of connections that are currently in state described by the state attribute.
+# TYPE db_client_connection_count gauge
+# Labels: db_client_connection_pool_name, db_client_connection_state (idle|used)
+
+# HELP db_client_connection_pending_requests The number of current pending requests for an open connection.
+# TYPE db_client_connection_pending_requests gauge
+# Labels: db_client_connection_pool_name
+
+# HELP db_client_operation_duration_seconds Duration of database client operations.
+# TYPE db_client_operation_duration_seconds histogram
+# Labels: db_namespace, db_operation_name (SELECT|INSERT|UPDATE|DELETE|BEGIN|COMMIT),
+#         db_system (postgresql), server_address, server_port
+
+# ── Node.js Event Loop (runtime-node instrumentation) ─────────────────────────
+# HELP nodejs_eventloop_delay_max_seconds Event loop maximum delay.
+# HELP nodejs_eventloop_delay_mean_seconds Event loop mean delay.
+# HELP nodejs_eventloop_delay_min_seconds Event loop minimum delay.
+# HELP nodejs_eventloop_delay_p50_seconds Event loop 50 percentile delay.
+# HELP nodejs_eventloop_delay_p90_seconds Event loop 90 percentile delay.
+# HELP nodejs_eventloop_delay_p99_seconds Event loop 99 percentile delay.
+# HELP nodejs_eventloop_delay_stddev_seconds Event loop standard deviation delay.
+# HELP nodejs_eventloop_time_seconds_total Cumulative duration of time the event loop has been in each state.
+# HELP nodejs_eventloop_utilization_ratio Event loop utilization
+# TYPE all above: gauge (no extra labels beyond job/scope)
+
+# ── V8 Heap (runtime-node instrumentation) ────────────────────────────────────
+# HELP v8js_gc_duration_seconds Garbage collection duration by kind, one of major, minor, incremental or weakcb.
+# TYPE v8js_gc_duration_seconds histogram
+
+# HELP v8js_memory_heap_limit_bytes Maximum heap size allowed by the V8 engine.
+# HELP v8js_memory_heap_space_available_size_bytes Heap space available size.
+# HELP v8js_memory_heap_space_physical_size_bytes Committed size of a heap space.
+# HELP v8js_memory_heap_space_size_bytes Total heap memory size pre-allocated for a heap space.
+# HELP v8js_memory_heap_used_bytes Heap Memory size allocated.
+# TYPE all above: gauge
+# Labels: v8js_heap_space_name (old_space, new_space, code_space, large_object_space,
+#         code_large_object_space, new_large_object_space, trusted_space,
+#         trusted_large_object_space, shared_space, shared_large_object_space, read_only_space)
