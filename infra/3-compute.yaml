@@ -230,7 +230,7 @@ Resources:
           OTELCFG
 
           systemctl enable otelcol-contrib
-          systemctl start otelcol-contrib
+          systemctl restart otelcol-contrib
 
           echo "=== UserData: bootstrap complete ==="
 
