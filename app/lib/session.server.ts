@@ -1,13 +1,12 @@
-import { createSessionStorage, redirect } from "react-router";
+import { randomUUID } from "node:crypto";
 import { CognitoJwtVerifier } from "aws-jwt-verify";
 import { JwtExpiredError } from "aws-jwt-verify/error";
 import { eq, lt } from "drizzle-orm";
-import { randomUUID } from "node:crypto";
-
-import { db } from "~/lib/db.server";
+import { createSessionStorage, redirect } from "react-router";
 import { decodeTokenPayload, refreshCognitoToken } from "~/lib/cognito.server";
-import { sessions } from "~/lib/schema";
+import { db } from "~/lib/db.server";
 import type { OrgRole } from "~/lib/schema";
+import { sessions } from "~/lib/schema";
 
 const SESSION_TTL_SECONDS = 60 * 60 * 8; // 8 hours
 
@@ -32,7 +31,9 @@ const sessionStorage = createSessionStorage({
     const expiresAt = expires ?? new Date(Date.now() + SESSION_TTL_SECONDS * 1000);
     await db.insert(sessions).values({ id, data, expiresAt });
     // Purge expired sessions opportunistically — fire-and-forget
-    db.delete(sessions).where(lt(sessions.expiresAt, new Date())).catch(() => {});
+    db.delete(sessions)
+      .where(lt(sessions.expiresAt, new Date()))
+      .catch(() => {});
     return id;
   },
   async readData(id) {
@@ -58,10 +59,7 @@ const REFRESH_BUFFER_MS = 5 * 60 * 1000;
 type AppSession = Awaited<ReturnType<typeof getSession>>;
 
 /** Exchanges the stored refresh token for a new access token and redirects to the same URL. */
-async function doTokenRefreshRedirect(
-  session: AppSession,
-  requestUrl: string
-): Promise<never> {
+async function doTokenRefreshRedirect(session: AppSession, requestUrl: string): Promise<never> {
   const refreshToken = session.get("refreshToken") as string | undefined;
   const username = session.get("username") as string | undefined;
   if (!refreshToken || !username) throw new Error("no refresh credentials");

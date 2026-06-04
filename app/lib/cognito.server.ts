@@ -12,7 +12,6 @@ import {
   type RespondToAuthChallengeCommandOutput,
 } from "@aws-sdk/client-cognito-identity-provider";
 
-
 const client = new CognitoIdentityProviderClient({
   region: process.env.AWS_REGION,
 });

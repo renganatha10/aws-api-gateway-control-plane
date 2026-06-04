@@ -28,7 +28,7 @@ Resources:
   SGMonitoring:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Monitoring EC2 — Prometheus (9090) and Grafana (3000) public access
+      GroupDescription: Monitoring EC2 - Prometheus (9090) and Grafana (3000) public access
       VpcId:
         Fn::ImportValue: !Sub "api-portal-${EnvironmentName}-vpc-id"
       SecurityGroupIngress:
