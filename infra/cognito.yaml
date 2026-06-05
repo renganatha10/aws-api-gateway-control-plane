@@ -43,6 +43,30 @@ Parameters:
     MaxValue: 3650
     Description: Refresh token lifetime in days.
 
+  # Custom domain for the Cognito hosted UI (e.g. auth.rengaonline.in).
+  # When set, replaces the prefix domain (DomainPrefix is ignored).
+  # Requires AuthCertArn to also be set.
+  CustomDomain:
+    Type: String
+    Default: ""
+    Description: >
+      Custom domain name for the Cognito hosted UI (e.g. auth.rengaonline.in).
+      Leave empty to keep the default prefix domain (DomainPrefix.auth.region.amazoncognito.com).
+
+  # ACM certificate for the Cognito custom domain — MUST be in us-east-1.
+  # Created by infra/cert-manager.sh; ARN stored in SSM /api-portal/certs/auth.
+  AuthCertArn:
+    Type: String
+    Default: ""
+    Description: >
+      ACM certificate ARN for the Cognito custom domain (must be in us-east-1).
+      Required when CustomDomain is set.
+
+# ── Conditions ────────────────────────────────────────────────────────────────
+
+Conditions:
+  UseCustomDomain: !Not [!Equals [!Ref CustomDomain, ""]]
+
 # ── Resources ─────────────────────────────────────────────────────────────────
 
 Resources:
@@ -123,11 +147,24 @@ Resources:
   # machine-to-machine clients (consumer client_credentials flow).
   # Token URL:  https://<DomainPrefix>.auth.<Region>.amazoncognito.com/oauth2/token
 
+  # When UseCustomDomain is true: Domain = auth.rengaonline.in + CustomDomainConfig (cert ARN).
+  # When false: Domain = the prefix (e.g. api-portal-123456789) — hosted UI default.
+  # Note: Cognito supports only one active domain at a time.
   UserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
+    # cfn-lint W1030: AuthCertArn defaults to "" but is only referenced when
+    # UseCustomDomain is true, at which point a valid ARN is always supplied.
+    Metadata:
+      cfn-lint:
+        config:
+          ignore_checks: [W1030]
     Properties:
-      Domain: !Ref DomainPrefix
+      Domain: !If [UseCustomDomain, !Ref CustomDomain, !Ref DomainPrefix]
       UserPoolId: !Ref UserPool
+      CustomDomainConfig: !If
+        - UseCustomDomain
+        - CertificateArn: !Ref AuthCertArn
+        - !Ref AWS::NoValue
 
   # ── Portal App Client ──────────────────────────────────────────────────────
   #
@@ -223,12 +260,28 @@ Outputs:
     Description: >
       OAuth2 token endpoint — stored on each consumer record as token_url.
       Machine clients call this with client_credentials grant.
-    Value: !Sub "https://${DomainPrefix}.auth.${AWS::Region}.amazoncognito.com/oauth2/token"
+    Value: !If
+      - UseCustomDomain
+      - !Sub "https://${CustomDomain}/oauth2/token"
+      - !Sub "https://${DomainPrefix}.auth.${AWS::Region}.amazoncognito.com/oauth2/token"
     Export:
       Name: !Sub "${AWS::StackName}-TokenUrl"
 
   HostedUiBaseUrl:
     Description: Cognito hosted UI base URL (for reference)
-    Value: !Sub "https://${DomainPrefix}.auth.${AWS::Region}.amazoncognito.com"
+    Value: !If
+      - UseCustomDomain
+      - !Sub "https://${CustomDomain}"
+      - !Sub "https://${DomainPrefix}.auth.${AWS::Region}.amazoncognito.com"
     Export:
       Name: !Sub "${AWS::StackName}-HostedUiBaseUrl"
+
+  CognitoCloudFrontDomain:
+    Description: >
+      CloudFront distribution domain created by Cognito for the custom domain.
+      Add a CNAME record in GoDaddy: auth.rengaonline.in → this value.
+      Only present when UseCustomDomain is true.
+    Condition: UseCustomDomain
+    Value: !GetAtt UserPoolDomain.CloudFrontDistribution
+    Export:
+      Name: !Sub "${AWS::StackName}-CognitoCloudFrontDomain"

@@ -1,320 +1,268 @@
-# AWS Hosting Plan: EC2 + S3/CloudFront + WAF + Serverless DB
+# Deployment Guide — API Gateway Portal
 
----
-
-## Architecture Overview
+## Architecture
 
 ```
-Internet
+Browser
   │
-  ▼
-Route 53 (DNS)
+  ├──► https://api-manager.rengaonline.in  (GoDaddy CNAME → ALB)
+  │         │
+  │         └──► ALB (HTTPS 443, ACM cert, ap-south-1)
+  │                   │  HTTP 301 redirect on port 80
+  │                   └──► EC2 :3000 (SSR, private subnet)
+  │                              │
+  │                              ├──► Aurora PostgreSQL (private subnet)
+  │                              ├──► AWS API Gateway (managed APIs)
+  │                              └──► AWS Cognito (auth)
   │
-  ▼
-AWS WAF  ──────────────────────────────┐
-  │                                    │
-  ├──► CloudFront (CDN)                │
-  │         │                          │
-  │         ├──► S3 (static assets)    │
-  │         └──► EC2 (API/SSR origin)  │
-  │                   │                │
-  │                   ├──► Aurora Serverless v2 (RDS)
-  │                   └──► CloudWatch Logs
-  │
-  └── (WAF also attached to CloudFront and optionally ALB)
+  └──► https://static.rengaonline.in  (GoDaddy CNAME → CloudFront)
+            │
+            └──► CloudFront (ACM cert us-east-1, S3 assets only)
+                      └──► S3 assets bucket (OAC, private)
+
+Supporting:
+  https://auth.rengaonline.in     → Cognito hosted UI (custom domain, us-east-1 cert)
+  https://metrics.rengaonline.in  → Monitoring ALB → Grafana EC2 :3000
+  http://<eip>:9090               → Prometheus (direct, monitoring EC2)
 ```
 
----
-
-## Phase 1: CloudFormation Template (One-Time Setup)
-
-Run once to provision all infrastructure. Split into logical stacks or one nested stack.
-
-### Stack 1 — Networking (VPC)
-
-- **VPC** with public and private subnets across 2 AZs
-- **Internet Gateway** for public subnet
-- **NAT Gateway** in public subnet (EC2 in private subnet needs outbound for npm installs, AWS SDK calls)
-- **Security Groups**:
-  - `sg-alb` — allows 80/443 from internet (or CloudFront IP prefix list only)
-  - `sg-ec2` — allows 3000 (app port) from `sg-alb` only
-  - `sg-db` — allows 5432 from `sg-ec2` only
-- **Route tables** for public and private subnets
-
-### Stack 2 — Database (Aurora Serverless v2)
-
-- **Aurora Serverless v2 cluster** (PostgreSQL-compatible)
-  - Min ACU: 0.5, Max ACU: 4 (tune based on load)
-  - Placed in **private subnets** — no public access
-  - **DB subnet group** spanning both private subnets
-  - Master credentials stored in **AWS Secrets Manager** (auto-rotation optional)
-  - Enable **Performance Insights** for query monitoring
-  - Enable **Enhanced Monitoring** (60s interval)
-- **CloudWatch log exports**: `postgresql` logs exported to log group `/aws/rds/cluster/<name>/postgresql`
-- **Parameter group**: set `log_min_duration_statement = 1000` to capture slow queries
-
-### Stack 3 — Compute (EC2 + ALB)
-
-- **Application Load Balancer (ALB)**
-  - Public subnets, `sg-alb`
-  - HTTPS listener (443) with ACM certificate
-  - HTTP listener (80) → redirect to HTTPS
-  - Target group pointing to EC2, health check on `/health` (add this endpoint to your app)
-- **EC2 instance** (t3.medium or t3.small to start)
-  - Private subnet, `sg-ec2`
-  - Amazon Linux 2023 AMI
-  - **IAM Instance Profile** with permissions:
-    - `ssm:*` — for AWS Systems Manager (no SSH needed)
-    - `secretsmanager:GetSecretValue` — to read DB credentials
-    - `s3:GetObject` — if app reads assets
-    - `logs:CreateLogStream`, `logs:PutLogEvents` — for CloudWatch agent
-    - `cloudwatch:PutMetricData`
-  - **CloudWatch Agent** installed via UserData (bootstrap only — Ansible handles app)
-  - **SSM Session Manager** enabled — no bastion host, no SSH key management
-- **Auto Scaling Group** (optional but recommended): min 1, max 2, scale on CPU > 70%
-
-### Stack 4 — Static Assets (S3 + CloudFront)
-
-- **S3 bucket** (private — no public access)
-  - Versioning enabled
-  - Lifecycle rule: expire old versions after 30 days
-  - Server-side encryption (SSE-S3 or SSE-KMS)
-- **Origin Access Control (OAC)** — CloudFront-only access to S3 (replaces legacy OAI)
-- **CloudFront distribution**
-  - **Origin 1 (S3)**: path pattern `/assets/*`, `/favicon.ico`, `/_build/*`
-  - **Origin 2 (ALB)**: default (`/*`) — all SSR/API traffic
-  - **Cache behaviors**:
-    - S3 origin: long TTL (1 year) with cache-busting via hashed filenames
-    - ALB origin: short TTL or no cache (SSR pages) — forward cookies/auth headers
-  - **HTTPS only**, TLS 1.2+, custom domain + ACM certificate (must be in `ap-south-1` for CloudFront)
-  - **Compress objects automatically**: yes
-  - **Price class**: PriceClass_100 (US/EU) or All to start
-
-### Stack 5 — WAF
-
-- **WebACL** attached to **CloudFront** (must be in `ap-south-1`)
-  - All rules below apply at the edge, before traffic hits your origin
-- See WAF rules section below
-
-### Stack 6 — Observability (CloudWatch)
-
-- **Log Groups** (all created by CloudFormation with retention policies):
-
-| Log Group | Source | Retention |
-|---|---|---|
-| `/app/ec2/application` | App logs via CloudWatch agent | 30 days |
-| `/app/ec2/system` | System logs (syslog, messages) | 14 days |
-| `/app/alb/access` | ALB access logs (via S3 → subscription) | 90 days |
-| `/aws/rds/cluster/<name>/postgresql` | Aurora slow query logs | 30 days |
-| `/aws/waf/webacl` | WAF sampled requests | 90 days |
-
-- **CloudWatch Agent config** on EC2 (deployed by Ansible):
-  - Tail your app's stdout/stderr and write to `/app/ec2/application`
-  - Collect memory and disk metrics (not native EC2 metrics)
-- **Metric Alarms**:
-  - CPU > 80% for 5 minutes → SNS email
-  - ALB 5xx rate > 1% → SNS email
-  - Aurora CPU > 70% → SNS email
-- **CloudWatch Dashboard**: CPU, memory, request count, DB connections, WAF blocked requests
+**Key principle:** CloudFront serves *only* content-hashed static assets from S3. All SSR and API traffic hits the ALB directly. Vite bakes `https://static.rengaonline.in/` as the asset base URL at build time, so the browser fetches JS/CSS from CloudFront regardless of how it reached the app.
 
 ---
 
-## Phase 2: WAF Rules and Use Cases
+## CloudFormation Stacks
 
-Attach the WebACL to CloudFront. Rules are evaluated in priority order (lower number = higher priority).
+All stacks live in `infra/` and are deployed by `infra/deploy.sh`.
 
-### Rule Set
-
-| Priority | Rule | Action | Use Case |
+| # | File | Stack name | What it provisions |
 |---|---|---|---|
-| 1 | **IP Reputation List** (AWS Managed) | Block | Blocks known malicious IPs (botnets, scanners, Tor exit nodes) — zero config |
-| 2 | **Core Rule Set (CRS)** (AWS Managed) | Block | OWASP Top 10: SQLi, XSS, command injection, path traversal, HTTP protocol violations |
-| 3 | **Known Bad Inputs** (AWS Managed) | Block | Log4Shell, Spring4Shell, SSRF patterns, common exploit payloads |
-| 4 | **Anonymous IP List** (AWS Managed) | Count → Block after tuning | VPNs, proxies, Tor — useful for API abuse; `Count` first to avoid blocking legitimate users |
-| 5 | **Rate limit — global** | Rate-based Block | 2000 requests / 5 minutes per IP across all paths — blunt DDoS protection |
-| 6 | **Rate limit — login endpoint** | Rate-based Block | 20 requests / 5 minutes per IP on `/login` — brute force protection |
-| 7 | **Rate limit — API paths** | Rate-based Block | 500 requests / 5 minutes per IP on `/api/*` — API abuse |
-| 8 | **Geo block** (optional) | Block | Block countries you don't serve — reduces noise from overseas scanners |
-| 9 | **Size restriction** | Block | Request body > 8KB blocked — prevents large payload attacks on your API |
+| 0 | `cognito.yaml` | `api-portal-cognito` | Cognito User Pool, hosted UI, portal app client, custom domain `auth.rengaonline.in` |
+| 1 | `1-vpc.yaml` | `api-portal-prod-vpc` | VPC, public/private subnets (2 AZs), NAT Gateway, security groups |
+| 2 | `2-database.yaml` | `api-portal-prod-database` | Aurora Serverless v2 PostgreSQL (private subnets) |
+| 3 | `4-storage.yaml` | `api-portal-prod-storage` | S3 (assets + artifacts), CloudFront S3-only distribution (`static.rengaonline.in`) |
+| 4 | `6-iam.yaml` | `api-portal-prod-iam` | IAM users for app and CI/CD, access keys |
+| 5 | `3-compute.yaml` | `api-portal-prod-compute` | EC2 (private subnet), ALB (HTTPS, `api-manager.rengaonline.in`), CloudWatch alarms |
+| 6 | `5-monitoring.yaml` | `api-portal-prod-monitoring` | Monitoring EC2 (Prometheus + Grafana), monitoring ALB (`metrics.rengaonline.in`) |
 
-### WAF Logging
+### Security groups
 
-- Enable WAF logging → **Kinesis Firehose** → S3 bucket → optional Athena queries
-- Or WAF logs → CloudWatch log group `/aws/waf/webacl` directly (simpler, higher cost at volume)
-- Set `log_scope: REDACTED` for sensitive headers (Authorization, Cookie) in logs
-
-### WAF Tuning Workflow
-
-1. Start rules in **Count mode** (not Block) for 1–2 weeks
-2. Review sampled requests in WAF console — identify false positives
-3. Add **IP set allow rules** or **rule exclusions** for legitimate traffic patterns
-4. Switch to **Block mode** once confident
-
----
-
-## Phase 3: GitHub Actions + Ansible Deployment (Recurring)
-
-Steps 1–4 (health check, code pull, install, build) run in the **GitHub Actions workflow**. Ansible takes over from step 5 — it only runs on the EC2 instance to configure and restart the already-built app.
-
-### GitHub Actions Workflow (runs first)
-
-```
-1. Pre-deploy checks
-   - curl ALB /health → assert HTTP 200 (confirm current app is up before touching anything)
-
-2. Build application
-   - npm ci
-   - npm run typecheck
-   - npm run build
-
-3. Upload artifact to S3
-   - aws s3 cp ./build s3://<artifact-bucket>/api-portal/<git-sha>/ --recursive
-
-4. Trigger Ansible via aws ssm send-command
-   - Passes git SHA so Ansible knows which artifact to pull
-```
-
-### Ansible Playbook Steps (runs on EC2 via SSM)
-
-```
-1. Download artifact from S3
-   - aws s3 cp s3://<artifact-bucket>/api-portal/<git-sha>/ ./build/ --recursive
-
-2. Environment config
-   - Pull secrets from Secrets Manager (aws secretsmanager get-secret-value)
-   - Write .env file — never stored in repo or Ansible vars
-
-3. Restart application
-   - systemctl restart myapp (PM2 or systemd unit)
-   - Wait for health check to pass (retry loop, 30s timeout)
-
-4. Post-deploy validation
-   - curl localhost:3000/health → assert HTTP 200
-   - Tail CloudWatch log group for 30s, fail playbook if ERROR lines appear
-```
-
-### Zero-Downtime Option
-
-- **With ASG**: launch new instance with new code, wait for health, drain old instance
-- **Without ASG (single EC2)**: use PM2 reload (in-process) for near-zero downtime on single instance
-
----
-
-## Phase 4: S3 Asset Update (Recurring)
-
-Three options depending on your build pipeline:
-
-### Option A — Local Build + AWS CLI Upload
-
-```bash
-# 1. Build
-npm run build  # produces hashed filenames: main.abc123.js
-
-# 2. Sync hashed assets (long cache — never need invalidation)
-aws s3 sync ./build/client s3://<bucket>/ \
-  --delete \
-  --cache-control "max-age=31536000,immutable" \
-  --exclude "*.html"
-
-# 3. Sync HTML separately (short cache — always revalidate)
-aws s3 sync ./build/client s3://<bucket>/ \
-  --include "*.html" \
-  --cache-control "no-cache,no-store"
-
-# 4. Invalidate only non-hashed files (HTML, manifest)
-aws cloudfront create-invalidation \
-  --distribution-id <id> \
-  --paths "/*.html" "/manifest.json"
-```
-
-**Key insight**: hashed JS/CSS never need invalidation (new hash = new URL). Only invalidate HTML and manifests.
-
-### Option B — CI/CD (GitHub Actions / CodePipeline)
-
-- Push to `main` → GitHub Action builds → uploads to S3 → CloudFront invalidation
-- EC2 deployment via Ansible triggered from the same pipeline (`aws ssm send-command`)
-- Keeps deployment atomic: assets and server code deploy together
-
-### Option C — S3 Versioning Rollback
-
-If a bad asset deploy goes out, restore previous version:
-
-```bash
-aws s3api list-object-versions --bucket <bucket> --prefix assets/main.js
-aws s3api copy-object ... --copy-source <bucket>/assets/main.js?versionId=<old-version-id>
-```
-
----
-
-## Phase 5: CloudFormation Update Strategy
-
-Never update prod CloudFormation stacks blindly. Three patterns:
-
-### Pattern A — Change Sets (Recommended for Infra Changes)
-
-1. `aws cloudformation create-change-set` — preview what will change
-2. Review in console: will anything be **replaced** (destructive) or just **modified**?
-3. `aws cloudformation execute-change-set` — apply
-4. Watch stack events in real time
-
-**Always use this for**: VPC changes, SG changes, DB changes, EC2 AMI updates.
-
-### Pattern B — Parameter Updates (Safe for Config Changes)
-
-For updating AMI IDs, instance types, or WAF rule thresholds:
-- Pass new `--parameter-overrides` without touching the template
-- Low risk, fast
-
-### Pattern C — Stack Drift Detection
-
-- Periodically run `aws cloudformation detect-stack-drift`
-- Finds manual console changes that diverge from your template
-- Fix drift by importing resources or updating the template — never leave drift unresolved
-
-### What NOT to Do
-
-- Never delete and recreate a stack containing the database
-- Never update an RDS cluster's engine version via CloudFormation without a manual snapshot first
-- Use `DeletionPolicy: Retain` on S3 buckets and RDS clusters in your template
-
----
-
-## Summary Checklist
-
-```
-CloudFormation (one-time)
-  ☐ VPC + subnets + SGs + NAT Gateway
-  ☐ Aurora Serverless v2 + Secrets Manager
-  ☐ EC2 + ALB + IAM Instance Profile + SSM
-  ☐ S3 bucket + CloudFront + OAC
-  ☐ WAF WebACL attached to CloudFront
-  ☐ CloudWatch log groups + metric alarms + dashboard
-
-Ansible (per deploy)
-  ☐ Pull code → install deps → build → reload app
-  ☐ Inject secrets from Secrets Manager at runtime
-  ☐ Health check validation post-deploy
-
-S3 asset update (per deploy)
-  ☐ aws s3 sync with correct cache-control headers
-  ☐ CloudFront invalidation for HTML/manifest only
-
-Ongoing
-  ☐ Review WAF Count-mode hits weekly before switching to Block
-  ☐ Monitor CloudWatch dashboard after each deploy
-  ☐ Run CloudFormation drift detection monthly
-  ☐ Rotate DB credentials via Secrets Manager auto-rotation
-```
-
----
-
-## Key Risks and Mitigations
-
-| Risk | Mitigation |
+| SG | Allows |
 |---|---|
-| WAF blocks legitimate users | Start all rules in Count mode, tune for 1–2 weeks before blocking |
-| CloudFormation update breaks DB | Always take Aurora snapshot before any stack update touching RDS |
-| Secrets in Ansible vars | Pull all secrets from Secrets Manager at runtime, never store in repo |
-| S3 assets serve stale files | Use hashed filenames + CloudFront invalidation on deploy |
-| EC2 deploy causes downtime | PM2 reload (no ASG) or ASG rolling update (with ASG) |
-| ALB accessible without WAF | Restrict `sg-alb` to CloudFront managed prefix list only |
+| `sg-alb` | 80, 443 from `0.0.0.0/0` |
+| `sg-ec2` | 3000 from `sg-alb` only |
+| `sg-db` | 5432 from `sg-ec2` only |
+| `sg-monitoring-alb` | 80, 443 from `0.0.0.0/0` |
+| `sg-monitoring` | 9090 from `0.0.0.0/0`; 3000 from `sg-monitoring-alb` |
+
+---
+
+## ACM Certificates
+
+Managed by `infra/cert-manager.sh`. Run once; ARNs are cached in SSM.
+
+| Domain | Region | Used by |
+|---|---|---|
+| `static.rengaonline.in` | `us-east-1` | CloudFront (must be us-east-1) |
+| `api-manager.rengaonline.in` | `ap-south-1` | ALB HTTPS listener |
+| `auth.rengaonline.in` | `us-east-1` | Cognito custom domain (uses CloudFront internally, must be us-east-1) |
+| `metrics.rengaonline.in` | `ap-south-1` | Monitoring ALB HTTPS listener |
+
+Validation: cert-manager calls the GoDaddy API to add ACM validation CNAME records automatically and waits for `ISSUED` status before returning.
+
+ARN storage: `/api-portal/certs/{static,api-manager,auth,metrics}` in SSM Parameter Store (ap-south-1).
+
+---
+
+## DNS (GoDaddy — rengaonline.in)
+
+`deploy.sh` updates these records automatically at Step 13 after all stacks deploy.
+
+| Record | Type | Target |
+|---|---|---|
+| `static` | CNAME | CloudFront distribution domain (from storage stack output) |
+| `api-manager` | CNAME | ALB DNS name (from compute stack output) |
+| `auth` | CNAME | Cognito CloudFront distribution domain (from cognito stack output) |
+| `metrics` | CNAME | Monitoring ALB DNS name (from monitoring stack output) |
+
+ACM validation CNAMEs (added by cert-manager.sh, pattern `_abc123.subdomain`) also live in GoDaddy and must not be removed.
+
+---
+
+## Environment Variables
+
+Stored in SSM Parameter Store as a single JSON SecureString at `/api-portal/prod/env`. Written by `deploy.sh`; read by Ansible on deploy.
+
+| Variable | Source |
+|---|---|
+| `DATABASE_URL` | Aurora endpoint + DB password (SSM) |
+| `SESSION_SECRET` | Random, generated once, stored in SSM |
+| `NODE_ENV` | `production` |
+| `PORT` | `3000` |
+| `AWS_REGION` | `ap-south-1` |
+| `AWS_ACCESS_KEY_ID` | App IAM user key (from IAM stack) |
+| `AWS_SECRET_ACCESS_KEY` | App IAM user secret (from IAM stack) |
+| `COGNITO_USER_POOL_ID` | From Cognito stack output |
+| `COGNITO_USER_POOL_ARN` | From Cognito stack output |
+| `COGNITO_CLIENT_ID` | From Cognito stack output |
+| `COGNITO_CLIENT_SECRET` | From Cognito stack output |
+
+---
+
+## Deployment Order
+
+### First-time setup
+
+```
+Step 1 — Provision ACM certificates + GoDaddy validation CNAMEs
+  export GODADDY_KEY=<key>
+  export GODADDY_SECRET=<secret>
+  ./infra/cert-manager.sh ap-south-1
+  # Takes up to 15 min for DNS propagation + ISSUED status.
+  # ARNs written to SSM /api-portal/certs/*.
+
+Step 2 — Deploy all infrastructure + set GoDaddy alias CNAMEs
+  export GODADDY_KEY=<key>
+  export GODADDY_SECRET=<secret>
+  ./infra/deploy.sh prod ap-south-1
+  # Deploys 7 CloudFormation stacks in dependency order.
+  # Step 13 automatically sets the 4 GoDaddy alias CNAME records.
+  # Prints GitHub Actions secrets to set if gh CLI is not authenticated.
+
+Step 3 — Push to main to trigger first app deploy
+  git push origin main
+  # GitHub Actions: build (with VITE_ASSETS_BASE_URL) → S3 sync → EC2 via Ansible.
+  # See CI/CD section below.
+
+Step 4 — Verify
+  curl https://api-manager.rengaonline.in/health   # expect 200
+  curl -I https://static.rengaonline.in/favicon.ico # expect 200 from CloudFront
+  open https://metrics.rengaonline.in               # Grafana login
+```
+
+> Re-running `deploy.sh` is safe and idempotent. It skips cert-manager if all 4 ARNs are already in SSM. CloudFormation stacks update only if the template changed. GoDaddy CNAMEs are overwritten (no-op if unchanged).
+
+### Ongoing deploys
+
+Push to `main` → GitHub Actions runs automatically:
+
+```
+1. Pre-deploy health check
+   GET https://api-manager.rengaonline.in/health → must return 200
+
+2. npm ci + npm run typecheck
+
+3. npm run build
+   env: VITE_ASSETS_BASE_URL=https://static.rengaonline.in/
+   → Vite bakes absolute CDN URLs into all <script> / <link> tags
+
+4. Sync build/client/ → S3 assets bucket
+   Hashed assets: Cache-Control: max-age=31536000,immutable
+   HTML + manifests: Cache-Control: no-cache,no-store
+
+5. CloudFront invalidation: /*.html /manifest.json
+
+6. Upload server bundle + Ansible playbook → S3 artifact bucket
+
+7. aws ssm send-command → Ansible on EC2
+   - Download artifact from S3
+   - Pull /api-portal/prod/env from SSM → write .env
+   - npm install --omit=dev
+   - pm2 reload ecosystem.config.cjs
+   - Health check loop (curl localhost:3000/health)
+```
+
+---
+
+## GitHub Actions Secrets
+
+Set automatically by `deploy.sh` if `gh` CLI is authenticated. Otherwise set manually in repo Settings → Secrets → Actions.
+
+| Secret | Value |
+|---|---|
+| `AWS_ACCESS_KEY_ID` | CI/CD IAM user key |
+| `AWS_SECRET_ACCESS_KEY` | CI/CD IAM user secret |
+| `AWS_REGION` | `ap-south-1` |
+| `EC2_INSTANCE_ID` | From compute stack output |
+| `S3_ARTIFACT_BUCKET` | From storage stack output |
+| `S3_ASSETS_BUCKET` | From storage stack output |
+| `CLOUDFRONT_DISTRIBUTION_ID` | From storage stack output |
+| `ALB_HEALTH_URL` | `https://api-manager.rengaonline.in/health` |
+| `VITE_ASSETS_BASE_URL` | `https://static.rengaonline.in/` |
+
+---
+
+## Monitoring
+
+| Service | URL | Notes |
+|---|---|---|
+| Grafana | `https://metrics.rengaonline.in` | Password: `aws ssm get-parameter --name /api-portal/prod/grafana-admin-password --with-decryption --query Parameter.Value --output text` |
+| Prometheus | `http://<monitoring-eip>:9090` | Direct access (no HTTPS — internal only) |
+| CloudWatch logs | `/app/ec2/application` | App structured JSON logs via OTel Collector |
+| CloudWatch logs | `/app/ec2/system` | UserData + system logs |
+| CloudWatch logs | `/app/ec2/deploys` | Ansible deploy logs per SHA |
+
+Prometheus scrapes OTel Collector metrics from the app EC2 on port `9464` using EC2 service discovery (tag `Name=api-portal-prod-ec2`). Grafana is pre-provisioned with the Prometheus datasource and Node.js OTel dashboard.
+
+CloudWatch Alarms (SNS → renganatha10@gmail.com):
+- EC2 CPU > 80% for 5 min
+- ALB 5xx count > 5 in 2 min
+
+---
+
+## Infra Update Workflow
+
+```bash
+# Preview changes before applying (recommended for all infra changes)
+aws cloudformation create-change-set \
+  --stack-name api-portal-prod-compute \
+  --template-body file://infra/3-compute.yaml \
+  --change-set-name preview-$(date +%s) \
+  --capabilities CAPABILITY_NAMED_IAM
+
+aws cloudformation describe-change-set --change-set-name <name> --stack-name <stack>
+
+# Apply if safe
+aws cloudformation execute-change-set --change-set-name <name> --stack-name <stack>
+```
+
+**Never** delete and recreate a stack containing the database. Use `DeletionPolicy: Retain` (already set on S3 buckets and DB). Always snapshot Aurora before any stack update that touches the DB cluster.
+
+---
+
+## Rollback
+
+### App rollback (bad deploy)
+```bash
+# Redeploy a previous SHA via SSM
+aws ssm send-command \
+  --instance-ids <EC2_INSTANCE_ID> \
+  --document-name AWS-RunShellScript \
+  --parameters commands=["ansible-playbook /tmp/deploy-<prev-sha>.yml -e 'git_sha=<prev-sha>'"]
+```
+
+### Asset rollback (bad S3 deploy)
+```bash
+# S3 versioning is enabled — restore previous version of any object
+aws s3api list-object-versions --bucket <assets-bucket> --prefix assets/
+aws s3api copy-object \
+  --bucket <assets-bucket> \
+  --copy-source "<assets-bucket>/assets/main.abc123.js?versionId=<old-version-id>" \
+  --key assets/main.abc123.js
+```
+
+### CloudFormation rollback
+CloudFormation automatically rolls back on stack update failure. To trigger manually:
+```bash
+aws cloudformation cancel-update-stack --stack-name <stack>
+```
+
+---
+
+## Teardown
+
+```bash
+./infra/teardown.sh prod ap-south-1
+```
+
+Order: Monitoring → Compute → IAM → Storage → Database → VPC → Cognito.
+Certs are retained (`DeletionPolicy: Retain`) and must be deleted manually in ACM console if no longer needed.

@@ -35,6 +35,7 @@ Resources:
   DBInstance:
     Type: AWS::RDS::DBInstance
     DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
     Properties:
       DBName: !Ref DBName
       Engine: postgres

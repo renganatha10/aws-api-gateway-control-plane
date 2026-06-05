@@ -22,13 +22,57 @@ Parameters:
       Prometheus release version to install (x86_64 tarball from GitHub releases).
       Check github.com/prometheus/prometheus/releases for latest.
 
+  # ACM certificate for metrics.rengaonline.in — same region as this stack (ap-south-1).
+  # Created by infra/cert-manager.sh; ARN stored in SSM /api-portal/certs/metrics.
+  MetricsCertArn:
+    Type: String
+    Default: ""
+    Description: >
+      ACM certificate ARN for metrics.rengaonline.in (ap-south-1).
+      When set, Grafana is served via ALB HTTPS on metrics.rengaonline.in.
+      Leave empty to keep direct HTTP access (EIP only).
+
+  ArtifactBucketName:
+    Type: String
+    Description: >
+      S3 artifact bucket name (from storage stack). The Grafana dashboard JSON
+      is stored at grafana/nodejs-otel.json in this bucket and downloaded at boot
+      to keep EC2 User Data under the 25,600-byte limit.
+
+Conditions:
+  HasMetricsCert: !Not [!Equals [!Ref MetricsCertArn, ""]]
+
 Resources:
+
+  # ── Security group for monitoring ALB ─────────────────────────────────────
+  # Only created when MetricsCertArn is set; allows HTTPS + HTTP (redirect).
+  SGMonitoringAlb:
+    Type: AWS::EC2::SecurityGroup
+    Condition: HasMetricsCert
+    Properties:
+      GroupDescription: Monitoring ALB - accept 80 (redirect) and 443 (Grafana HTTPS)
+      VpcId:
+        Fn::ImportValue: !Sub "api-portal-${EnvironmentName}-vpc-id"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: "0.0.0.0/0"
+          Description: HTTP redirect to HTTPS
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: "0.0.0.0/0"
+          Description: Grafana HTTPS
+      Tags:
+        - Key: Name
+          Value: !Sub "api-portal-${EnvironmentName}-sg-monitoring-alb"
 
   # ── Security group for monitoring EC2 ─────────────────────────────────────
   SGMonitoring:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Monitoring EC2 - Prometheus (9090) and Grafana (3000) public access
+      GroupDescription: Monitoring EC2 - Prometheus (9090) public; Grafana (3000) from ALB or direct
       VpcId:
         Fn::ImportValue: !Sub "api-portal-${EnvironmentName}-vpc-id"
       SecurityGroupIngress:
@@ -36,12 +80,20 @@ Resources:
           FromPort: 9090
           ToPort: 9090
           CidrIp: "0.0.0.0/0"
-          Description: Prometheus UI
-        - IpProtocol: tcp
-          FromPort: 3000
-          ToPort: 3000
-          CidrIp: "0.0.0.0/0"
-          Description: Grafana UI
+          Description: Prometheus UI (direct)
+        # Grafana: from ALB only when cert is set; direct from internet otherwise.
+        - !If
+          - HasMetricsCert
+          - IpProtocol: tcp
+            FromPort: 3000
+            ToPort: 3000
+            SourceSecurityGroupId: !Ref SGMonitoringAlb
+            Description: Grafana from monitoring ALB
+          - IpProtocol: tcp
+            FromPort: 3000
+            ToPort: 3000
+            CidrIp: "0.0.0.0/0"
+            Description: Grafana UI (direct, no ALB)
       Tags:
         - Key: Name
           Value: !Sub "api-portal-${EnvironmentName}-sg-monitoring"
@@ -88,11 +140,78 @@ Resources:
                 Action: ssm:GetParameter
                 Resource:
                   !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/api-portal/${EnvironmentName}/grafana-admin-password"
+              # Download Grafana dashboard JSON from S3 at boot
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub "arn:aws:s3:::${ArtifactBucketName}/grafana/*"
 
   MonitoringInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Roles: [!Ref MonitoringRole]
+
+  # ── Monitoring ALB (Grafana HTTPS via metrics.rengaonline.in) ─────────────
+  # Only provisioned when MetricsCertArn is provided.
+
+  MonitoringALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Condition: HasMetricsCert
+    Properties:
+      Name: !Sub "api-portal-${EnvironmentName}-monitoring-alb"
+      Scheme: internet-facing
+      Type: application
+      Subnets:
+        - Fn::ImportValue: !Sub "api-portal-${EnvironmentName}-public-subnet-a"
+        - Fn::ImportValue: !Sub "api-portal-${EnvironmentName}-public-subnet-b"
+      SecurityGroups:
+        - !Ref SGMonitoringAlb
+
+  MonitoringTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Condition: HasMetricsCert
+    Properties:
+      Name: !Sub "api-portal-${EnvironmentName}-monitoring-tg"
+      Protocol: HTTP
+      Port: 3000
+      VpcId:
+        Fn::ImportValue: !Sub "api-portal-${EnvironmentName}-vpc-id"
+      TargetType: instance
+      HealthCheckPath: /api/health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Targets:
+        - Id: !Ref MonitoringInstance
+          Port: 3000
+
+  MonitoringListenerHTTP:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: HasMetricsCert
+    Properties:
+      LoadBalancerArn: !Ref MonitoringALB
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: redirect
+          RedirectConfig:
+            Protocol: HTTPS
+            Port: "443"
+            StatusCode: HTTP_301
+
+  MonitoringListenerHTTPS:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: HasMetricsCert
+    Properties:
+      LoadBalancerArn: !Ref MonitoringALB
+      Protocol: HTTPS
+      Port: 443
+      Certificates:
+        - CertificateArn: !Ref MetricsCertArn
+      SslPolicy: ELBSecurityPolicy-TLS13-1-2-2021-06
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref MonitoringTargetGroup
 
   # ── Elastic IP (stable public address) ────────────────────────────────────
   MonitoringEIP:
@@ -261,9 +380,9 @@ Resources:
                 path: /var/lib/grafana/dashboards
           GFDP
 
-          cat > /var/lib/grafana/dashboards/nodejs-otel.json << 'GFJSON'
-          {"__inputs":[{"name":"DS_PROMETHEUS","label":"Prometheus","type":"datasource","pluginId":"prometheus","pluginName":"Prometheus"}],"__requires":[{"type":"grafana","id":"grafana","name":"Grafana","version":"9.0.0"},{"type":"datasource","id":"prometheus","name":"Prometheus","version":"1.0.0"},{"type":"panel","id":"stat","name":"Stat","version":""},{"type":"panel","id":"timeseries","name":"Time series","version":""},{"type":"panel","id":"row","name":"Row","version":""}],"annotations":[],"description":"Node.js application metrics from OpenTelemetry auto-instrumentation \u2014 HTTP, DB, event loop, and V8 heap","editable":true,"graphTooltip":1,"id":null,"links":[],"schemaVersion":41,"tags":["nodejs","opentelemetry","api-portal"],"templating":{"list":[{"current":{"text":"Prometheus","value":"prometheus"},"hide":0,"includeAll":false,"multi":false,"name":"datasource","options":[],"query":"prometheus","refresh":1,"type":"datasource"}]},"time":{"from":"now-1h","to":"now"},"title":"API Portal - Node.js OTel Metrics","uid":"api-portal-nodejs-otel","version":1,"panels":[{"id":1,"title":"Request Rate","type":"stat","gridPos":{"h":4,"w":5,"x":0,"y":0},"datasource":{"type":"prometheus","uid":"${datasource}"},"targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"sum(rate(http_server_duration_milliseconds_count[$__rate_interval]))","legendFormat":"req/s","refId":"A"}],"options":{"colorMode":"background","graphMode":"area","justifyMode":"auto","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},"fieldConfig":{"defaults":{"unit":"reqps","color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]}},"overrides":[]}},{"id":2,"title":"Error Rate","type":"stat","gridPos":{"h":4,"w":5,"x":5,"y":0},"datasource":{"type":"prometheus","uid":"${datasource}"},"targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"(sum(rate(http_server_duration_milliseconds_count{http_status_code=~\"5..\"}[$__rate_interval])) or vector(0)) / sum(rate(http_server_duration_milliseconds_count[$__rate_interval])) * 100","legendFormat":"error %","refId":"A"}],"options":{"colorMode":"background","graphMode":"area","justifyMode":"auto","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},"fieldConfig":{"defaults":{"unit":"percent","color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"yellow","value":1},{"color":"red","value":5}]}},"overrides":[]}},{"id":3,"title":"p95 Latency","type":"stat","gridPos":{"h":4,"w":5,"x":10,"y":0},"datasource":{"type":"prometheus","uid":"${datasource}"},"targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"histogram_quantile(0.95, sum by (le) (rate(http_server_duration_milliseconds_bucket[$__rate_interval])))","legendFormat":"p95","refId":"A"}],"options":{"colorMode":"background","graphMode":"area","justifyMode":"auto","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},"fieldConfig":{"defaults":{"unit":"ms","color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"yellow","value":500},{"color":"red","value":2000}]}},"overrides":[]}},{"id":4,"title":"Event Loop Utilization","type":"stat","gridPos":{"h":4,"w":5,"x":15,"y":0},"datasource":{"type":"prometheus","uid":"${datasource}"},"targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"nodejs_eventloop_utilization_ratio * 100","legendFormat":"utilization","refId":"A"}],"options":{"colorMode":"background","graphMode":"area","justifyMode":"auto","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},"fieldConfig":{"defaults":{"unit":"percent","color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"yellow","value":70},{"color":"red","value":90}]}},"overrides":[]}},{"id":5,"title":"Heap Used","type":"stat","gridPos":{"h":4,"w":4,"x":20,"y":0},"datasource":{"type":"prometheus","uid":"${datasource}"},"targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"sum(v8js_memory_heap_used_bytes)","legendFormat":"heap","refId":"A"}],"options":{"colorMode":"background","graphMode":"area","justifyMode":"auto","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},"fieldConfig":{"defaults":{"unit":"bytes","color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"yellow","value":314572800},{"color":"red","value":524288000}]}},"overrides":[]}},{"id":6,"title":"HTTP Server","type":"row","gridPos":{"h":1,"w":24,"x":0,"y":4},"collapsed":false,"panels":[]},{"id":7,"title":"Request Rate by Status Code","type":"timeseries","gridPos":{"h":8,"w":12,"x":0,"y":5},"datasource":{"type":"prometheus","uid":"${datasource}"},"targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"sum by (http_status_code) (rate(http_server_duration_milliseconds_count[$__rate_interval]))","legendFormat":"{{http_status_code}}","refId":"A"}],"options":{"tooltip":{"mode":"multi","sort":"none"},"legend":{"displayMode":"list","placement":"bottom","showLegend":true}},"fieldConfig":{"defaults":{"unit":"reqps","color":{"mode":"palette-classic"},"custom":{"lineWidth":1,"fillOpacity":10,"gradientMode":"none","showPoints":"never","spanNulls":false}},"overrides":[{"matcher":{"id":"byRegexp","options":"^5"},"properties":[{"id":"color","value":{"fixedColor":"red","mode":"fixed"}}]},{"matcher":{"id":"byRegexp","options":"^4"},"properties":[{"id":"color","value":{"fixedColor":"orange","mode":"fixed"}}]},{"matcher":{"id":"byRegexp","options":"^2"},"properties":[{"id":"color","value":{"fixedColor":"green","mode":"fixed"}}]}]}},{"id":8,"title":"Response Latency Percentiles","type":"timeseries","gridPos":{"h":8,"w":12,"x":12,"y":5},"datasource":{"type":"prometheus","uid":"${datasource}"},"targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"histogram_quantile(0.50, sum by (le) (rate(http_server_duration_milliseconds_bucket[$__rate_interval])))","legendFormat":"p50","refId":"A"},{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"histogram_quantile(0.95, sum by (le) (rate(http_server_duration_milliseconds_bucket[$__rate_interval])))","legendFormat":"p95","refId":"B"},{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"histogram_quantile(0.99, sum by (le) (rate(http_server_duration_milliseconds_bucket[$__rate_interval])))","legendFormat":"p99","refId":"C"}],"options":{"tooltip":{"mode":"multi","sort":"none"},"legend":{"displayMode":"list","placement":"bottom","showLegend":true}},"fieldConfig":{"defaults":{"unit":"ms","color":{"mode":"palette-classic"},"custom":{"lineWidth":1,"fillOpacity":5,"gradientMode":"none","showPoints":"never","spanNulls":false}},"overrides":[]}},{"id":9,"title":"HTTP Client (Outbound)","type":"row","gridPos":{"h":1,"w":24,"x":0,"y":13},"collapsed":false,"panels":[]},{"id":10,"title":"Outbound Request Rate by Peer","type":"timeseries","gridPos":{"h":8,"w":12,"x":0,"y":14},"datasource":{"type":"prometheus","uid":"${datasource}"},"targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"sum by (net_peer_name) (rate(http_client_duration_milliseconds_count[$__rate_interval]))","legendFormat":"{{net_peer_name}}","refId":"A"}],"options":{"tooltip":{"mode":"multi","sort":"none"},"legend":{"displayMode":"list","placement":"bottom","showLegend":true}},"fieldConfig":{"defaults":{"unit":"reqps","color":{"mode":"palette-classic"},"custom":{"lineWidth":1,"fillOpacity":10,"gradientMode":"none","showPoints":"never","spanNulls":false}},"overrides":[]}},{"id":11,"title":"Outbound Latency p95 by Peer","type":"timeseries","gridPos":{"h":8,"w":12,"x":12,"y":14},"datasource":{"type":"prometheus","uid":"${datasource}"},"targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"histogram_quantile(0.95, sum by (le, net_peer_name) (rate(http_client_duration_milliseconds_bucket[$__rate_interval])))","legendFormat":"{{net_peer_name}}","refId":"A"}],"options":{"tooltip":{"mode":"multi","sort":"none"},"legend":{"displayMode":"list","placement":"bottom","showLegend":true}},"fieldConfig":{"defaults":{"unit":"ms","color":{"mode":"palette-classic"},"custom":{"lineWidth":1,"fillOpacity":5,"gradientMode":"none","showPoints":"never","spanNulls":false}},"overrides":[]}},{"id":12,"title":"Database","type":"row","gridPos":{"h":1,"w":24,"x":0,"y":22},"collapsed":false,"panels":[]},{"id":13,"title":"DB Query Rate by Operation","type":"timeseries","gridPos":{"h":8,"w":8,"x":0,"y":23},"datasource":{"type":"prometheus","uid":"${datasource}"},"targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"sum by (db_operation_name) (rate(db_client_operation_duration_seconds_count[$__rate_interval]))","legendFormat":"{{db_operation_name}}","refId":"A"}],"options":{"tooltip":{"mode":"multi","sort":"none"},"legend":{"displayMode":"list","placement":"bottom","showLegend":true}},"fieldConfig":{"defaults":{"unit":"reqps","color":{"mode":"palette-classic"},"custom":{"lineWidth":1,"fillOpacity":10,"gradientMode":"none","showPoints":"never","spanNulls":false}},"overrides":[]}},{"id":14,"title":"DB Query Latency p95 by Operation","type":"timeseries","gridPos":{"h":8,"w":8,"x":8,"y":23},"datasource":{"type":"prometheus","uid":"${datasource}"},"targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"histogram_quantile(0.95, sum by (le, db_operation_name) (rate(db_client_operation_duration_seconds_bucket[$__rate_interval]))) * 1000","legendFormat":"{{db_operation_name}}","refId":"A"}],"options":{"tooltip":{"mode":"multi","sort":"none"},"legend":{"displayMode":"list","placement":"bottom","showLegend":true}},"fieldConfig":{"defaults":{"unit":"ms","color":{"mode":"palette-classic"},"custom":{"lineWidth":1,"fillOpacity":5,"gradientMode":"none","showPoints":"never","spanNulls":false}},"overrides":[]}},{"id":15,"title":"DB Connection Pool","type":"timeseries","gridPos":{"h":8,"w":8,"x":16,"y":23},"datasource":{"type":"prometheus","uid":"${datasource}"},"targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"db_client_connection_count{db_client_connection_state=\"idle\"}","legendFormat":"idle","refId":"A"},{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"db_client_connection_count{db_client_connection_state=\"used\"}","legendFormat":"used","refId":"B"},{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"db_client_connection_pending_requests","legendFormat":"pending","refId":"C"}],"options":{"tooltip":{"mode":"multi","sort":"none"},"legend":{"displayMode":"list","placement":"bottom","showLegend":true}},"fieldConfig":{"defaults":{"unit":"short","color":{"mode":"palette-classic"},"custom":{"lineWidth":1,"fillOpacity":10,"gradientMode":"none","showPoints":"never","spanNulls":false}},"overrides":[{"matcher":{"id":"byName","options":"idle"},"properties":[{"id":"color","value":{"fixedColor":"green","mode":"fixed"}}]},{"matcher":{"id":"byName","options":"used"},"properties":[{"id":"color","value":{"fixedColor":"blue","mode":"fixed"}}]},{"matcher":{"id":"byName","options":"pending"},"properties":[{"id":"color","value":{"fixedColor":"orange","mode":"fixed"}}]}]}},{"id":16,"title":"Node.js Runtime","type":"row","gridPos":{"h":1,"w":24,"x":0,"y":31},"collapsed":false,"panels":[]},{"id":17,"title":"Event Loop Delay","type":"timeseries","gridPos":{"h":8,"w":12,"x":0,"y":32},"datasource":{"type":"prometheus","uid":"${datasource}"},"targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"nodejs_eventloop_delay_p50_seconds * 1000","legendFormat":"p50","refId":"A"},{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"nodejs_eventloop_delay_p90_seconds * 1000","legendFormat":"p90","refId":"B"},{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"nodejs_eventloop_delay_p99_seconds * 1000","legendFormat":"p99","refId":"C"},{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"nodejs_eventloop_delay_max_seconds * 1000","legendFormat":"max","refId":"D"}],"options":{"tooltip":{"mode":"multi","sort":"none"},"legend":{"displayMode":"list","placement":"bottom","showLegend":true}},"fieldConfig":{"defaults":{"unit":"ms","color":{"mode":"palette-classic"},"custom":{"lineWidth":1,"fillOpacity":5,"gradientMode":"none","showPoints":"never","spanNulls":false},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"yellow","value":100},{"color":"red","value":500}]}},"overrides":[]}},{"id":18,"title":"Event Loop Utilization","type":"timeseries","gridPos":{"h":8,"w":12,"x":12,"y":32},"datasource":{"type":"prometheus","uid":"${datasource}"},"targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"nodejs_eventloop_utilization_ratio * 100","legendFormat":"utilization %","refId":"A"}],"options":{"tooltip":{"mode":"multi","sort":"none"},"legend":{"displayMode":"list","placement":"bottom","showLegend":true}},"fieldConfig":{"defaults":{"unit":"percent","min":0,"max":100,"color":{"mode":"thresholds"},"custom":{"lineWidth":1,"fillOpacity":15,"gradientMode":"none","showPoints":"never","spanNulls":false},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"yellow","value":70},{"color":"red","value":90}]}},"overrides":[]}},{"id":19,"title":"V8 Memory","type":"row","gridPos":{"h":1,"w":24,"x":0,"y":40},"collapsed":false,"panels":[]},{"id":20,"title":"Heap Used by Space","type":"timeseries","gridPos":{"h":8,"w":12,"x":0,"y":41},"datasource":{"type":"prometheus","uid":"${datasource}"},"targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"sum by (v8js_heap_space_name) (v8js_memory_heap_used_bytes{v8js_heap_space_name=~\"old_space|new_space|code_space|large_object_space\"})","legendFormat":"{{v8js_heap_space_name}}","refId":"A"}],"options":{"tooltip":{"mode":"multi","sort":"none"},"legend":{"displayMode":"list","placement":"bottom","showLegend":true}},"fieldConfig":{"defaults":{"unit":"bytes","color":{"mode":"palette-classic"},"custom":{"lineWidth":1,"fillOpacity":10,"gradientMode":"none","showPoints":"never","spanNulls":false,"stacking":{"group":"A","mode":"normal"}}},"overrides":[]}},{"id":21,"title":"GC Duration Rate","type":"timeseries","gridPos":{"h":8,"w":12,"x":12,"y":41},"datasource":{"type":"prometheus","uid":"${datasource}"},"targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"sum by (v8js_gc_type) (rate(v8js_gc_duration_seconds_sum[$__rate_interval]))","legendFormat":"{{v8js_gc_type}}","refId":"A"}],"options":{"tooltip":{"mode":"multi","sort":"none"},"legend":{"displayMode":"list","placement":"bottom","showLegend":true}},"fieldConfig":{"defaults":{"unit":"s","color":{"mode":"palette-classic"},"custom":{"lineWidth":1,"fillOpacity":10,"gradientMode":"none","showPoints":"never","spanNulls":false}},"overrides":[]}}],"cursorSync":0,"elements":{},"layout":{"kind":"GridLayout"},"preload":false,"timeSettings":{"autoRefresh":"30s","autoRefreshIntervals":["5s","10s","30s","1m","5m","15m","30m","1h","2h","1d"],"fiscalYearStartMonth":0,"hideTimepicker":false,"nowDelay":"","timezone":"browser","weekStart":""},"variables":[{"kind":"DatasourceVariable","spec":{"name":"datasource","label":"Datasource","current":{"text":"Prometheus","value":"prometheus"},"hide":0,"pluginId":"prometheus","refresh":1}}]}
-          GFJSON
+          aws s3 cp "s3://${ArtifactBucketName}/grafana/nodejs-otel.json" \
+            /var/lib/grafana/dashboards/nodejs-otel.json \
+            --region "${AWS::Region}"
 
           echo "=== Monitoring EC2 bootstrap complete ==="
 
@@ -275,10 +394,25 @@ Outputs:
     Value: !Ref MonitoringEIP
     Description: Stable public IP of the monitoring EC2
 
+  # When cert is set: Grafana is behind the ALB at https://metrics.rengaonline.in
+  # When no cert: Grafana is directly on http://<EIP>:3000
   GrafanaUrl:
-    Value: !Sub "http://${MonitoringEIP}:3000"
-    Description: Grafana — log in as admin (password in SSM /api-portal/${EnvironmentName}/grafana-admin-password)
+    Value: !If
+      - HasMetricsCert
+      - !Sub "https://${MonitoringALB.DNSName}"
+      - !Sub "http://${MonitoringEIP}:3000"
+    Description: >
+      Grafana URL. When MetricsCertArn is set, this is the ALB DNS name - point
+      metrics.rengaonline.in CNAME here, then access via https://metrics.rengaonline.in.
+      Password in SSM: /api-portal/<env>/grafana-admin-password
 
   PrometheusUrl:
     Value: !Sub "http://${MonitoringEIP}:9090"
-    Description: Prometheus UI
+    Description: Prometheus UI (direct, port 9090 on EIP)
+
+  MonitoringAlbDnsName:
+    Condition: HasMetricsCert
+    Value: !GetAtt MonitoringALB.DNSName
+    Description: >
+      ALB DNS name for Grafana HTTPS. Add a CNAME record in GoDaddy:
+      metrics.rengaonline.in → this value.

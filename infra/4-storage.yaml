@@ -1,17 +1,26 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
   S3 buckets (assets + artifacts) and CloudFront distribution.
-  Stack exports the distribution ID and asset bucket name for the CI workflow.
+  CloudFront serves ONLY static assets from S3 via static.rengaonline.in.
+  The ALB (api-manager.rengaonline.in) is the entry point for all SSR traffic
+  and is NOT an origin in this distribution.
 
 Parameters:
   EnvironmentName:
     Type: String
     Default: prod
 
-  # The ALB DNS name to use as the SSR origin (e.g. api-portal-alb-xxx.ap-south-1.elb.amazonaws.com)
-  AlbDnsName:
+  # ACM certificate for static.rengaonline.in — MUST be in us-east-1 (CloudFront requirement).
+  # Created by infra/cert-manager.sh; ARN stored in SSM /api-portal/certs/static.
+  StaticCertArn:
     Type: String
-    Description: ALB DNS name (output from stack 3-compute)
+    Default: ""
+    Description: >
+      ACM certificate ARN for static.rengaonline.in (us-east-1).
+      Leave empty to use the default CloudFront certificate (*.cloudfront.net).
+
+Conditions:
+  HasCustomDomain: !Not [!Equals [!Ref StaticCertArn, ""]]
 
 Resources:
 
@@ -91,7 +100,10 @@ Resources:
               StringEquals:
                 AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}"
 
-  # ── CloudFront distribution ────────────────────────────────────────────────
+  # ── CloudFront distribution — S3 assets only ──────────────────────────────
+  # This distribution exists solely to serve content-hashed static assets
+  # (JS, CSS, images) from S3 via https://static.rengaonline.in.
+  # All SSR / API traffic goes directly to the ALB (api-manager.rengaonline.in).
   Distribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -99,44 +111,46 @@ Resources:
         Enabled: true
         HttpVersion: http2and3
         PriceClass: PriceClass_100
-        Comment: !Sub "api-portal-${EnvironmentName}"
+        Comment: !Sub "api-portal-${EnvironmentName} static assets"
 
-        ViewerCertificate:
-          CloudFrontDefaultCertificate: true
+        # When StaticCertArn is provided: serve via static.rengaonline.in with TLS 1.2+.
+        # When empty: fall back to the default *.cloudfront.net certificate.
+        Aliases: !If
+          - HasCustomDomain
+          - [static.rengaonline.in]
+          - !Ref AWS::NoValue
+        ViewerCertificate: !If
+          - HasCustomDomain
+          - AcmCertificateArn: !Ref StaticCertArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
 
         Origins:
-          # Origin 1 — S3 static assets
+          # Only origin: S3 assets bucket.
+          # Vite content-hashes all filenames so cache-busting is automatic.
           - Id: s3-assets
             DomainName: !GetAtt AssetsBucket.RegionalDomainName
             S3OriginConfig: {}
             OriginAccessControlId: !Ref OAC
 
-          # Origin 2 — ALB (SSR + API)
-          # ALB has no HTTPS listener — CloudFront terminates TLS for viewers,
-          # then talks to the ALB over HTTP on port 80 within the AWS backbone.
-          - Id: alb-ssr
-            DomainName: !Ref AlbDnsName
-            CustomOriginConfig:
-              HTTPPort: 80
-              OriginProtocolPolicy: http-only
-
+        # Default behavior — all paths served from S3 with long cache.
+        # Vite hashes every asset filename, so there is no stale-cache problem.
         DefaultCacheBehavior:
-          TargetOriginId: alb-ssr
+          TargetOriginId: s3-assets
           ViewerProtocolPolicy: redirect-to-https
-          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad  # CachingDisabled
-          # AllViewer (not AllViewerExceptHostHeader) — forwards the original viewer
-          # Host header to the ALB so React Router's CSRF check sees Host == Origin.
-          OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3  # AllViewer
-          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized (1 year)
+          AllowedMethods: [GET, HEAD]
           CachedMethods: [GET, HEAD]
           Compress: true
 
         CacheBehaviors:
-          # Hashed assets — serve from S3 with long TTL
+          # Explicit long-cache rules kept for clarity; they match the same policy
+          # as the default behavior above — the specificity is a no-op in practice.
           - PathPattern: "/assets/*"
             TargetOriginId: s3-assets
             ViewerProtocolPolicy: redirect-to-https
-            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized (1 year)
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
             AllowedMethods: [GET, HEAD]
             CachedMethods: [GET, HEAD]
             Compress: true
@@ -149,10 +163,11 @@ Resources:
             CachedMethods: [GET, HEAD]
             Compress: true
 
+          # favicon and error SVG: keep no-cache so changes apply immediately
           - PathPattern: "/favicon.ico"
             TargetOriginId: s3-assets
             ViewerProtocolPolicy: redirect-to-https
-            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad  # CachingDisabled
             AllowedMethods: [GET, HEAD]
             CachedMethods: [GET, HEAD]
             Compress: true
@@ -160,13 +175,13 @@ Resources:
           - PathPattern: "/server-error.svg"
             TargetOriginId: s3-assets
             ViewerProtocolPolicy: redirect-to-https
-            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad  # CachingDisabled
             AllowedMethods: [GET, HEAD]
             CachedMethods: [GET, HEAD]
             Compress: true
 
         Logging:
-          Bucket: !GetAtt ArtifactBucket.DomainName  # reuse artifact bucket for CF logs
+          Bucket: !GetAtt ArtifactBucket.DomainName
           Prefix: cloudfront-logs/
 
 Outputs:
@@ -177,6 +192,9 @@ Outputs:
 
   DistributionDomain:
     Value: !GetAtt Distribution.DomainName
+    Description: >
+      CloudFront domain for the asset CDN.
+      Add a CNAME in GoDaddy: static.rengaonline.in → this value.
     Export:
       Name: !Sub "api-portal-${EnvironmentName}-cf-domain"
 
