@@ -15,7 +15,7 @@ export function ServerError({
   return (
     <div className="flex min-h-svh flex-col items-center justify-center gap-8 bg-white px-4 py-16">
       <img
-        src="/server-error.svg"
+        src={`${import.meta.env.BASE_URL}server-error.svg`}
         alt="Server error illustration"
         className="w-full max-w-sm"
         draggable={false}

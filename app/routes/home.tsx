@@ -33,7 +33,7 @@ export default function Home() {
       {/* Hero */}
       <div className="flex flex-col items-center text-center gap-6 max-w-2xl w-full">
         <img
-          src="/connected-world.svg"
+          src={`${import.meta.env.BASE_URL}connected-world.svg`}
           alt="Connected world"
           className="w-full max-w-lg select-none pointer-events-none"
           draggable={false}
