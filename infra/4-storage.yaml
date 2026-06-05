@@ -85,6 +85,27 @@ Resources:
         SigningBehavior: always
         SigningProtocol: sigv4
 
+  # ── CloudFront Response Headers Policy (CORS) ─────────────────────────────
+  # Vite emits <script type="module" crossorigin src="https://static.rengaonline.in/...">
+  # tags in the SSR HTML. Browsers send a CORS preflight for cross-origin module scripts,
+  # so CloudFront must return Access-Control-Allow-Origin on every asset response.
+  # Using a Response Headers Policy is simpler than S3 CORS + Origin header forwarding
+  # because it doesn't affect cache keys.
+  CORSResponseHeadersPolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub "api-portal-${EnvironmentName}-cors"
+        CorsConfig:
+          AccessControlAllowCredentials: false
+          AccessControlAllowHeaders:
+            Items: ["*"]
+          AccessControlAllowMethods:
+            Items: [GET, HEAD]
+          AccessControlAllowOrigins:
+            Items: ["*"]
+          OriginOverride: false
+
   AssetsBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -136,10 +157,13 @@ Resources:
 
         # Default behavior — all paths served from S3 with long cache.
         # Vite hashes every asset filename, so there is no stale-cache problem.
+        # CORSResponseHeadersPolicy adds Access-Control-Allow-Origin: * so browsers
+        # accept cross-origin module scripts loaded from static.rengaonline.in.
         DefaultCacheBehavior:
           TargetOriginId: s3-assets
           ViewerProtocolPolicy: redirect-to-https
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized (1 year)
+          ResponseHeadersPolicyId: !Ref CORSResponseHeadersPolicy
           AllowedMethods: [GET, HEAD]
           CachedMethods: [GET, HEAD]
           Compress: true
@@ -151,6 +175,7 @@ Resources:
             TargetOriginId: s3-assets
             ViewerProtocolPolicy: redirect-to-https
             CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+            ResponseHeadersPolicyId: !Ref CORSResponseHeadersPolicy
             AllowedMethods: [GET, HEAD]
             CachedMethods: [GET, HEAD]
             Compress: true
@@ -159,6 +184,7 @@ Resources:
             TargetOriginId: s3-assets
             ViewerProtocolPolicy: redirect-to-https
             CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+            ResponseHeadersPolicyId: !Ref CORSResponseHeadersPolicy
             AllowedMethods: [GET, HEAD]
             CachedMethods: [GET, HEAD]
             Compress: true
