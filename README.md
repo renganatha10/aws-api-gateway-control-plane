@@ -138,6 +138,7 @@ app/
 db/
   migrations/        # Sequential SQL migrations
 docs/                # Feature guides
+plans/               # Architecture and design decision documents
 tests/
   e2e/               # Playwright end-to-end tests
 docker-compose.yml   # Local Postgres service
@@ -149,15 +150,17 @@ CLAUDE.md            # AI coding-assistant context
 ```
 gateways
   ├── environments
-  ├── apis
-  ├── plans
-  ├── domains              (acm_certificate_arn, route mappings)
+  ├── apis                 (awsApiId, status)
+  ├── plans                (awsUsagePlanId, status)
+  ├── domains              (acm_certificate_arn, route mappings, status)
   └── products
         ├── api_associations
         ├── plan_associations
-        ├── product_deployments   (+ invoke_url)
-        └── consumers             (client_id, aws_api_key_id, token_url)
+        ├── product_deployments   (invoke_url, status)
+        └── consumers             (client_id, aws_api_key_id, token_url, status)
 ```
+
+AWS-backed entities carry a `status` column (`pending | active | failed | deleting`) to track in-flight provisioning and support safe retries. The DB record is always written before any AWS call.
 
 ## Publishing a product
 
@@ -177,8 +180,8 @@ The portal creates an AWS deployment for each API and attaches a stage named aft
 
 1. From the Consumers page, click **New Consumer**
 2. Select a product, environment, and plan
-3. On save, the portal provisions a Cognito App Client and an AWS API key
-4. The consumer detail page shows the invoke URL, token URL, and API key value
+3. On submit, the portal creates the consumer record (status `pending`), then provisions a Cognito App Client and an AWS API key. Each AWS step is persisted immediately so a partial failure can be retried without duplicating already-created resources.
+4. On success the consumer moves to `active` — the detail page shows the invoke URL, token URL, and API key value
 5. Use the **Try Out** tab to send test requests directly from the portal
 
 ## Development notes

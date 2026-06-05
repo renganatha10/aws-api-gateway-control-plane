@@ -89,17 +89,19 @@ Resource API routes (no layout, JSON responses):
 organisations
   └─ gateways          (organisation_id FK)
        └─ environments      (gateway_id FK)
-       └─ apis              (gateway_id FK, awsApiId)
-       └─ plans             (gateway_id FK, awsUsagePlanId)
-       └─ domains           (gateway_id FK, acm_certificate_arn)
+       └─ apis              (gateway_id FK, awsApiId, status)
+       └─ plans             (gateway_id FK, awsUsagePlanId, status)
+       └─ domains           (gateway_id FK, acm_certificate_arn, status)
             └─ domain_route_mappings  (domain_id FK, base_path, api_id, stage)
        └─ products          (gateway_id FK)
             └─ api_associations    (product_id, api_id, gateway_id)
             └─ plan_associations   (product_id, plan_id, gateway_id)
-            └─ product_deployments (product_id, environment_id, gateway_id, invoke_url)
+            └─ product_deployments (product_id, environment_id, gateway_id, invoke_url, status)
        └─ consumers         (product_id, environment_id, plan_id, gateway_id,
-                              client_id, aws_api_key_id, token_url)
+                              client_id, aws_api_key_id, token_url, status)
 ```
+
+`status` values for AWS-backed entities: `pending | active | failed | deleting`. See **AWS–DB consistency** section below.
 
 ## UI/UX conventions
 
@@ -200,7 +202,7 @@ See `app/components/products/` as the canonical example — `product-detail-page
 import { Tooltip as TooltipPrimitive } from "radix-ui"
 ```
 
-**Associations** — managed client-side in the UI, saved atomically on the single Save action (see `products.$id.tsx`).
+**Associations** — managed client-side in the UI, saved atomically in a single DB transaction on the Save action (see `products.$id.tsx`). The transaction must wrap `updateProduct` + `syncApiAssociations` + `syncPlanAssociations` together so the product name and its associations are committed or rolled back as one unit.
 
 **Error handling** — never return raw error messages to the UI. Every `catch` block must:
 1. `console.error("[route-or-module] description", err)` on the server
@@ -244,6 +246,64 @@ Migrations live in `db/migrations/` as plain SQL with `-- Up Migration` / `-- Do
 - Integration URIs use `${stageVariables.backendHost}` — the value is resolved from `spec.hosts[envName]` at publish time and stored on the AWS stage
 - Plans sync to AWS Usage Plans via `createUsagePlan` / `updateUsagePlan`
 - Publishing a product calls `publishProductToEnvironment` which creates/updates one stage per API per environment and stores the `invoke_url`
-- Creating a consumer provisions a Cognito App Client and an AWS API key, storing `client_id`, `aws_api_key_id`, and `token_url` on the consumer record
-- Deleting a consumer removes the Cognito App Client (`deleteAppClient`) and the API Gateway key (`deleteApiKey`) before removing the DB record. AWS cleanup runs first — if it fails the record is preserved and the user can retry.
+- Creating a consumer provisions a Cognito App Client and an AWS API key, storing `client_id`, `aws_api_key_id`, and `token_url` on the consumer record. Each AWS ID is persisted to the DB immediately after that step succeeds so retries skip completed steps.
+- Deleting a consumer soft-deletes the DB record first (`status = deleting`), then removes the Cognito App Client and the API Gateway key. AWS 404 responses are treated as success so retries are safe. See **AWS–DB consistency** for the full delete pattern.
 - Custom domains use ACM for certificate lookup (`acm.server.ts`) and API Gateway custom domain management (`custom-domain.server.ts`); route mappings are persisted in `domain_route_mappings` and synced to AWS base path mappings
+
+## AWS–DB consistency
+
+**Core principle:** the DB is always written **before** AWS. The DB record is the source of truth for desired state and in-flight status. If AWS and DB diverge, the DB wins and AWS is brought back into sync.
+
+See `plans/aws-db-consistency.md` for the full design. Key rules to enforce in code:
+
+### Status state machine
+All AWS-backed entities (`apis`, `plans`, `consumers`, `domains`, `product_deployments`) carry a `status` column:
+
+| Status | Meaning |
+|---|---|
+| `pending` | DB record created, AWS resource not yet provisioned |
+| `active` | Fully provisioned and in sync |
+| `failed` | AWS provisioning failed — retry available |
+| `deleting` | Soft-deleted in DB, AWS deletion pending |
+
+### Create
+1. Insert DB record with `status = pending` — unique constraint fires here, rejecting concurrent duplicates before any AWS call
+2. Call AWS (resource name derived from DB record ID — stable across retries)
+3. Success → update `status = active` + store AWS resource ID
+4. Failure → update `status = failed`; UI shows retry button
+5. Retry → check if AWS resource already exists by derived name; if yes, recover by updating DB; if no, re-attempt creation
+
+### Update
+1. Update DB record first (DB always reflects desired state)
+2. Call AWS to sync the change
+3. Failure → return error to UI; no status change needed; retry re-runs the sync
+
+### Delete
+1. Update `status = deleting` in DB (single write — no AWS touched yet)
+2. Call AWS delete; treat 404 as success so retries are safe
+3. Success → hard-delete the DB row
+4. Failure → leave `status = deleting`; UI shows retry button
+
+### GET resilience
+Detail-page loaders must check `status` before fetching AWS data:
+- `pending` / `failed` → render creation-state UI, skip AWS fetch
+- `deleting` → render deletion-pending UI, skip AWS fetch
+- `active` but AWS returns 404 → render tombstone: "Resource missing in AWS — delete record?" (hard-delete without AWS call)
+
+### Transactions required
+| Operation | Transaction scope |
+|---|---|
+| Product save | `updateProduct` + `syncApiAssociations` + `syncPlanAssociations` |
+| `syncApiAssociations` | Entire read + delete loop + insert loop |
+| `syncPlanAssociations` | Same |
+| `replaceMappings` | `DELETE` + `INSERT` |
+| Domain create | Domain insert + `replaceMappings` (AWS call is outside the transaction) |
+| Domain save | `replaceMappings` (AWS base-path sync is outside the transaction) |
+
+### Unique constraints (concurrency guards)
+| Table | Constraint |
+|---|---|
+| `apis` | `UNIQUE (name, gateway_id)` |
+| `plans` | `UNIQUE (name, gateway_id)` |
+| `consumers` | `UNIQUE (name, gateway_id)` |
+| `domains` | `UNIQUE (name, organisation_id)` |
